@@ -533,10 +533,19 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 // ─── ONBOARDING ────────────────────────────────────────────────────────────
 
+function BulsaLogo({ size=48 }) {
+  const r = Math.round(size * 0.224);
+  return (
+    <div style={{ width:size, height:size, borderRadius:r, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, flexShrink:0 }}>
+      <span style={{ fontFamily:"Georgia,serif", fontSize:size*0.62, fontWeight:700, color:"#fff", lineHeight:1, marginTop:size*0.06 }}>b</span>
+    </div>
+  );
+}
+
 function Onboarding({ onDone }) {
   const [step, setStep] = useState(0);
   const steps=[
-    { bg:C.gradAccent, emoji:"👛", title:"Bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
+    { bg:C.gradAccent, logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
     { bg:C.gradLime,   emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment — just memory.", cta:"Love that" },
     { bg:C.gradSky,    emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle — or don't. Your call.", cta:"Start tracking →" },
   ];
@@ -547,7 +556,7 @@ function Onboarding({ onDone }) {
       <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
       <div style={{ display:"flex", gap:6, zIndex:1 }}>{steps.map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}</div>
       <div style={{ textAlign:"center", zIndex:1, flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:26 }}>
-        <div style={{ width:100, height:100, borderRadius:30, background:s.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}`, transition:"background 0.4s" }}>{s.emoji}</div>
+        {s.logo ? <BulsaLogo size={100}/> : <div style={{ width:100, height:100, borderRadius:30, background:s.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}`, transition:"background 0.4s" }}>{s.emoji}</div>}
         <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, lineHeight:1.1, margin:0, whiteSpace:"pre-line", letterSpacing:"-0.025em" }}>{s.title}</h1>
         <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:15, color:C.textSub, lineHeight:1.75, maxWidth:272, margin:0 }}>{s.sub}</p>
       </div>
@@ -573,9 +582,12 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
-        <div>
-          <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
+        <div style={{ display:"flex", alignItems:"center", gap:10, zIndex:1 }}>
+          <BulsaLogo size={36}/>
+          <div>
+            <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
+          </div>
         </div>
         <button onClick={()=>setScreen("forecast")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Forecast →</button>
       </div>
