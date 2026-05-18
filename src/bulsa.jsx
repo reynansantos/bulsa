@@ -542,7 +542,7 @@ function Onboarding({ onDone }) {
   ];
   const s=steps[step];
   return (
-    <div style={{ minHeight:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
       <Orb x="-80px" y="60px" color={C.accent} size={320} opacity={0.13}/>
       <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
       <div style={{ display:"flex", gap:6, zIndex:1 }}>{steps.map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}</div>
@@ -1085,9 +1085,9 @@ export default function Bulsa() {
   };
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", display:"flex", justifyContent:"center" }}>
+    <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, minHeight:"100vh", background:C.bg, display:"flex", flexDirection:"column" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column" }}>
         {!onboarded?(
           <Onboarding onDone={()=>setOnboarded(true)}/>
         ):(
