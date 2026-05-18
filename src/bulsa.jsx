@@ -1,4 +1,30 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+
+// ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback((value) => {
+    try {
+      setStoredValue(prev => {
+        const next = typeof value === "function" ? value(prev) : value;
+        localStorage.setItem(key, JSON.stringify(next));
+        return next;
+      });
+    } catch (err) {
+      console.warn("localStorage write failed:", err);
+    }
+  }, [key]);
+
+  return [storedValue, setValue];
+}
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 const C = {
@@ -495,7 +521,7 @@ function NavBar({ screen, setScreen, onAdd }) {
     { id:"profile",  icon:"⊙", label:"Profile" },
   ];
   return (
-    <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center", padding:"8px 4px 20px", background:C.surface, borderTop:`1px solid ${C.border}`, position:"sticky", bottom:0, zIndex:100 }}>
+    <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center", padding:"8px 4px calc(20px + env(safe-area-inset-bottom))", background:C.surface, borderTop:`1px solid ${C.border}`, position:"sticky", bottom:0, zIndex:100 }}>
       {tabs.map((t,i)=>{
         if (!t) return <button key="add" onClick={onAdd} style={{ width:52, height:52, borderRadius:"50%", border:"none", background:C.gradAccent, fontSize:26, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, marginTop:-18, flexShrink:0 }}>+</button>;
         const active=screen===t.id;
@@ -516,7 +542,7 @@ function Onboarding({ onDone }) {
   ];
   const s=steps[step];
   return (
-    <div style={{ minHeight:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px 52px", background:C.bg, position:"relative", overflow:"hidden" }}>
+    <div style={{ minHeight:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
       <Orb x="-80px" y="60px" color={C.accent} size={320} opacity={0.13}/>
       <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
       <div style={{ display:"flex", gap:6, zIndex:1 }}>{steps.map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}</div>
@@ -1036,15 +1062,15 @@ function ProfileScreen({ income, setIncome, name, setName, expenses, setExpenses
 // ─── ROOT ──────────────────────────────────────────────────────────────────
 
 export default function Bulsa() {
-  const [onboarded, setOnboarded] = useState(false);
+  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
-  const [expenses,  setExpenses]  = useState([]);
-  const [budgets,   setBudgets]   = useState(DEFAULT_BUDGETS);
-  const [loans,     setLoans]     = useState(SEED_LOANS);
-  const [goals,     setGoals]     = useState(SEED_GOALS);
-  const [income,    setIncome]    = useState(65000);
-  const [name,      setName]      = useState("Reynan");
+  const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
+  const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
+  const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
+  const [goals,     setGoals]     = useLocalStorage("bulsa_goals", SEED_GOALS);
+  const [income,    setIncome]    = useLocalStorage("bulsa_income", 65000);
+  const [name,      setName]      = useLocalStorage("bulsa_name", "Reynan");
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -1059,9 +1085,9 @@ export default function Bulsa() {
   };
 
   return (
-    <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", justifyContent:"center" }}>
+    <div style={{ background:C.bg, minHeight:"100vh", display:"flex", justifyContent:"center" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column" }}>
+      <div style={{ width:"100%", maxWidth:420, minHeight:"100vh", background:C.bg, display:"flex", flexDirection:"column" }}>
         {!onboarded?(
           <Onboarding onDone={()=>setOnboarded(true)}/>
         ):(
