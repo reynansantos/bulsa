@@ -1,4 +1,26 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+
+// ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item !== null ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(storedValue));
+    } catch (err) {
+      console.warn("localStorage write failed:", err);
+    }
+  }, [key, storedValue]);
+
+  return [storedValue, setStoredValue];
+}
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 const C = {
@@ -167,38 +189,13 @@ function BottomSheet({ children, onClose, title }) {
 
 function PhotoPicker({ onPhoto }) {
   const ref = useRef(null);
-
-  const handleClick = (useCamera) => {
-    const input = ref.current;
-    if (!input) return;
-    // Reset value so onChange fires even if same file is picked again
-    input.value = "";
-    if (useCamera) {
-      input.setAttribute("capture", "environment");
-    } else {
-      input.removeAttribute("capture");
-    }
-    input.click();
-  };
-
   return (
     <>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        style={{ display:"none" }}
-        onChange={e => {
-          const f = e.target.files?.[0];
-          if (!f) return;
-          const r = new FileReader();
-          r.onload = ev => onPhoto(ev.target.result);
-          r.readAsDataURL(f);
-        }}
-      />
+      <input ref={ref} type="file" accept="image/*" style={{ display:"none" }}
+        onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>onPhoto(ev.target.result); r.readAsDataURL(f); }}/>
       <div style={{ display:"flex", gap:10 }}>
         {[["🖼️","Gallery",false],["📷","Camera",true]].map(([ic,lbl,cam])=>(
-          <button key={lbl} onClick={()=>handleClick(cam)}
+          <button key={lbl} onClick={()=>{ cam?ref.current.setAttribute("capture","environment"):ref.current.removeAttribute("capture"); ref.current.click(); }}
             style={{ flex:1, padding:"13px", borderRadius:14, border:`1.5px dashed ${C.border}`, background:C.cardAlt, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             <span style={{ fontSize:18 }}>{ic}</span>{lbl}
           </button>
@@ -358,11 +355,11 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
 
           {step===0&&(
             <div>
-              <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:10, borderBottom:`1px solid ${C.border}`, paddingBottom:14 }}>
-                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub }}>₱</span>
-                <input autoFocus type="number" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, borderBottom:`1px solid ${C.border}`, paddingBottom:14 }}>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
+                <input autoFocus type="text" inputMode="decimal" placeholder="0" value={amount} onChange={e=>{ const v=e.target.value.replace(/[^0-9.]/g,""); setAmount(v); }}
                   onKeyDown={e=>e.key==="Enter"&&amount&&+amount>0&&setStep(1)}
-                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent }}/>
+                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}/>
               </div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:20 }}>
                 {QUICK.map(q=>(
@@ -520,10 +517,7 @@ function NavBar({ screen, setScreen, onAdd }) {
     { id:"profile",  icon:"⊙", label:"Profile" },
   ];
   return (
-    <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center",
-      paddingTop:"8px", paddingLeft:"4px", paddingRight:"4px",
-      paddingBottom:"calc(20px + env(safe-area-inset-bottom))",
-      background:C.surface, borderTop:`1px solid ${C.border}`, position:"sticky", bottom:0, zIndex:100 }}>
+    <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center", padding:"8px 4px calc(20px + env(safe-area-inset-bottom))", background:C.surface, borderTop:`1px solid ${C.border}`, position:"sticky", bottom:0, zIndex:100 }}>
       {tabs.map((t,i)=>{
         if (!t) return <button key="add" onClick={onAdd} style={{ width:52, height:52, borderRadius:"50%", border:"none", background:C.gradAccent, fontSize:26, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, marginTop:-18, flexShrink:0 }}>+</button>;
         const active=screen===t.id;
@@ -535,21 +529,30 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 // ─── ONBOARDING ────────────────────────────────────────────────────────────
 
+function BulsaLogo({ size=48 }) {
+  const r = Math.round(size * 0.224);
+  return (
+    <div style={{ width:size, height:size, borderRadius:r, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, flexShrink:0 }}>
+      <span style={{ fontFamily:"Georgia,serif", fontSize:size*0.62, fontWeight:700, color:"#fff", lineHeight:1, marginTop:size*0.06 }}>b</span>
+    </div>
+  );
+}
+
 function Onboarding({ onDone }) {
   const [step, setStep] = useState(0);
   const steps=[
-    { bg:C.gradAccent, emoji:"👛", title:"Bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
+    { bg:C.gradAccent, logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
     { bg:C.gradLime,   emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment — just memory.", cta:"Love that" },
     { bg:C.gradSky,    emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle — or don't. Your call.", cta:"Start tracking →" },
   ];
   const s=steps[step];
   return (
-    <div style={{ minHeight:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px 52px", background:C.bg, position:"relative", overflow:"hidden" }}>
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
       <Orb x="-80px" y="60px" color={C.accent} size={320} opacity={0.13}/>
       <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
       <div style={{ display:"flex", gap:6, zIndex:1 }}>{steps.map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}</div>
       <div style={{ textAlign:"center", zIndex:1, flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:26 }}>
-        <div style={{ width:100, height:100, borderRadius:30, background:s.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}`, transition:"background 0.4s" }}>{s.emoji}</div>
+        {s.logo ? <BulsaLogo size={100}/> : <div style={{ width:100, height:100, borderRadius:30, background:s.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}`, transition:"background 0.4s" }}>{s.emoji}</div>}
         <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, lineHeight:1.1, margin:0, whiteSpace:"pre-line", letterSpacing:"-0.025em" }}>{s.title}</h1>
         <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:15, color:C.textSub, lineHeight:1.75, maxWidth:272, margin:0 }}>{s.sub}</p>
       </div>
@@ -575,9 +578,12 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
-        <div>
-          <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
+        <div style={{ display:"flex", alignItems:"center", gap:10, zIndex:1 }}>
+          <BulsaLogo size={36}/>
+          <div>
+            <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
+          </div>
         </div>
         <button onClick={()=>setScreen("forecast")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Forecast →</button>
       </div>
@@ -1064,17 +1070,15 @@ function ProfileScreen({ income, setIncome, name, setName, expenses, setExpenses
 // ─── ROOT ──────────────────────────────────────────────────────────────────
 
 export default function Bulsa() {
-  const [onboarded, setOnboarded] = useState(() => {
-    try { return localStorage.getItem("bulsa_onboarded") === "true"; } catch { return false; }
-  });
+  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
-  const [expenses,  setExpenses]  = useState([]);
-  const [budgets,   setBudgets]   = useState(DEFAULT_BUDGETS);
-  const [loans,     setLoans]     = useState(SEED_LOANS);
-  const [goals,     setGoals]     = useState(SEED_GOALS);
-  const [income,    setIncome]    = useState(65000);
-  const [name,      setName]      = useState("Reynan");
+  const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
+  const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
+  const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
+  const [goals,     setGoals]     = useLocalStorage("bulsa_goals", SEED_GOALS);
+  const [income,    setIncome]    = useLocalStorage("bulsa_income", 65000);
+  const [name,      setName]      = useLocalStorage("bulsa_name", "Reynan");
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -1089,20 +1093,11 @@ export default function Bulsa() {
   };
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", minHeight:"100dvh", display:"flex", justifyContent:"center" }}>
+    <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <style>{`
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; background: #0C0C0C; overscroll-behavior: none; }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=range] { -webkit-appearance: none; height: 4px; border-radius: 99px; outline: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #FF6B2B; cursor: pointer; }
-      `}</style>
-      <div style={{ width:"100%", maxWidth:420, minHeight:"100vh", minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column",
-        paddingTop:"env(safe-area-inset-top)", paddingLeft:"env(safe-area-inset-left)", paddingRight:"env(safe-area-inset-right)" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
         {!onboarded?(
-          <Onboarding onDone={()=>{ try { localStorage.setItem("bulsa_onboarded","true"); } catch {} setOnboarded(true); }}/>
+          <Onboarding onDone={()=>setOnboarded(true)}/>
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
