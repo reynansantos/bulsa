@@ -645,6 +645,71 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         <Card glow onClick={()=>setScreen("goals")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
       </div>
 
+      {/* ── SPEND DASHBOARD ── */}
+      {expenses.filter(e=>e.ts).length>0&&(()=>{
+        const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+        const byDay=Array(7).fill(0);
+        expenses.forEach(e=>{ if(e.ts) byDay[new Date(e.ts).getDay()]+=e.amount; });
+        const maxDay=Math.max(...byDay,1);
+        const peakIdx=byDay.indexOf(Math.max(...byDay));
+        const byCat=CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+        const topCat=byCat[0];
+        const totalAll=expenses.reduce((s,e)=>s+e.amount,0);
+        const foodAmt=byCat.find(c=>c.id==="food")?.total||0;
+        const shopAmt=byCat.find(c=>c.id==="shopping")?.total||0;
+        const fri=byDay[5],sat=byDay[6],wkAvg=(byDay[1]+byDay[2]+byDay[3]+byDay[4])/4||1;
+        let tip={ icon:"✅", text:"Your spending looks balanced. Keep logging to see more patterns." };
+        if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use — leave the rest in your account." };
+        else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam. Malaking tipid over a month.` };
+        else if(shopAmt/totalAll>0.25) tip={ icon:"🛍️", text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
+        else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning — once it's gone, it's gone." };
+        return (
+          <>
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>📊 Spend by Day</h3>
+                <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Full insights →</button>
+              </div>
+              <Card>
+                <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:72, marginBottom:8 }}>
+                  {DAYS.map((d,i)=>{ const v=byDay[i]; const h=Math.max((v/maxDay)*64,v>0?6:2); return (
+                    <div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <div style={{ width:"100%", height:h, borderRadius:"4px 4px 0 0", background:i===peakIdx&&v>0?C.accent:v>0?C.accent+"50":C.border, transition:"height 0.6s ease", boxShadow:i===peakIdx&&v>0?`0 0 10px ${C.accentGlow}`:undefined }}/>
+                      <span style={{ fontSize:9, fontWeight:i===peakIdx?800:500, color:i===peakIdx&&v>0?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span>
+                    </div>
+                  );})}
+                </div>
+                <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>You spend most on <strong style={{ color:C.accent }}>{DAYS[peakIdx]}</strong> — {fmt(byDay[peakIdx])} total</p>
+              </Card>
+            </div>
+
+            {topCat&&(
+              <div>
+                <h3 style={{ margin:"0 0 10px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>🏆 Top Categories</h3>
+                <Card>
+                  {byCat.slice(0,3).map((c,i)=>(
+                    <div key={c.id} style={{ marginBottom:i<Math.min(byCat.length,3)-1?12:0 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:15 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div>
+                        <span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)} <span style={{ fontSize:10, color:C.textFaint, fontWeight:500 }}>{totalAll?Math.round((c.total/totalAll)*100):0}%</span></span>
+                      </div>
+                      <Bar pct={totalAll?(c.total/totalAll)*100:0} color={c.color} h={5}/>
+                    </div>
+                  ))}
+                </Card>
+              </div>
+            )}
+
+            <Card style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{tip.icon}</span>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p>
+              </div>
+            </Card>
+          </>
+        );
+      })()}
+
       {photoMems.length>0&&(
         <div>
           <h3 style={{ margin:"0 0 10px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>📸 Spending memories</h3>
