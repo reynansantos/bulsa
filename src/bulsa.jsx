@@ -359,11 +359,11 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
 
           {step===0&&(
             <div>
-              <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:10, borderBottom:`1px solid ${C.border}`, paddingBottom:14 }}>
-                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub }}>₱</span>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, borderBottom:`1px solid ${C.border}`, paddingBottom:14 }}>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
                 <input autoFocus type="number" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&amount&&+amount>0&&setStep(1)}
-                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent }}/>
+                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0" }}/>
               </div>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:20 }}>
                 {QUICK.map(q=>(
