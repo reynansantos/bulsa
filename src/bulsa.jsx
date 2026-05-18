@@ -324,7 +324,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
     const now=new Date(), h=now.getHours(), mn=now.getMinutes().toString().padStart(2,"0");
     onSave({ id:uid(), name:name.trim()||catOf(catId).label, amount:+amount,
       catId:isGrocery?"grocery":catId, moodId, photo, groceryItems:gItems,
-      date:"Today", time:`${h%12||12}:${mn} ${h>=12?"PM":"AM"}` });
+      date:"Today", time:`${h%12||12}:${mn} ${h>=12?"PM":"AM"}`, ts:now.toISOString() });
     close();
   };
 
@@ -563,7 +563,7 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit }) {
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const balance    = income - totalSpent;
   const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
@@ -573,6 +573,12 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const photoMems  = expenses.filter(e=>e.photo).slice(0,4);
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
   const totalSaved = goals.reduce((s,g)=>s+g.saved,0);
+
+  const todayStr   = new Date().toDateString();
+  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
+  const dailyOver  = dailyLimit>0 && todaySpent>dailyLimit;
+  const dailyPct   = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
+  const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
 
   return (
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
@@ -608,6 +614,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       </div>
 
       {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
+
+      {dailyLimit>0&&(
+        <Card style={{ background:dailyOver?`${C.coral}0C`:`${C.green}08`, border:`1px solid ${dailyOver?C.coral+"40":C.green+"30"}`, padding:"14px 16px" }} onClick={()=>setScreen("expenses")}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{dailyOver?"🚨":"✅"}</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{dailyOver?"Over daily limit":"Today's limit"}</p></div>
+            <p style={{ margin:0, fontSize:13, fontWeight:800, color:dailyColor, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} / {fmt(dailyLimit)}</p>
+          </div>
+          <Bar pct={dailyPct} color={dailyColor} h={5}/>
+        </Card>
+      )}
 
       {moodLogs>=5&&stressAmt>0&&(
         <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} glow onClick={()=>setScreen("expenses")}>
@@ -669,9 +685,189 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   );
 }
 
+// ─── INSIGHTS TAB ──────────────────────────────────────────────────────────
+
+function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
+  const [editLimit, setEditLimit] = useState(false);
+  const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
+
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
+
+  // Day of week (all time)
+  const byDay = Array(7).fill(0);
+  expenses.forEach(e=>{ if(e.ts) byDay[new Date(e.ts).getDay()] += e.amount; });
+  const maxDay = Math.max(...byDay,1);
+  const peakDayIdx = byDay.indexOf(Math.max(...byDay));
+
+  // Category breakdown
+  const byCat = CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+  const topCat = byCat[0];
+
+  // Today's spending
+  const todayStr = new Date().toDateString();
+  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
+  const dailyPct = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
+  const dailyOver = dailyLimit>0 && todaySpent>dailyLimit;
+  const dailyColor = dailyOver ? C.coral : dailyLimit>0&&dailyPct>80 ? C.gold : C.green;
+
+  // This week's recap
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
+  const thisWeek = expenses.filter(e=>e.ts&&new Date(e.ts)>=weekStart);
+  const weekTotal = thisWeek.reduce((s,e)=>s+e.amount,0);
+  const weekByDay = Array(7).fill(0);
+  thisWeek.forEach(e=>{ if(e.ts) weekByDay[new Date(e.ts).getDay()]+=e.amount; });
+  const weekMaxDay = Math.max(...weekByDay,1);
+  const weekPeakIdx = weekByDay.indexOf(Math.max(...weekByDay));
+  const weekBestIdx = weekByDay.reduce((bi,v,i)=>v>0&&v<weekByDay[bi]?i:bi, weekByDay.findIndex(v=>v>0));
+
+  // Filipino tips (context-aware)
+  const tips = [];
+  const foodAmt = byCat.find(c=>c.id==="food")?.total||0;
+  const shopAmt = byCat.find(c=>c.id==="shopping")?.total||0;
+  const foodPct = totalSpent ? foodAmt/totalSpent : 0;
+  const shopPct = totalSpent ? shopAmt/totalSpent : 0;
+  const fri = byDay[5], sat = byDay[6], weekdayAvg = (byDay[1]+byDay[2]+byDay[3]+byDay[4])/4||1;
+  if (expenses.length===0) {
+    tips.push({ icon:"💡", tip:"Start logging to unlock your personal insights. Kahit 5 entries lang, makikita mo na ang pattern mo." });
+  } else {
+    if (income>0 && totalSpent/income>0.8) tips.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Classic one-day-millionaire move. Withdraw only what you plan to spend — leave the rest in your account.` });
+    if (foodPct>0.4) tips.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam lang. Malaking tipid over a month.` });
+    if (shopPct>0.25) tips.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule — wait 2 days before buying anything over ₱500. Madalas, mawawala na yung gusto.` });
+    if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) tips.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning — once it's gone, it's gone." });
+    if (dailyLimit>0&&todaySpent>dailyLimit*0.9) tips.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight — those small orders add up fast.` });
+    if (tips.length===0) tips.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging — mas magiging clear ang pattern mo over time." });
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+      {/* Daily Limit */}
+      <div>
+        <SLabel>Daily Spending Limit</SLabel>
+        <Card style={{ border:`1px solid ${dailyLimit>0?(dailyOver?C.coral+"50":C.green+"40"):C.border}` }}>
+          {dailyLimit>0?(
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                <div>
+                  <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{dailyOver?"Over limit today":"Today's spending"}</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} of {fmt(dailyLimit)} limit</p>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:dailyColor, fontFamily:"DM Sans,sans-serif" }}>{Math.round(dailyPct)}%</p>
+                  <button onClick={()=>{ setLimitInput(String(dailyLimit)); setEditLimit(true); }} style={{ background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700, padding:0 }}>Edit limit</button>
+                </div>
+              </div>
+              <Bar pct={dailyPct} color={dailyColor} h={7}/>
+              {dailyOver&&<p style={{ margin:"10px 0 0", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🚨 Over by {fmt(todaySpent-dailyLimit)} today</p>}
+            </div>
+          ):(
+            <div style={{ textAlign:"center", padding:"12px 0 8px" }}>
+              <p style={{ margin:"0 0 4px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No daily limit set</p>
+              <p style={{ margin:"0 0 14px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Set a limit to know when to stop spending.</p>
+              <button onClick={()=>{ setLimitInput(""); setEditLimit(true); }} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"10px 24px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Set daily limit</button>
+            </div>
+          )}
+          {editLimit&&(
+            <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:18, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>₱</span>
+                <input autoFocus type="text" inputMode="decimal" placeholder="e.g. 500" value={limitInput} onChange={e=>setLimitInput(e.target.value.replace(/[^0-9]/g,""))}
+                  style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:10, padding:"10px 12px", color:C.text, fontSize:18, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                {[300,500,800,1000,1500,2000].map(q=>(<button key={q} onClick={()=>setLimitInput(String(q))} style={{ background:limitInput===String(q)?C.accentGlow:C.card, border:`1px solid ${limitInput===String(q)?C.accent+"55":C.border}`, color:limitInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>))}
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <Btn variant="outline" onClick={()=>setEditLimit(false)}>Cancel</Btn>
+                <Btn onClick={()=>{ setDailyLimit(+limitInput||0); setEditLimit(false); }}>Save limit</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Weekly Recap */}
+      <div>
+        <SLabel>This Week</SLabel>
+        <Card>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+            <div>
+              <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(weekTotal)}</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week · {thisWeek.length} transactions</p>
+            </div>
+            {weekTotal>0&&weekPeakIdx>=0&&<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Highest spend</p><Tag color={C.coral}>{DAYS[weekPeakIdx]}</Tag></div>}
+          </div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:60 }}>
+            {DAYS.map((d,i)=>{ const v=weekByDay[i]; const h=weekMaxDay>0?Math.max((v/weekMaxDay)*56,v>0?6:2):2; return (
+              <div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                <div style={{ width:"100%", height:h, borderRadius:"4px 4px 0 0", background:i===weekPeakIdx&&v>0?C.coral:v>0?C.accent+"60":C.border, transition:"height 0.6s ease" }}/>
+                <span style={{ fontSize:9, fontWeight:i===weekPeakIdx&&v>0?800:500, color:i===weekPeakIdx&&v>0?C.coral:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span>
+              </div>
+            );})}
+          </div>
+          {weekTotal===0&&<p style={{ margin:"8px 0 0", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>No expenses logged this week yet.</p>}
+        </Card>
+      </div>
+
+      {/* Spend by Day of Week (all time) */}
+      {expenses.filter(e=>e.ts).length>0&&(
+        <div>
+          <SLabel>Your Most Expensive Day (all time)</SLabel>
+          <Card>
+            <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:80, marginBottom:8 }}>
+              {DAYS.map((d,i)=>{ const v=byDay[i]; const barH=maxDay>0?Math.max((v/maxDay)*72,v>0?8:2):2; return (
+                <div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                  <div style={{ width:"100%", height:barH, borderRadius:"4px 4px 0 0", background:i===peakDayIdx&&v>0?C.accent:v>0?C.accent+"45":C.border, transition:"height 0.7s ease", boxShadow:i===peakDayIdx&&v>0?`0 0 12px ${C.accentGlow}`:undefined }}/>
+                  <span style={{ fontSize:9, fontWeight:i===peakDayIdx&&v>0?800:500, color:i===peakDayIdx&&v>0?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span>
+                </div>
+              );})}
+            </div>
+            {byDay[peakDayIdx]>0&&<p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>You spend the most on <strong style={{ color:C.accent }}>{DAYS[peakDayIdx]}</strong> — {fmt(byDay[peakDayIdx])} total. Plan ahead for it.</p>}
+          </Card>
+        </div>
+      )}
+
+      {/* Spend by Category */}
+      {byCat.length>0&&(
+        <div>
+          <SLabel>Spend by Category (all time)</SLabel>
+          <Card>
+            {byCat.map((c,i)=>( 
+              <div key={c.id} style={{ marginBottom:i<byCat.length-1?14:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div>
+                  <div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> · {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div>
+                </div>
+                <Bar pct={totalSpent?(c.total/totalSpent)*100:0} color={c.color} h={5}/>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
+
+      {/* Filipino Tips */}
+      <div>
+        <SLabel>💡 Tips for You</SLabel>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {tips.map((t,i)=>(
+            <Card key={i} style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{t.icon}</span>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{t.tip}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, budgets, setBudgets, onAdd }) {
+function ExpensesScreen({ expenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
   const [view,   setView]   = useState("list");
   const [detail, setDetail] = useState(null);
   const [editB,  setEditB]  = useState(null);
@@ -692,7 +888,7 @@ function ExpensesScreen({ expenses, budgets, setBudgets, onAdd }) {
         <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p></Card>
       </div>
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
-        {[["list","Transactions"],["budget","Budget"],["mood","Mood"]].map(([v,lbl])=>(<button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>))}
+        {[["list","Transactions"],["budget","Budget"],["mood","Mood"],["insights","Insights"]].map(([v,lbl])=>(<button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>))}
       </div>
 
       {view==="list"&&(
@@ -753,6 +949,9 @@ function ExpensesScreen({ expenses, budgets, setBudgets, onAdd }) {
             </>
           )}
         </div>
+      )}
+      {view==="insights"&&(
+        <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
       )}
     </div>
   );
@@ -1079,13 +1278,14 @@ export default function Bulsa() {
   const [goals,     setGoals]     = useLocalStorage("bulsa_goals", SEED_GOALS);
   const [income,    setIncome]    = useLocalStorage("bulsa_income", 65000);
   const [name,      setName]      = useLocalStorage("bulsa_name", "Reynan");
+  const [dailyLimit,setDailyLimit]= useLocalStorage("bulsa_dailylimit", 0);
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>,
-    expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit}/>,
+    expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
     forecast: <ForecastScreen expenses={expenses} income={income} loans={loans} goals={goals}/>,
