@@ -591,7 +591,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
           </div>
         </div>
-        <button onClick={()=>setScreen("forecast")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Forecast →</button>
+        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive the Month →</button>
       </div>
 
       <div style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30`, borderRadius:22, padding:"26px 20px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
@@ -1153,71 +1153,123 @@ function GoalsScreen({ goals, setGoals }) {
 
 // ─── FORECAST ──────────────────────────────────────────────────────────────
 
-function ForecastScreen({ expenses, income, loans, goals }) {
-  const [extra,   setExtra]   = useState(0);
-  const [cutSubs, setCutSubs] = useState(false);
-  const [newLoan, setNewLoan] = useState(false);
-  const [gadget,  setGadget]  = useState(false);
-  const spent      = expenses.reduce((s,e)=>s+e.amount,0);
-  const base       = Math.max(income-spent,0);
-  const eom        = Math.max(base+base*0.28+extra*1.1+(cutSubs?1200:0)-(newLoan?5000:0)-(gadget?8000:0),0);
-  const diff       = eom-base;
-  const lc         = diff>=0?C.green:C.coral;
+function SurviveScreen({ expenses, income, loans, goals }) {
+  const now        = new Date();
+  const lastDay    = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const daysLeft   = lastDay - now.getDate();
+  const daysGone   = now.getDate() - 1;
+  const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
+  const balance    = Math.max(income - totalSpent, 0);
+  const spendPerDay= daysLeft>0 ? Math.floor(balance/daysLeft) : 0;
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
-  const topGoal    = [...goals].sort((a,b)=>(b.saved/b.target)-(a.saved/a.target))[0];
-  const pts=[income-spent,base*0.94,base,base*1.06,base*0.97,eom,eom*1.07,eom*1.02,eom*1.13];
-  const maxP=Math.max(...pts),minP=Math.min(...pts)*0.93,range=maxP-minP||1;
-  const W=290,H=110,gx=i=>(i/(pts.length-1))*W,gy=v=>H-((v-minP)/range)*H*0.88-6;
-  const path=pts.map((p,i)=>`${i===0?"M":"L"}${gx(i).toFixed(1)},${gy(p).toFixed(1)}`).join(" ");
+  const topGoal    = [...goals].sort((a,b)=>(b.target-b.saved)-(a.target-a.saved))[0];
+
+  // Status
+  const spentPct   = income>0 ? totalSpent/income : 0;
+  let status, statusColor, statusMsg, statusEmoji;
+  if (balance<=0) {
+    status="Naubos na"; statusColor=C.coral; statusEmoji="💀";
+    statusMsg="Wala na. Huwag nang mag-gastos. Survive mode: ON.";
+  } else if (spentPct>0.75) {
+    status="Mag-ingat ka na"; statusColor=C.gold; statusEmoji="⚠️";
+    statusMsg="Mahirap nang maabot ang next paycheck. I-hold na ang lahat ng hindi kailangan.";
+  } else if (spentPct>0.5) {
+    status="Puwede pa"; statusColor=C.accentSoft; statusEmoji="👀";
+    statusMsg="Nasa gitna ka na. Mag-isip muna bago mag-gastos ng hindi nakaplano.";
+  } else {
+    status="On track"; statusColor=C.green; statusEmoji="✅";
+    statusMsg="Ayos ka pa. Keep going — huwag lang mag-justify ng unnecessary purchases.";
+  }
+
+  // Today's spend
+  const todayStr   = now.toDateString();
+  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
+
+  // Month progress
+  const monthPct   = Math.round((daysGone/lastDay)*100);
+  const spendPct   = income>0 ? Math.min(Math.round((totalSpent/income)*100),100) : 0;
+  const ahead      = spendPct <= monthPct;
 
   return (
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Forecast</h2>
-        <Tag color={C.accentSoft}>Live model</Tag>
+      <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Survive the Month</h2>
+
+      {/* Status card */}
+      <div style={{ background:`linear-gradient(145deg,${statusColor}18,${statusColor}08)`, border:`1.5px solid ${statusColor}50`, borderRadius:22, padding:"28px 22px", textAlign:"center", position:"relative", overflow:"hidden" }}>
+        <Orb x="50%" y="-40px" color={statusColor} size={200} opacity={0.15}/>
+        <div style={{ fontSize:52, marginBottom:10 }}>{statusEmoji}</div>
+        <p style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:statusColor }}>{status}</p>
+        <p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.65, maxWidth:260, marginInline:"auto" }}>{statusMsg}</p>
       </div>
-      <Card style={{ padding:"20px 18px 14px" }}>
-        <SLabel>Projected balance</SLabel>
-        <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4 }}>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:C.text }}>{fmt(Math.round(eom))}</p>
-          <span style={{ fontSize:13, fontWeight:800, color:lc, fontFamily:"DM Sans,sans-serif" }}>{diff>=0?`↑ +${fmt(Math.round(diff))}`:`↓ -${fmt(Math.round(Math.abs(diff)))}`}</span>
-        </div>
-        <p style={{ margin:"0 0 14px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>end of month projection</p>
-        <svg width={W} height={H+10} style={{ display:"block", overflow:"visible" }}>
-          <defs><linearGradient id="fgb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={lc} stopOpacity="0.22"/><stop offset="100%" stopColor={lc} stopOpacity="0"/></linearGradient></defs>
-          <path d={`${path} L${W},${H} L0,${H} Z`} fill="url(#fgb)"/>
-          <path d={path} fill="none" stroke={lc} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          {pts.map((p,i)=>(<circle key={i} cx={gx(i)} cy={gy(p)} r={i===5?5:3} fill={i===5?lc:C.card} stroke={lc} strokeWidth="2"/>))}
-        </svg>
-        <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>{["Now","W1","W2","W3","W4","EOM","+1M","+2M","+3M"].map(l=>(<span key={l} style={{ fontSize:8, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{l}</span>))}</div>
+
+      {/* The one number that matters */}
+      <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${spendPerDay>0?C.accent+"40":C.coral+"40"}`, textAlign:"center", padding:"24px 20px" }}>
+        <SLabel>You can spend per day</SLabel>
+        <p style={{ margin:"8px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:52, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.03em" }}>{fmt(spendPerDay)}</p>
+        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} days left · {fmt(balance)} remaining</p>
       </Card>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}25` }}><SLabel>Remaining Debt</SLabel><p style={{ margin:0, fontSize:18, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p></Card>
-        {topGoal&&(<Card style={{ background:`${topGoal.color}0C`, border:`1px solid ${topGoal.color}25` }}><SLabel>Top Goal</SLabel><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{topGoal.emoji} {topGoal.name}</p><p style={{ margin:0, fontSize:12, color:topGoal.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{Math.round((topGoal.saved/topGoal.target)*100)}% there</p></Card>)}
-      </div>
-
-      <h3 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:800, color:C.text }}>What-If Simulator</h3>
+      {/* Month vs spend progress */}
       <Card>
-        <p style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Extra loan payment / month</p>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱0</span><span style={{ fontSize:14, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>+{fmt(extra)}</span></div>
-        <input type="range" min={0} max={10000} step={500} value={extra} onChange={e=>setExtra(+e.target.value)} style={{ width:"100%", accentColor:C.accent }}/>
-      </Card>
-      {[
-        { label:"Cut subscriptions",  sub:"Save ~₱1,200/mo",       val:cutSubs, set:setCutSubs, color:C.mint },
-        { label:"Take a new loan",    sub:"−₱5,000/mo commitment", val:newLoan, set:setNewLoan, color:C.coral },
-        { label:"Buy a gadget (₱8k)", sub:"One-time expense",       val:gadget,  set:setGadget,  color:C.gold },
-      ].map(item=>(<Card key={item.label} style={{ padding:"14px 16px" }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{item.sub}</p></div><Toggle on={item.val} setOn={item.set} color={item.color}/></div></Card>))}
-
-      <Card style={{ background:diff>=0?`${C.green}0C`:`${C.coral}0C`, border:`1px solid ${lc}35` }}>
-        <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-          <span style={{ fontSize:22, flexShrink:0 }}>{diff>=0?"🟢":"🔴"}</span>
-          <p style={{ margin:0, fontSize:14, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            {diff>=0?`These choices add ${fmt(Math.round(diff))} to your month-end balance.`:`This costs you ${fmt(Math.round(Math.abs(diff)))} by month-end.`}
-            {topGoal&&diff>=0?` ${topGoal.emoji} ${topGoal.name} stays on track.`:""}
-          </p>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Month used vs money spent</p>
+          <Tag color={ahead?C.green:C.coral}>{ahead?"Ahead":"Behind"}</Tag>
         </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>📅 Month used</span><span style={{ fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{monthPct}%</span></div>
+            <Bar pct={monthPct} color={C.sky} h={7}/>
+          </div>
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>💸 Income spent</span><span style={{ fontSize:11, fontWeight:700, color:spendPct>monthPct?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{spendPct}%</span></div>
+            <Bar pct={spendPct} color={spendPct>monthPct?C.coral:C.green} h={7}/>
+          </div>
+        </div>
+        <p style={{ margin:"12px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{ahead?`Spending less than the month has passed. ${fmt(Math.round((monthPct-spendPct)/100*income))} ahead of pace.`:`Spending faster than the month is moving. Slow down.`}</p>
       </Card>
+
+      {/* Today */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Card style={{ textAlign:"center" }}>
+          <p style={{ margin:"0 0 6px", fontSize:32 }}>📅</p>
+          <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>{daysLeft}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>days left</p>
+        </Card>
+        <Card style={{ textAlign:"center" }}>
+          <p style={{ margin:"0 0 6px", fontSize:32 }}>💸</p>
+          <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent today</p>
+        </Card>
+      </div>
+
+      {/* Debt reminder */}
+      {totalDebt>0&&(
+        <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28`, padding:"14px 16px" }}>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <span style={{ fontSize:22 }}>⊗</span>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Don't forget your loans</p>
+              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)} total remaining debt</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Top goal reminder */}
+      {topGoal&&(
+        <Card style={{ background:`${topGoal.color}0C`, border:`1px solid ${topGoal.color}28`, padding:"14px 16px" }}>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <span style={{ fontSize:22 }}>{topGoal.emoji}</span>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{topGoal.name}</p>
+              <p style={{ margin:0, fontSize:12, color:topGoal.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{fmt(topGoal.target-topGoal.saved)} to go</p>
+            </div>
+            <Ring pct={Math.round((topGoal.saved/topGoal.target)*100)} size={44} stroke={4} color={topGoal.color}><span style={{ fontSize:9, fontWeight:800, color:topGoal.color, fontFamily:"DM Sans,sans-serif" }}>{Math.round((topGoal.saved/topGoal.target)*100)}%</span></Ring>
+          </div>
+        </Card>
+      )}
+
+      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Kaya mo 'yan. 🇵🇭</p>
     </div>
   );
 }
@@ -1239,7 +1291,7 @@ function ProfileScreen({ income, setIncome, name, setName, expenses, setExpenses
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Profile</h2>
-        <button onClick={()=>setScreen("forecast")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Forecast →</button>
+        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive the Month →</button>
       </div>
 
       <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30` }}>
@@ -1306,7 +1358,7 @@ function ProfileScreen({ income, setIncome, name, setName, expenses, setExpenses
         <SLabel>Quick Links</SLabel>
         {[
           { id:"loans",    icon:"⊗", clr:C.coral,  label:"Loans & Debt",        sub:"Manage your active loans" },
-          { id:"forecast", icon:"⟁", clr:C.accent, label:"Forecast Simulator",  sub:"Run what-if scenarios" },
+          { id:"survive", icon:"⟁", clr:C.accent, label:"Survive the Month",  sub:"Can you make it to paycheck?" },
           { id:"goals",    icon:"◎", clr:C.sky,    label:"Savings Goals",        sub:"Track your targets" },
         ].map(item=>(<Card key={item.id} onClick={()=>setScreen(item.id)} glow style={{ padding:"14px 16px", marginBottom:8 }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ width:38, height:38, borderRadius:11, background:`${item.clr}1A`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{item.icon}</div><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{item.sub}</p></div><span style={{ color:C.textFaint, fontSize:18 }}>›</span></div></Card>))}
       </div>
@@ -1353,7 +1405,7 @@ export default function Bulsa() {
     expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
-    forecast: <ForecastScreen expenses={expenses} income={income} loans={loans} goals={goals}/>,
+    survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen}/>,
   };
 
