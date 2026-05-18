@@ -1059,9 +1059,9 @@ export default function Bulsa() {
   };
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", display:"flex", justifyContent:"center" }}>
+    <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", justifyContent:"center" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, minHeight:"100vh", background:C.bg, display:"flex", flexDirection:"column" }}>
+      <div style={{ width:"100%", maxWidth:420, minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column" }}>
         {!onboarded?(
           <Onboarding onDone={()=>setOnboarded(true)}/>
         ):(
