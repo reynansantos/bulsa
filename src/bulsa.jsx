@@ -539,31 +539,79 @@ function BulsaLogo({ size=48 }) {
 }
 
 function Onboarding({ onDone }) {
-  const [step, setStep] = useState(0);
-  const steps=[
-    { bg:C.gradAccent, logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
-    { bg:C.gradLime,   emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment — just memory.", cta:"Love that" },
-    { bg:C.gradSky,    emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle — or don't. Your call.", cta:"Start tracking →" },
+  const [step,      setStep]     = useState(0);
+  const [nameInput, setNameInput]= useState("");
+  const [incInput,  setIncInput] = useState("");
+
+  const isSetup = step === 3;
+
+  const slides=[
+    { logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
+    { emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment — just memory.", cta:"Love that" },
+    { emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle — or don't. Your call.", cta:"Almost there →" },
   ];
-  const s=steps[step];
+
+  const handleDone = () => {
+    if (!nameInput.trim()) return;
+    onDone({ name: nameInput.trim(), income: +incInput||0 });
+  };
+
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
       <Orb x="-80px" y="60px" color={C.accent} size={320} opacity={0.13}/>
       <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
-      <div style={{ display:"flex", gap:6, zIndex:1 }}>{steps.map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}</div>
-      <div style={{ textAlign:"center", zIndex:1, flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:26 }}>
-        {s.logo ? <BulsaLogo size={100}/> : <div style={{ width:100, height:100, borderRadius:30, background:s.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}`, transition:"background 0.4s" }}>{s.emoji}</div>}
-        <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, lineHeight:1.1, margin:0, whiteSpace:"pre-line", letterSpacing:"-0.025em" }}>{s.title}</h1>
-        <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:15, color:C.textSub, lineHeight:1.75, maxWidth:272, margin:0 }}>{s.sub}</p>
+      <div style={{ display:"flex", gap:6, zIndex:1 }}>
+        {[...slides,{}].map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}
       </div>
-      <button onClick={()=>step<steps.length-1?setStep(p=>p+1):onDone()} style={{ background:C.gradAccent, color:"#fff", border:"none", borderRadius:16, padding:"18px 0", fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", cursor:"pointer", zIndex:1, width:"100%", boxShadow:`0 8px 32px ${C.accentGlow}` }}>{s.cta}</button>
+
+      {!isSetup ? (()=>{ const s=slides[step]; return (
+        <div style={{ textAlign:"center", zIndex:1, flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:26 }}>
+          {s.logo ? <BulsaLogo size={100}/> : <div style={{ width:100, height:100, borderRadius:30, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}` }}>{s.emoji}</div>}
+          <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, lineHeight:1.1, margin:0, whiteSpace:"pre-line", letterSpacing:"-0.025em" }}>{s.title}</h1>
+          <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:15, color:C.textSub, lineHeight:1.75, maxWidth:272, margin:0 }}>{s.sub}</p>
+        </div>
+      );})() : (
+        <div style={{ zIndex:1, flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:24, width:"100%" }}>
+          <div style={{ textAlign:"center", marginBottom:8 }}>
+            <div style={{ width:72, height:72, borderRadius:22, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px", boxShadow:`0 12px 40px ${C.accentGlow}` }}>👋</div>
+            <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.text, margin:"0 0 6px", letterSpacing:"-0.025em" }}>Set up your profile</h1>
+            <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:14, color:C.textSub, margin:0 }}>Just two things and you're in.</p>
+          </div>
+          <div>
+            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>What's your name?</p>
+            <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
+              placeholder="e.g. Reyn, Mico, Jessa..."
+              onKeyDown={e=>e.key==="Enter"&&nameInput.trim()&&handleDone()}
+              style={{ width:"100%", background:C.card, border:`1px solid ${nameInput.trim()?C.accent+"60":C.border}`, borderRadius:14, padding:"16px 18px", color:C.text, fontSize:18, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box", transition:"border 0.2s" }}/>
+          </div>
+          <div>
+            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Monthly income? (optional)</p>
+            <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 18px", gap:8 }}>
+              <span style={{ fontSize:18, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+              <input type="text" inputMode="decimal" value={incInput} onChange={e=>setIncInput(e.target.value.replace(/[^0-9]/g,""))}
+                placeholder="You can set this later"
+                style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+              {[15000,20000,25000,30000,40000,50000].map(q=>(<button key={q} onClick={()=>setIncInput(String(q))} style={{ background:incInput===String(q)?C.accentGlow:C.surface, border:`1px solid ${incInput===String(q)?C.accent+"55":C.border}`, color:incInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{(q/1000).toFixed(0)}k</button>))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={()=> isSetup ? handleDone() : setStep(p=>p+1)}
+        disabled={isSetup && !nameInput.trim()}
+        style={{ background:isSetup&&!nameInput.trim()?C.border:C.gradAccent, color:"#fff", border:"none", borderRadius:16, padding:"18px 0", fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", cursor:isSetup&&!nameInput.trim()?"not-allowed":"pointer", zIndex:1, width:"100%", boxShadow:isSetup&&!nameInput.trim()?"none":`0 8px 32px ${C.accentGlow}`, transition:"all 0.2s" }}>
+        {isSetup ? (nameInput.trim() ? `Let's go, ${nameInput.split(" ")[0]} →` : "Enter your name first") : slides[step].cta}
+      </button>
     </div>
   );
 }
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar }) {
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const balance    = income - totalSpent;
   const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
@@ -588,10 +636,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           <BulsaLogo size={36}/>
           <div>
             <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name} 👋</p>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name||"there"} 👋</p>
           </div>
         </div>
-        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive the Month →</button>
+        <div onClick={()=>setScreen("profile")} style={{ cursor:"pointer" }}>
+          {avatar?(
+            <img src={avatar} alt="avatar" style={{ width:38, height:38, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
+          ):(
+            <div style={{ width:38, height:38, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+          )}
+        </div>
       </div>
 
       <div style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30`, borderRadius:22, padding:"26px 20px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
@@ -1276,41 +1330,81 @@ function SurviveScreen({ expenses, income, loans, goals }) {
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, expenses, setExpenses, setScreen }) {
+function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen }) {
   const [editIncome, setEditIncome] = useState(false);
   const [editName,   setEditName]   = useState(false);
+  const [editBio,    setEditBio]    = useState(false);
   const [incInput,   setIncInput]   = useState(String(income));
   const [nameInput,  setNameInput]  = useState(name);
+  const [bioInput,   setBioInput]   = useState(bio);
   const [confirmClear, setCC]       = useState(false);
+  const avatarRef = useRef(null);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
   const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
 
+  const pickAvatar = () => avatarRef.current?.click();
+  const onAvatarFile = e => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => setAvatar(ev.target.result);
+    r.readAsDataURL(f);
+  };
+
   return (
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Profile</h2>
-        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive the Month →</button>
+        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive →</button>
       </div>
 
+      {/* Avatar + Name + Bio card */}
       <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          <div style={{ width:60, height:60, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0, boxShadow:`0 0 20px ${C.accentGlow}` }}>{name.charAt(0).toUpperCase()}</div>
+        <input ref={avatarRef} type="file" accept="image/*" style={{ display:"none" }} onChange={onAvatarFile}/>
+        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:14 }}>
+          <div onClick={pickAvatar} style={{ position:"relative", flexShrink:0, cursor:"pointer" }}>
+            {avatar?(
+              <img src={avatar} alt="avatar" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
+            ):(
+              <div style={{ width:64, height:64, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 20px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+            )}
+            <div style={{ position:"absolute", bottom:0, right:0, width:22, height:22, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, border:`2px solid ${C.card}` }}>📷</div>
+          </div>
           <div style={{ flex:1 }}>
             {editName?(
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); } if(e.key==="Escape") setEditName(false); }} style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:10, padding:"8px 12px", color:C.text, fontSize:16, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif" }}/>
+                <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==="Enter"){ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); } if(e.key==="Escape") setEditName(false); }}
+                  style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:10, padding:"8px 12px", color:C.text, fontSize:16, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif" }}/>
                 <button onClick={()=>{ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); }} style={{ background:C.gradAccent, border:"none", borderRadius:10, padding:"8px 14px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Save</button>
               </div>
             ):(
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <p style={{ margin:0, fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{name}</p>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <p style={{ margin:0, fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{name||"Set your name"}</p>
                 <button onClick={()=>{ setNameInput(name); setEditName(true); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
               </div>
             )}
-            <p style={{ margin:"4px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>bulsa. member</p>
+            <p style={{ margin:"3px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>bulsa. member</p>
           </div>
+        </div>
+
+        {/* Bio */}
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
+          {editBio?(
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input autoFocus value={bioInput} onChange={e=>setBioInput(e.target.value)} placeholder="e.g. Marketing · BGC · trying to save"
+                maxLength={60}
+                onKeyDown={e=>{ if(e.key==="Enter"){ setBio(bioInput.trim()); setEditBio(false); } if(e.key==="Escape") setEditBio(false); }}
+                style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:10, padding:"8px 12px", color:C.text, fontSize:13, outline:"none", fontFamily:"DM Sans,sans-serif" }}/>
+              <button onClick={()=>{ setBio(bioInput.trim()); setEditBio(false); }} style={{ background:C.gradAccent, border:"none", borderRadius:10, padding:"8px 14px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Save</button>
+            </div>
+          ):(
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <p style={{ margin:0, fontSize:12, color:bio?C.textSub:C.textFaint, fontFamily:"DM Sans,sans-serif", flex:1, fontStyle:bio?"normal":"italic" }}>{bio||"Add a short bio..."}</p>
+              <button onClick={()=>{ setBioInput(bio); setEditBio(true); }} style={{ background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700, padding:0, flexShrink:0 }}>{bio?"Edit":"+ Add"}</button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -1393,20 +1487,28 @@ export default function Bulsa() {
   const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
   const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
   const [goals,     setGoals]     = useLocalStorage("bulsa_goals", SEED_GOALS);
-  const [income,    setIncome]    = useLocalStorage("bulsa_income", 65000);
-  const [name,      setName]      = useLocalStorage("bulsa_name", "Reynan");
+  const [income,    setIncome]    = useLocalStorage("bulsa_income", 0);
+  const [name,      setName]      = useLocalStorage("bulsa_name", "");
   const [dailyLimit,setDailyLimit]= useLocalStorage("bulsa_dailylimit", 0);
+  const [avatar,    setAvatar]    = useLocalStorage("bulsa_avatar", null);
+  const [bio,       setBio]       = useLocalStorage("bulsa_bio", "");
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
 
+  const handleOnboardDone = ({ name:n, income:inc }) => {
+    if (n) setName(n);
+    if (inc>0) setIncome(inc);
+    setOnboarded(true);
+  };
+
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar}/>,
     expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
     survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen}/>,
   };
 
   return (
@@ -1414,7 +1516,7 @@ export default function Bulsa() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
         {!onboarded?(
-          <Onboarding onDone={()=>setOnboarded(true)}/>
+          <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
