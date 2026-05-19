@@ -982,8 +982,8 @@ function NavBar({ screen, setScreen, onAdd }) {
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
 
+      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
       <NavIcon icon={Wallet}     active={screen==="wallets"}  label="Accounts" onClick={()=>setScreen("wallets")}/>
-      <NavIcon icon={User}       active={screen==="profile"}  label="Profile"  onClick={()=>setScreen("profile")}/>
     </div>
   );
 }
