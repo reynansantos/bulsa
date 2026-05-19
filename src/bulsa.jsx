@@ -271,13 +271,38 @@ function BottomSheet({ children, onClose, title }) {
 
 // ─── PHOTO PICKER ──────────────────────────────────────────────────────────
 
+// Compress image to max ~400px wide and quality 0.7 before storing.
+// A raw phone photo can be 3–5MB as base64 — way over localStorage's 5MB total.
+// After compression it's typically 30–80KB, safe to persist.
+function compressImage(file, maxWidth=400, quality=0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = ev => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale  = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function PhotoPicker({ onPhoto }) {
   const ref = useRef(null);
 
   const handleClick = (useCamera) => {
     const input = ref.current;
     if (!input) return;
-    input.value = ""; // reset so onChange fires even if same file picked again
+    input.value = "";
     if (useCamera) {
       input.setAttribute("capture", "environment");
     } else {
@@ -286,10 +311,23 @@ function PhotoPicker({ onPhoto }) {
     input.click();
   };
 
+  const handleFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const compressed = await compressImage(f);
+      onPhoto(compressed);
+    } catch {
+      // fallback: read as-is if canvas fails (rare)
+      const r = new FileReader();
+      r.onload = ev => onPhoto(ev.target.result);
+      r.readAsDataURL(f);
+    }
+  };
+
   return (
     <>
-      <input ref={ref} type="file" accept="image/*" style={{ display:"none" }}
-        onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>onPhoto(ev.target.result); r.readAsDataURL(f); }}/>
+      <input ref={ref} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFile}/>
       <div style={{ display:"flex", gap:10 }}>
         {[["🖼️","Gallery",false],["📷","Camera",true]].map(([ic,lbl,cam])=>(
           <button key={lbl} onClick={()=>handleClick(cam)}
@@ -1073,7 +1111,6 @@ function Onboarding({ onDone }) {
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets }) {
-  const [heroView, setHeroView] = useState("today"); // "today" | "month"
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -1087,10 +1124,9 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
   const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
 
-  const todayStr      = new Date().toDateString();
-  const todayExpenses = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr);
-  const todaySpent    = todayExpenses.reduce((s,e)=>s+e.amount,0);
-  const dailyOver     = dailyLimit>0 && todaySpent>dailyLimit;
+  const todayStr   = new Date().toDateString();
+  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
+  const dailyOver  = dailyLimit>0 && todaySpent>dailyLimit;
   const dailyPct   = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
   const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
 
@@ -1138,61 +1174,21 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"28px 22px 22px", position:"relative", overflow:"hidden", zIndex:1 }}>
         <Orb x="40%" y="-30px" color={C.accent} size={220} opacity={0.25}/>
-        {/* Today vs Month toggle */}
-        <div style={{ display:"flex", gap:6, marginBottom:14 }}>
-          {[["today","Today"],["month","Month"]].map(([v,lbl])=>(
-            <button key={v} onClick={()=>setHeroView(v)} style={{ padding:"4px 12px", borderRadius:99, border:`1px solid ${heroView===v?C.accent+"60":C.border}`, background:heroView===v?C.accentGlow:"none", color:heroView===v?C.accent:C.textFaint, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer" }}>{lbl}</button>
-          ))}
-        </div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <SLabel>{heroView==="today" ? "Today's Spend" : (walletTotal !== null ? "Total Across Accounts" : "Available Balance")}</SLabel>
-            <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>
-              {heroView==="today" ? fmt(todaySpent) : fmt(balance)}
-            </h2>
-            {heroView==="today" ? (
-              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                {todayExpenses.length} item{todayExpenses.length!==1?"s":""} today
-                {dailyLimit>0&&<span style={{ color:todaySpent>dailyLimit?C.coral:C.green, fontWeight:700 }}> · {todaySpent>dailyLimit?"over":"under"} {fmt(dailyLimit)} limit</span>}
-              </p>
-            ) : (
-              <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
-            )}
+            <SLabel>{walletTotal !== null ? "Total Across Accounts" : "Available Balance"}</SLabel>
+            <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(balance)}</h2>
+            <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
           </div>
-          {heroView==="today" ? (
-            <div style={{ textAlign:"right" }}>
-              {dailyLimit>0 ? (
-                <Ring pct={Math.min(Math.round((todaySpent/dailyLimit)*100),100)} size={62} stroke={5} color={todaySpent>dailyLimit?C.coral:C.green}>
-                  <span style={{ fontSize:10, fontWeight:800, color:todaySpent>dailyLimit?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{Math.min(Math.round((todaySpent/dailyLimit)*100),100)}%</span>
-                </Ring>
-              ) : (
-                <div style={{ width:62, height:62, borderRadius:"50%", background:`${C.accent}12`, border:`1.5px dashed ${C.accent}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>💸</div>
-              )}
-            </div>
-          ) : (
-            <Ring pct={savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{savePct}%</span></Ring>
-          )}
+          <Ring pct={savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{savePct}%</span></Ring>
         </div>
-        {heroView==="today" && todayExpenses.length > 0 && (
-          // Mini today breakdown — category pills
-          <div style={{ display:"flex", gap:6, marginTop:14, flexWrap:"wrap" }}>
-            {(() => {
-              const byCat = CATS.map(c=>({ ...c, total:todayExpenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,4);
-              return byCat.map(c=>(
-                <span key={c.id} style={{ background:`${c.color}18`, border:`1px solid ${c.color}35`, color:c.color, borderRadius:99, padding:"3px 10px", fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>{c.icon} {fmt(c.total)}</span>
-              ));
-            })()}
+        <div style={{ marginTop:20 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSpent)} spent of {fmt(income)}</span>
+            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM est: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
           </div>
-        )}
-        {heroView==="month" && (
-          <div style={{ marginTop:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSpent)} spent of {fmt(income)}</span>
-              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM est: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
-            </div>
-            <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
-          </div>
-        )}
+          <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
+        </div>
         {/* Wallet breakdown strip */}
         {wallets && wallets.length > 0 && (
           <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.accent}20` }}>
@@ -1373,52 +1369,26 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         </div>
       )}
 
-      {/* ── TODAY / RECENT grouped preview ── */}
       <div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
           <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>Recent</h3>
-          <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
+          <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all</button>
         </div>
-
-        {expenses.length===0 ? (
+        {expenses.length===0?(
           <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
-        ) : (() => {
-          // Group the most recent ~20 expenses into day buckets, show max 3 days
-          const recent = [...expenses].sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).slice(0,20);
-          const groups = groupByDay(recent).slice(0,3);
-          return (
-            <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-              {groups.map((g, gi) => (
-                <div key={g.dateStr} style={{ marginBottom:gi<groups.length-1?20:0 }}>
-                  {/* Day header */}
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <div style={{ width:3, height:16, borderRadius:99, background:g.label==="Today"?C.accent:C.borderLight }}/>
-                      <span style={{ fontSize:13, fontWeight:800, color:g.label==="Today"?C.accent:C.text, fontFamily:"DM Sans,sans-serif" }}>{g.label}</span>
-                      <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{g.items.length} item{g.items.length!==1?"s":""}</span>
-                    </div>
-                    <span style={{ fontSize:14, fontWeight:800, color:g.label==="Today"?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(g.total)}</span>
-                  </div>
-                  {/* Expense rows — max 3 per day in home view */}
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {g.items.slice(0,3).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                      <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>setScreen("expenses")}>
-                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                          {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
-                          <div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p></div>
-                          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>{m&&<span style={{ fontSize:13 }}>{m.emoji}</span>}<p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p></div>
-                        </div>
-                      </Card>
-                    );})}
-                    {g.items.length>3&&(
-                      <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700, textAlign:"left", padding:"0 4px" }}>+{g.items.length-3} more → </button>
-                    )}
-                  </div>
+        ):(
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {expenses.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+              <Card key={e.id} style={{ padding:"12px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
+                  <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · {e.groceryItems.length} items</span>}</p></div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>{m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}<p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p></div>
                 </div>
-              ))}
-            </div>
-          );
-        })()}
+              </Card>
+            );})}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1606,317 +1576,51 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
-// Helpers for grouping expenses by time range
-function getDateBucket(ts) {
-  // Returns a canonical date string "YYYY-MM-DD" for grouping
-  if (!ts) return null;
-  return ts.split("T")[0];
-}
-
-function formatDayLabel(dateStr) {
-  if (!dateStr) return "Unknown";
-  const d = new Date(dateStr + "T12:00:00");
-  const today = new Date(); today.setHours(0,0,0,0);
-  const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-  const dMidnight = new Date(d); dMidnight.setHours(0,0,0,0);
-  if (dMidnight.getTime() === today.getTime()) return "Today";
-  if (dMidnight.getTime() === yesterday.getTime()) return "Yesterday";
-  const diff = Math.round((today - dMidnight) / (1000*60*60*24));
-  if (diff < 7) return d.toLocaleDateString("en-PH", { weekday:"long" }); // e.g. "Monday"
-  return d.toLocaleDateString("en-PH", { month:"short", day:"numeric", weekday:"short" });
-}
-
-function formatWeekLabel(weekStart) {
-  // weekStart is a Date object (Monday of that week)
-  const end = new Date(weekStart); end.setDate(weekStart.getDate()+6);
-  const now = new Date(); now.setHours(0,0,0,0);
-  const wStart = new Date(weekStart); wStart.setHours(0,0,0,0);
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - ((now.getDay()+6)%7));
-  if (wStart.getTime() === thisMonday.getTime()) return "This Week";
-  const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate()-7);
-  if (wStart.getTime() === lastMonday.getTime()) return "Last Week";
-  return weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"}) + " – " + end.toLocaleDateString("en-PH",{month:"short",day:"numeric"});
-}
-
-function groupByDay(expenses) {
-  // Returns array of { dateStr, label, total, items } sorted newest first
-  const map = {};
-  expenses.forEach(e => {
-    const key = e.ts ? getDateBucket(e.ts) : "unknown";
-    if (!map[key]) map[key] = { dateStr:key, label:formatDayLabel(key), total:0, items:[] };
-    map[key].total += e.amount;
-    map[key].items.push(e);
-  });
-  return Object.values(map).sort((a,b) => (b.dateStr||"").localeCompare(a.dateStr||""));
-}
-
-function groupByWeek(expenses) {
-  const map = {};
-  expenses.forEach(e => {
-    if (!e.ts) return;
-    const d = new Date(e.ts);
-    const dayOfWeek = (d.getDay()+6)%7; // Mon=0
-    const monday = new Date(d); monday.setDate(d.getDate()-dayOfWeek); monday.setHours(0,0,0,0);
-    const key = monday.toISOString().split("T")[0];
-    if (!map[key]) map[key] = { weekStart:monday, key, label:formatWeekLabel(monday), total:0, items:[] };
-    map[key].total += e.amount;
-    map[key].items.push(e);
-  });
-  return Object.values(map).sort((a,b) => b.key.localeCompare(a.key));
-}
-
-function groupByMonth(expenses) {
-  const map = {};
-  expenses.forEach(e => {
-    if (!e.ts) return;
-    const d = new Date(e.ts);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    const now = new Date();
-    const isThisMonth = d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();
-    const label = isThisMonth ? "This Month" : d.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
-    if (!map[key]) map[key] = { key, label, total:0, items:[] };
-    map[key].total += e.amount;
-    map[key].items.push(e);
-  });
-  return Object.values(map).sort((a,b) => b.key.localeCompare(a.key));
-}
-
-// Single expense row — reused across all grouped views
-function ExpenseRow({ e, onClick }) {
-  const c = catOf(e.catId), m = moodOf(e.moodId);
-  return (
-    <Card onClick={()=>onClick(e)} glow style={{ padding:"12px 14px" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-        {e.photo
-          ? <img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>
-          : <div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>
-        }
-        <div style={{ flex:1, minWidth:0 }}>
-          <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p>
-          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {c.label} · {e.time}
-            {e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}
-            {e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}
-          </p>
-        </div>
-        <div style={{ textAlign:"right", flexShrink:0 }}>
-          <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
-          {m ? <span style={{ fontSize:13 }}>{m.emoji}</span> : <span style={{ fontSize:10, color:C.textFaint }}>—</span>}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// Day group header
-function DayHeader({ label, total, txCount, isToday }) {
-  return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, marginTop:4 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:3, height:18, borderRadius:99, background:isToday?C.accent:C.borderLight }}/>
-        <span style={{ fontSize:13, fontWeight:800, color:isToday?C.accent:C.text, fontFamily:"DM Sans,sans-serif" }}>{label}</span>
-        <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{txCount} item{txCount!==1?"s":""}</span>
-      </div>
-      <span style={{ fontSize:14, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</span>
-    </div>
-  );
-}
-
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
   const [view,      setView]     = useState("list");
-  const [timeRange, setTimeRange]= useState("day");   // "day" | "week" | "month"
   const [detail,    setDetail]   = useState(null);
   const [editExp,   setEditExp]  = useState(null);
   const [editB,     setEditB]    = useState(null);
   const [bInput,    setBInput]   = useState("");
-
   const total    = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs = expenses.filter(e=>e.moodId).length;
   const bymood   = MOODS.map(m=>{ const amt=expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0),cnt=expenses.filter(e=>e.moodId===m.id).length; return {...m,amount:amt,count:cnt,pct:total?Math.round((amt/total)*100):0}; }).filter(m=>m.count>0);
 
-  const handleEdit     = exp => setEditExp(exp);
-  const handleDelete   = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
-  const handleSaveEdit = upd => setExpenses(prev=>prev.map(e=>e.id===upd.id?upd:e));
-
-  // ── Summary numbers for the selected time range ──
-  const now = new Date();
-  const todayStr = now.toDateString();
-  const weekStart = new Date(now); weekStart.setDate(now.getDate()-((now.getDay()+6)%7)); weekStart.setHours(0,0,0,0);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const rangeExpenses = timeRange==="day"
-    ? expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr)
-    : timeRange==="week"
-    ? expenses.filter(e=>e.ts&&new Date(e.ts)>=weekStart)
-    : expenses.filter(e=>e.ts&&new Date(e.ts)>=monthStart);
-
-  const rangeTotal  = rangeExpenses.reduce((s,e)=>s+e.amount,0);
-  const rangeTxCount= rangeExpenses.length;
-
-  const rangeLabel  = timeRange==="day" ? "Today" : timeRange==="week" ? "This Week" : "This Month";
-  const rangeColor  = income>0 && timeRange==="month" && rangeTotal/income>0.8 ? C.coral : C.accent;
-
-  // Grouped data for the list
-  const grouped = timeRange==="day"
-    ? groupByDay(expenses)
-    : timeRange==="week"
-    ? groupByWeek(expenses)
-    : groupByMonth(expenses);
+  const handleEdit   = exp => setEditExp(exp);
+  const handleDelete = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
+  const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete}/>}
       {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
-
-      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
-
-      {/* Time range toggle */}
-      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
-        {[["day","Day"],["week","Week"],["month","Month"]].map(([v,lbl])=>(
-          <button key={v} onClick={()=>setTimeRange(v)} style={{ flex:1, padding:"9px 4px", borderRadius:9, border:"none", cursor:"pointer", background:timeRange===v?C.card:"none", color:timeRange===v?C.text:C.textSub, fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>
-        ))}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p></Card>
+        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p></Card>
       </div>
-
-      {/* Range summary hero */}
-      <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${rangeColor}35`, borderRadius:22, padding:"22px 20px 18px", position:"relative", overflow:"hidden" }}>
-        <Orb x="50%" y="-30px" color={rangeColor} size={200} opacity={0.2}/>
-        <SLabel>{rangeLabel}</SLabel>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-          <div>
-            <h2 style={{ margin:"4px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>{fmt(rangeTotal)}</h2>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{rangeTxCount} transaction{rangeTxCount!==1?"s":""}</p>
-          </div>
-          {income>0 && timeRange==="month" && (
-            <Ring pct={Math.min(Math.round((rangeTotal/income)*100),100)} size={56} stroke={5} color={rangeColor}>
-              <span style={{ fontSize:10, fontWeight:800, color:rangeColor, fontFamily:"DM Sans,sans-serif" }}>{Math.min(Math.round((rangeTotal/income)*100),100)}%</span>
-            </Ring>
-          )}
-          {timeRange==="day" && dailyLimit>0 && (
-            <div style={{ textAlign:"right" }}>
-              <p style={{ margin:"0 0 4px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of {fmt(dailyLimit)} limit</p>
-              <Bar pct={Math.min((rangeTotal/dailyLimit)*100,100)} color={rangeTotal>dailyLimit?C.coral:C.green} h={6}/>
-              <p style={{ margin:"4px 0 0", fontSize:11, fontWeight:700, color:rangeTotal>dailyLimit?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{rangeTotal>dailyLimit?"Over limit":"Under limit"}</p>
-            </div>
-          )}
-        </div>
-        {/* Mini bar chart for week/month views */}
-        {timeRange==="week" && (() => {
-          const DAYS_SHORT = ["M","T","W","T","F","S","S"];
-          const days = Array(7).fill(0);
-          const todayDow = (now.getDay()+6)%7;
-          rangeExpenses.forEach(e => { if(e.ts){ const d=new Date(e.ts); days[(d.getDay()+6)%7]+=e.amount; } });
-          const maxD = Math.max(...days,1);
-          return (
-            <div style={{ display:"flex", alignItems:"flex-end", gap:3, marginTop:16, height:32 }}>
-              {days.map((v,i)=>{
-                const h = Math.max((v/maxD)*28,v>0?4:1);
-                const isToday = i===todayDow;
-                return (
-                  <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                    <div style={{ width:"100%", height:h, borderRadius:"3px 3px 0 0", background:isToday?C.accent:v>0?C.accent+"50":C.border+"60" }}/>
-                    <span style={{ fontSize:8, fontWeight:isToday?800:500, color:isToday?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{DAYS_SHORT[i]}</span>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Section tabs */}
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
         {[["list","Transactions"],["budget","Budget"],["mood","Mood"],["insights","Insights"]].map(([v,lbl])=>(<button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>))}
       </div>
 
-      {/* ── TRANSACTIONS (grouped) ── */}
       {view==="list"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-          {expenses.length===0&&(
-            <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
-              <div style={{ width:80, height:80, borderRadius:26, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px" }}>👛</div>
-              <p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet</p>
-              <p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log your first expense.</p>
-            </div>
-          )}
-          {timeRange==="day" && (() => {
-            // Day view: each group = one calendar day
-            const groups = grouped; // already sorted newest first
-            if (groups.length===0 && expenses.length>0) return (
-              <div style={{ textAlign:"center", padding:"40px 0 20px" }}>
-                <p style={{ fontSize:14, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses logged today.</p>
-                <button onClick={onAdd} className="tap-btn" style={{ marginTop:12, background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:14, padding:"12px 28px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log today's spend</button>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {expenses.length===0&&<div style={{ textAlign:"center", padding:"60px 0 40px" }}><div style={{ width:80, height:80, borderRadius:26, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px" }}>👛</div><p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log your first expense.</p></div>}
+          {expenses.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+            <Card key={e.id} onClick={()=>setDetail(e)} glow>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
+                <div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.date}, {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div>
+                <div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}</div>
               </div>
-            );
-            return groups.map(g=>(
-              <div key={g.dateStr} style={{ marginBottom:20 }}>
-                <DayHeader label={g.label} total={g.total} txCount={g.items.length} isToday={g.label==="Today"}/>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {g.items.sort((a,b)=>b.ts?.localeCompare(a.ts||"")||0).map(e=>(
-                    <ExpenseRow key={e.id} e={e} onClick={setDetail}/>
-                  ))}
-                </div>
-              </div>
-            ));
-          })()}
-          {timeRange==="week" && (() => {
-            // Week view: groups = individual calendar days within the week, shown together
-            const groups = groupByDay(rangeExpenses);
-            if (groups.length===0 && expenses.length>0) return (
-              <div style={{ textAlign:"center", padding:"40px 0 20px" }}>
-                <p style={{ fontSize:14, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses this week yet.</p>
-              </div>
-            );
-            return groups.map(g=>(
-              <div key={g.dateStr} style={{ marginBottom:20 }}>
-                <DayHeader label={g.label} total={g.total} txCount={g.items.length} isToday={g.label==="Today"}/>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {g.items.sort((a,b)=>b.ts?.localeCompare(a.ts||"")||0).map(e=>(
-                    <ExpenseRow key={e.id} e={e} onClick={setDetail}/>
-                  ))}
-                </div>
-              </div>
-            ));
-          })()}
-          {timeRange==="month" && (() => {
-            // Month view: groups = weeks within the month
-            const weekGroups = groupByWeek(rangeExpenses);
-            if (weekGroups.length===0 && expenses.length>0) return (
-              <div style={{ textAlign:"center", padding:"40px 0 20px" }}>
-                <p style={{ fontSize:14, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses this month yet.</p>
-              </div>
-            );
-            return weekGroups.map(wg=>{
-              const dayGroups = groupByDay(wg.items);
-              return (
-                <div key={wg.key} style={{ marginBottom:24 }}>
-                  {/* Week bucket header */}
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10, paddingBottom:8, borderBottom:`1px solid ${C.border}` }}>
-                    <span style={{ fontSize:11, fontWeight:800, letterSpacing:"0.08em", textTransform:"uppercase", color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{wg.label}</span>
-                    <span style={{ fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(wg.total)}</span>
-                  </div>
-                  {dayGroups.map(g=>(
-                    <div key={g.dateStr} style={{ marginBottom:16 }}>
-                      <DayHeader label={g.label} total={g.total} txCount={g.items.length} isToday={g.label==="Today"}/>
-                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {g.items.sort((a,b)=>b.ts?.localeCompare(a.ts||"")||0).map(e=>(
-                          <ExpenseRow key={e.id} e={e} onClick={setDetail}/>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            });
-          })()}
+            </Card>
+          );})}
         </div>
       )}
 
-      {/* ── BUDGET ── */}
       {view==="budget"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <Card style={{ background:`${C.accent}0A`, border:`1px solid ${C.accent}20`, padding:"12px 14px" }}><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Set monthly limits per category. Tap <strong style={{ color:C.accentSoft }}>Set / Edit</strong> to customize.</p></Card>
@@ -1944,7 +1648,6 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         </div>
       )}
 
-      {/* ── MOOD ── */}
       {view==="mood"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {moodLogs<5?(
@@ -1962,8 +1665,6 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
           )}
         </div>
       )}
-
-      {/* ── INSIGHTS ── */}
       {view==="insights"&&(
         <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
       )}
