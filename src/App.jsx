@@ -596,7 +596,7 @@ function NavBar({ screen, setScreen, onAdd }) {
       display:"flex", justifyContent:"space-around", alignItems:"center",
       padding:"8px 4px calc(20px + env(safe-area-inset-bottom))",
       background:C.surface, borderTop:`1px solid ${C.border}`,
-      position:"sticky", bottom:0, zIndex:100,
+      position:"fixed", bottom:0, left:0, right:0, zIndex:100,
     }}>
       <NavIcon icon={Home}       active={screen==="home"}     label="Home"     onClick={()=>setScreen("home")}/>
       <NavIcon icon={Receipt}    active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
@@ -1862,12 +1862,12 @@ export default function Bulsa() {
   return (
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)", boxSizing:"border-box" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, position:"relative", paddingTop:"env(safe-area-inset-top)", boxSizing:"border-box" }}>
         {!onboarded?(
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", paddingBottom:"calc(80px + env(safe-area-inset-bottom))", WebkitOverflowScrolling:"touch" }}>{screens[screen]}</div>
+            <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, overflowY:"auto", overflowX:"hidden", paddingBottom:"calc(80px + env(safe-area-inset-bottom))", WebkitOverflowScrolling:"touch" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount}/>}
           </>
