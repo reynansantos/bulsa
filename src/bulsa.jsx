@@ -1205,28 +1205,74 @@ function GoalsScreen({ goals, setGoals }) {
   );
 }
 
-// ─── FORECAST ──────────────────────────────────────────────────────────────
+// ─── PAYDAY HELPERS ────────────────────────────────────────────────────────
 
-function SurviveScreen({ expenses, income, loans, goals }) {
+function getPaycycle(payday) {
+  // Returns { cycleStart, nextPayday, daysLeft, cycleIncome multiplier, cycleLabel }
+  const now   = new Date();
+  const today = now.getDate();
+  const yr    = now.getFullYear();
+  const mo    = now.getMonth();
+  const lastD = new Date(yr, mo+1, 0).getDate();
+
+  if (payday === "both") {
+    // Semi-monthly: 15th and last day
+    if (today <= 15) {
+      const next = new Date(yr, mo, 15);
+      const start= new Date(yr, mo, 1);
+      const daysLeft = Math.max(15 - today, 0);
+      return { cycleStart:start, nextPayday:next, daysLeft, daysGone:today-1, cycleDays:15, incomeMultiplier:0.5, label:"15th payday" };
+    } else {
+      const next = new Date(yr, mo, lastD);
+      const start= new Date(yr, mo, 16);
+      const daysLeft = Math.max(lastD - today, 0);
+      return { cycleStart:start, nextPayday:next, daysLeft, daysGone:today-16, cycleDays:lastD-15, incomeMultiplier:0.5, label:`${lastD}th payday` };
+    }
+  } else if (payday === "15") {
+    if (today <= 15) {
+      const next = new Date(yr, mo, 15);
+      return { cycleStart:new Date(yr, mo, 1), nextPayday:next, daysLeft:Math.max(15-today,0), daysGone:today-1, cycleDays:15, incomeMultiplier:1, label:"15th payday" };
+    } else {
+      const next = new Date(yr, mo+1, 15);
+      const cycleDays = lastD - 15;
+      return { cycleStart:new Date(yr, mo, 16), nextPayday:next, daysLeft:Math.max(lastD-today,0)+15, daysGone:today-16, cycleDays:cycleDays+15, incomeMultiplier:1, label:"15th payday" };
+    }
+  } else {
+    // 30th / end of month
+    const next = new Date(yr, mo, lastD);
+    return { cycleStart:new Date(yr, mo, 1), nextPayday:next, daysLeft:Math.max(lastD-today,0), daysGone:today-1, cycleDays:lastD, incomeMultiplier:1, label:`${lastD}th payday` };
+  }
+}
+
+function SurviveScreen({ expenses, income, loans, goals, payday }) {
   const now        = new Date();
-  const lastDay    = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  const daysLeft   = lastDay - now.getDate();
-  const daysGone   = now.getDate() - 1;
-  const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
-  const balance    = Math.max(income - totalSpent, 0);
-  const spendPerDay= daysLeft>0 ? Math.floor(balance/daysLeft) : 0;
-  const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
-  const topGoal    = [...goals].sort((a,b)=>(b.target-b.saved)-(a.target-a.saved))[0];
+  const cycle      = getPaycycle(payday||"both");
+  const cycleIncome= Math.round(income * cycle.incomeMultiplier);
 
-  // Status
-  const spentPct   = income>0 ? totalSpent/income : 0;
+  // Only count expenses within this cycle
+  const cycleExpenses = expenses.filter(e=>{
+    if (!e.ts) return true; // fallback: include all if no timestamp
+    return new Date(e.ts) >= cycle.cycleStart;
+  });
+  const totalSpent  = cycleExpenses.reduce((s,e)=>s+e.amount,0);
+  const balance     = Math.max(cycleIncome - totalSpent, 0);
+  const daysLeft    = cycle.daysLeft;
+  const spendPerDay = daysLeft>0 ? Math.floor(balance/daysLeft) : 0;
+  const totalDebt   = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
+  const topGoal     = [...goals].sort((a,b)=>(b.target-b.saved)-(a.target-a.saved))[0];
+
+  const spentPct = cycleIncome>0 ? totalSpent/cycleIncome : 0;
+  const cyclePct = cycle.cycleDays>0 ? Math.round((cycle.daysGone/cycle.cycleDays)*100) : 0;
+  const spendPct = cycleIncome>0 ? Math.min(Math.round((totalSpent/cycleIncome)*100),100) : 0;
+  const ahead    = spendPct <= cyclePct;
+
   let status, statusColor, statusMsg, statusEmoji;
   if (balance<=0) {
     status="Naubos na"; statusColor=C.coral; statusEmoji="💀";
     statusMsg="Wala na. Huwag nang mag-gastos. Survive mode: ON.";
   } else if (spentPct>0.75) {
     status="Mag-ingat ka na"; statusColor=C.gold; statusEmoji="⚠️";
-    statusMsg="Mahirap nang maabot ang next paycheck. I-hold na ang lahat ng hindi kailangan.";
+    statusMsg=`${daysLeft} days na lang hanggang ${cycle.label}. I-hold na ang lahat ng hindi kailangan.`;
   } else if (spentPct>0.5) {
     status="Puwede pa"; statusColor=C.accentSoft; statusEmoji="👀";
     statusMsg="Nasa gitna ka na. Mag-isip muna bago mag-gastos ng hindi nakaplano.";
@@ -1235,20 +1281,23 @@ function SurviveScreen({ expenses, income, loans, goals }) {
     statusMsg="Ayos ka pa. Keep going — huwag lang mag-justify ng unnecessary purchases.";
   }
 
-  // Today's spend
   const todayStr   = now.toDateString();
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
 
-  // Month progress
-  const monthPct   = Math.round((daysGone/lastDay)*100);
-  const spendPct   = income>0 ? Math.min(Math.round((totalSpent/income)*100),100) : 0;
-  const ahead      = spendPct <= monthPct;
-
   return (
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Survive the Month</h2>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Survive</h2>
+        <Tag color={C.accent}>{cycle.label}</Tag>
+      </div>
 
-      {/* Status card */}
+      {cycleIncome===0&&(
+        <Card style={{ background:`${C.gold}0C`, border:`1px solid ${C.gold}40`, padding:"14px 16px" }}>
+          <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>⚠️ Set your monthly income in <strong style={{ color:C.gold }}>Profile</strong> to see how much you can spend per day.</p>
+        </Card>
+      )}
+
+      {/* Status */}
       <div style={{ background:`linear-gradient(145deg,${statusColor}18,${statusColor}08)`, border:`1.5px solid ${statusColor}50`, borderRadius:22, padding:"28px 22px", textAlign:"center", position:"relative", overflow:"hidden" }}>
         <Orb x="50%" y="-40px" color={statusColor} size={200} opacity={0.15}/>
         <div style={{ fontSize:52, marginBottom:10 }}>{statusEmoji}</div>
@@ -1256,38 +1305,40 @@ function SurviveScreen({ expenses, income, loans, goals }) {
         <p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.65, maxWidth:260, marginInline:"auto" }}>{statusMsg}</p>
       </div>
 
-      {/* The one number that matters */}
+      {/* The one number */}
       <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${spendPerDay>0?C.accent+"40":C.coral+"40"}`, textAlign:"center", padding:"24px 20px" }}>
         <SLabel>You can spend per day</SLabel>
         <p style={{ margin:"8px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:52, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.03em" }}>{fmt(spendPerDay)}</p>
-        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} days left · {fmt(balance)} remaining</p>
+        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} days until {cycle.label} · {fmt(balance)} left</p>
       </Card>
 
-      {/* Month vs spend progress */}
+      {/* Cycle vs spend */}
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Month used vs money spent</p>
+          <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Cycle used vs money spent</p>
           <Tag color={ahead?C.green:C.coral}>{ahead?"Ahead":"Behind"}</Tag>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           <div>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>📅 Month used</span><span style={{ fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{monthPct}%</span></div>
-            <Bar pct={monthPct} color={C.sky} h={7}/>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>📅 Pay cycle used</span><span style={{ fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{cyclePct}%</span></div>
+            <Bar pct={cyclePct} color={C.sky} h={7}/>
           </div>
           <div>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>💸 Income spent</span><span style={{ fontSize:11, fontWeight:700, color:spendPct>monthPct?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{spendPct}%</span></div>
-            <Bar pct={spendPct} color={spendPct>monthPct?C.coral:C.green} h={7}/>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>💸 Budget spent</span><span style={{ fontSize:11, fontWeight:700, color:spendPct>cyclePct?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{spendPct}%</span></div>
+            <Bar pct={spendPct} color={spendPct>cyclePct?C.coral:C.green} h={7}/>
           </div>
         </div>
-        <p style={{ margin:"12px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{ahead?`Spending less than the month has passed. ${fmt(Math.round((monthPct-spendPct)/100*income))} ahead of pace.`:`Spending faster than the month is moving. Slow down.`}</p>
+        <p style={{ margin:"12px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+          {cycleIncome>0 ? (ahead?`${fmt(Math.round((cyclePct-spendPct)/100*cycleIncome))} ahead of pace. Nice.`:`Spending faster than your cycle. Slow down.`) : "Set your income to track pace."}
+        </p>
       </Card>
 
-      {/* Today */}
+      {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         <Card style={{ textAlign:"center" }}>
           <p style={{ margin:"0 0 6px", fontSize:32 }}>📅</p>
           <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>{daysLeft}</p>
-          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>days left</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>days to payday</p>
         </Card>
         <Card style={{ textAlign:"center" }}>
           <p style={{ margin:"0 0 6px", fontSize:32 }}>💸</p>
@@ -1296,32 +1347,8 @@ function SurviveScreen({ expenses, income, loans, goals }) {
         </Card>
       </div>
 
-      {/* Debt reminder */}
-      {totalDebt>0&&(
-        <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28`, padding:"14px 16px" }}>
-          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-            <span style={{ fontSize:22 }}>⊗</span>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Don't forget your loans</p>
-              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)} total remaining debt</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Top goal reminder */}
-      {topGoal&&(
-        <Card style={{ background:`${topGoal.color}0C`, border:`1px solid ${topGoal.color}28`, padding:"14px 16px" }}>
-          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-            <span style={{ fontSize:22 }}>{topGoal.emoji}</span>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{topGoal.name}</p>
-              <p style={{ margin:0, fontSize:12, color:topGoal.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{fmt(topGoal.target-topGoal.saved)} to go</p>
-            </div>
-            <Ring pct={Math.round((topGoal.saved/topGoal.target)*100)} size={44} stroke={4} color={topGoal.color}><span style={{ fontSize:9, fontWeight:800, color:topGoal.color, fontFamily:"DM Sans,sans-serif" }}>{Math.round((topGoal.saved/topGoal.target)*100)}%</span></Ring>
-          </div>
-        </Card>
-      )}
+      {totalDebt>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28`, padding:"14px 16px" }}><div style={{ display:"flex", gap:10, alignItems:"center" }}><span style={{ fontSize:22 }}>⊗</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Don't forget your loans</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)} total remaining debt</p></div></div></Card>)}
+      {topGoal&&(<Card style={{ background:`${topGoal.color}0C`, border:`1px solid ${topGoal.color}28`, padding:"14px 16px" }}><div style={{ display:"flex", gap:10, alignItems:"center" }}><span style={{ fontSize:22 }}>{topGoal.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{topGoal.name}</p><p style={{ margin:0, fontSize:12, color:topGoal.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{fmt(topGoal.target-topGoal.saved)} to go</p></div><Ring pct={Math.round((topGoal.saved/topGoal.target)*100)} size={44} stroke={4} color={topGoal.color}><span style={{ fontSize:9, fontWeight:800, color:topGoal.color, fontFamily:"DM Sans,sans-serif" }}>{Math.round((topGoal.saved/topGoal.target)*100)}%</span></Ring></div></Card>)}
 
       <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Kaya mo 'yan. 🇵🇭</p>
     </div>
@@ -1330,7 +1357,7 @@ function SurviveScreen({ expenses, income, loans, goals }) {
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen }) {
+function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
   const [editIncome, setEditIncome] = useState(false);
   const [editName,   setEditName]   = useState(false);
   const [editBio,    setEditBio]    = useState(false);
@@ -1438,6 +1465,35 @@ function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, 
         </Card>
       </div>
 
+      {/* Payday setting */}
+      <div>
+        <SLabel>Payday Schedule</SLabel>
+        <Card style={{ border:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            <div style={{ fontSize:20 }}>📅</div>
+            <div><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>When do you get paid?</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Used to calculate your Survive countdown</p></div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {[
+              { val:"both",  label:"15th & 30th",    sub:"Semi-monthly — most common in PH", emoji:"🏆" },
+              { val:"15",    label:"15th only",       sub:"Monthly, mid-month payday",        emoji:"📆" },
+              { val:"30",    label:"End of month",    sub:"Monthly, last day payday",         emoji:"📆" },
+            ].map(opt=>(
+              <button key={opt.val} onClick={()=>setPayday(opt.val)} style={{ display:"flex", alignItems:"center", gap:12, background:payday===opt.val?`${C.accent}12`:C.surface, border:`1.5px solid ${payday===opt.val?C.accent+"60":C.border}`, borderRadius:13, padding:"12px 14px", cursor:"pointer", textAlign:"left", transition:"all 0.18s" }}>
+                <span style={{ fontSize:18 }}>{opt.emoji}</span>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:payday===opt.val?C.accent:C.text, fontFamily:"DM Sans,sans-serif" }}>{opt.label}</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{opt.sub}</p>
+                </div>
+                <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${payday===opt.val?C.accent:C.border}`, background:payday===opt.val?C.accent:"none", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {payday===opt.val&&<div style={{ width:7, height:7, borderRadius:"50%", background:"#fff" }}/>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      </div>
+
       {!editIncome&&(
         <Card style={{ background:savePct>=20?`${C.green}0C`:`${C.coral}0C`, border:`1px solid ${savePct>=20?C.green:C.coral}30` }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
@@ -1492,6 +1548,7 @@ export default function Bulsa() {
   const [dailyLimit,setDailyLimit]= useLocalStorage("bulsa_dailylimit", 0);
   const [avatar,    setAvatar]    = useLocalStorage("bulsa_avatar", null);
   const [bio,       setBio]       = useLocalStorage("bulsa_bio", "");
+  const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -1507,8 +1564,8 @@ export default function Bulsa() {
     expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
-    survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen}/>,
+    survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
   return (
