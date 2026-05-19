@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { Home, Receipt, Zap, Handshake, User, Plus } from "lucide-react";
 
 // ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
 function useLocalStorage(key, initialValue) {
@@ -189,13 +190,26 @@ function BottomSheet({ children, onClose, title }) {
 
 function PhotoPicker({ onPhoto }) {
   const ref = useRef(null);
+
+  const handleClick = (useCamera) => {
+    const input = ref.current;
+    if (!input) return;
+    input.value = ""; // reset so onChange fires even if same file picked again
+    if (useCamera) {
+      input.setAttribute("capture", "environment");
+    } else {
+      input.removeAttribute("capture");
+    }
+    input.click();
+  };
+
   return (
     <>
       <input ref={ref} type="file" accept="image/*" style={{ display:"none" }}
         onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>onPhoto(ev.target.result); r.readAsDataURL(f); }}/>
       <div style={{ display:"flex", gap:10 }}>
         {[["🖼️","Gallery",false],["📷","Camera",true]].map(([ic,lbl,cam])=>(
-          <button key={lbl} onClick={()=>{ cam?ref.current.setAttribute("capture","environment"):ref.current.removeAttribute("capture"); ref.current.click(); }}
+          <button key={lbl} onClick={()=>handleClick(cam)}
             style={{ flex:1, padding:"13px", borderRadius:14, border:`1.5px dashed ${C.border}`, background:C.cardAlt, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             <span style={{ fontSize:18 }}>{ic}</span>{lbl}
           </button>
@@ -555,21 +569,51 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
 
 // ─── NAV ───────────────────────────────────────────────────────────────────
 
-function NavBar({ screen, setScreen, onAdd }) {
-  const tabs=[
-    { id:"home",     icon:"◈", label:"Home" },
-    { id:"expenses", icon:"⊡", label:"Expenses" },
-    null,
-    { id:"utang",    icon:"🤝", label:"Utang" },
-    { id:"profile",  icon:"⊙", label:"Profile" },
-  ];
+function NavIcon({ icon: Icon, active, label, onClick }) {
   return (
-    <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center", padding:"8px 4px calc(20px + env(safe-area-inset-bottom))", background:C.surface, borderTop:`1px solid ${C.border}`, position:"sticky", bottom:0, zIndex:100 }}>
-      {tabs.map((t,i)=>{
-        if (!t) return <button key="add" onClick={onAdd} style={{ width:52, height:52, borderRadius:"50%", border:"none", background:C.gradAccent, fontSize:26, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, marginTop:-18, flexShrink:0 }}>+</button>;
-        const active=screen===t.id;
-        return <button key={t.id} onClick={()=>setScreen(t.id)} style={{ background:"none", border:"none", cursor:"pointer", minWidth:52, display:"flex", flexDirection:"column", alignItems:"center", gap:3, color:active?C.accent:C.textFaint, transition:"color 0.2s", padding:"4px 8px" }}><span style={{ fontSize:19 }}>{t.icon}</span><span style={{ fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:active?800:500 }}>{t.label}</span></button>;
-      })}
+    <button onClick={onClick} style={{
+      background:"none", border:"none", cursor:"pointer", minWidth:52,
+      display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+      color: active ? C.accent : C.textFaint,
+      transition:"color 0.2s", padding:"4px 8px",
+      WebkitTapHighlightColor:"transparent",
+    }}>
+      <Icon
+        size={22}
+        strokeWidth={active ? 2.5 : 1.8}
+        fill={active ? C.accent + "22" : "none"}
+        color={active ? C.accent : C.textFaint}
+        style={{ transition:"all 0.2s" }}
+      />
+      <span style={{ fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:active?800:500, letterSpacing:"0.01em" }}>{label}</span>
+    </button>
+  );
+}
+
+function NavBar({ screen, setScreen, onAdd }) {
+  return (
+    <div style={{
+      display:"flex", justifyContent:"space-around", alignItems:"center",
+      padding:"8px 4px calc(20px + env(safe-area-inset-bottom))",
+      background:C.surface, borderTop:`1px solid ${C.border}`,
+      position:"sticky", bottom:0, zIndex:100,
+    }}>
+      <NavIcon icon={Home}       active={screen==="home"}     label="Home"     onClick={()=>setScreen("home")}/>
+      <NavIcon icon={Receipt}    active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
+
+      {/* Center add button */}
+      <button onClick={onAdd} style={{
+        width:52, height:52, borderRadius:"50%", border:"none",
+        background:C.gradAccent, color:"#fff", cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow:`0 4px 20px ${C.accentGlow}`, marginTop:-18, flexShrink:0,
+        WebkitTapHighlightColor:"transparent",
+      }}>
+        <Plus size={24} strokeWidth={2.5} color="#fff"/>
+      </button>
+
+      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={User}       active={screen==="profile"}  label="Profile"  onClick={()=>setScreen("profile")}/>
     </div>
   );
 }
