@@ -1575,62 +1575,183 @@ function LoansScreen({ loans, setLoans }) {
 
 // ─── GOALS ─────────────────────────────────────────────────────────────────
 
-function GoalsScreen({ goals, setGoals }) {
+function GoalsScreen({ goals, setGoals, income }) {
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [tab,     setTab]     = useState("emergency"); // emergency | personal
   const totalSaved  = goals.reduce((s,g)=>s+g.saved,0);
   const totalTarget = goals.reduce((s,g)=>s+g.target,0);
   const overallPct  = totalTarget?Math.round((totalSaved/totalTarget)*100):0;
   const saveGoal    = goal=>{ setGoals(prev=>prev.find(g=>g.id===goal.id)?prev.map(g=>g.id===goal.id?goal:g):[...prev,goal]); setSheet(null); };
   const deleteGoal  = id=>{ setGoals(prev=>prev.filter(g=>g.id!==id)); setConfirm(null); };
 
+  // Emergency fund tiers based on income
+  const monthlyEssentials = income>0 ? Math.round(income*0.6) : 15000; // estimate 60% of income for essentials
+  const tiers = [
+    {
+      level:1, name:"Starter Guard", emoji:"🛡️", color:C.lime,
+      target: monthlyEssentials,
+      desc:"1 month of essential living expenses",
+      tip:"Start here. This covers one bad month — job loss, hospital visit, broken phone.",
+    },
+    {
+      level:2, name:"Safety Shield", emoji:"⚔️", color:C.sky,
+      target: monthlyEssentials*3,
+      desc:"3 months of survival reserves",
+      tip:"The international standard. Enough to breathe while you find a solution.",
+    },
+    {
+      level:3, name:"Freedom Fund", emoji:"🏆", color:C.gold,
+      target: monthlyEssentials*6,
+      desc:"6 months of full financial cushion",
+      tip:"Real freedom. At this level, you can quit, pivot, or wait without panic.",
+    },
+  ];
+
+  // Find emergency fund goal if it exists
+  const efGoal = goals.find(g=>g.isEmergencyFund);
+  const efSaved = efGoal?.saved || 0;
+  const currentTier = tiers.findIndex(t=>efSaved<t.target); // -1 means all completed
+  const activeTier = currentTier===-1?2:currentTier;
+
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<GoalSheet goal={sheet==="add"?null:sheet} onSave={saveGoal} onClose={()=>setSheet(null)}/>}
+
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Goals</h2>
-        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
+        {tab==="personal"&&<button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>}
       </div>
 
-      {goals.length>0&&(
-        <Card style={{ background:`${C.sky}0C`, border:`1px solid ${C.sky}28` }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div><SLabel>All Goals</SLabel><p style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:C.text }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of {fmt(totalTarget)} across {goals.length} goal{goals.length!==1?"s":""}</p></div>
-            <Ring pct={overallPct} size={72} stroke={6} color={C.sky}><span style={{ fontSize:12, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>{overallPct}%</span></Ring>
+      {/* Tab switcher */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
+        {[["emergency","🛡️ Emergency Fund"],["personal","🎯 Personal Goals"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setTab(v)} style={{ flex:1, padding:"9px 4px", borderRadius:9, border:"none", cursor:"pointer", background:tab===v?C.card:"none", color:tab===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
+        ))}
+      </div>
+
+      {tab==="emergency"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+          {/* Hero status */}
+          <div style={{ background:`linear-gradient(145deg,#0E1A10,#181818)`, border:`1px solid ${tiers[activeTier].color}40`, borderRadius:22, padding:"24px 20px", position:"relative", overflow:"hidden" }}>
+            <Orb x="80%" y="-20px" color={tiers[activeTier].color} size={180} opacity={0.15}/>
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
+              <div style={{ fontSize:42 }}>{tiers[activeTier].emoji}</div>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:tiers[activeTier].color, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.09em" }}>Current goal</p>
+                <p style={{ margin:"0 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{tiers[activeTier].name}</p>
+                <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{tiers[activeTier].desc}</p>
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+              <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(efSaved)} saved</span>
+              <span style={{ fontSize:12, color:tiers[activeTier].color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{fmt(tiers[activeTier].target)} target</span>
+            </div>
+            <Bar pct={Math.min((efSaved/tiers[activeTier].target)*100,100)} color={tiers[activeTier].color} h={8}/>
+            {efSaved<tiers[activeTier].target&&(
+              <p style={{ margin:"10px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                {fmt(tiers[activeTier].target-efSaved)} to go · save <strong style={{ color:tiers[activeTier].color }}>{fmt(Math.round((tiers[activeTier].target-efSaved)/6))}/mo</strong> to get there in 6 months
+              </p>
+            )}
           </div>
-        </Card>
+
+          {/* Tier roadmap */}
+          {tiers.map((t,i)=>{
+            const isActive  = i===activeTier;
+            const isDone    = efSaved>=t.target;
+            const isLocked  = i>activeTier;
+            const tierSaved = Math.min(efSaved, t.target);
+            const tierPct   = Math.round((tierSaved/t.target)*100);
+            return (
+              <Card key={t.level} style={{
+                border:`1px solid ${isDone?t.color+"50":isActive?t.color+"40":C.border}`,
+                background:isDone?`${t.color}08`:isActive?`${t.color}05`:C.card,
+                opacity:isLocked?0.5:1,
+              }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:isDone||isActive?12:0 }}>
+                  <div style={{ width:44, height:44, borderRadius:13, background:`${t.color}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
+                    {isDone?"✅":t.emoji}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:isDone?t.color:isActive?C.text:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Level {t.level} · {t.name}</p>
+                      {isDone&&<Tag color={t.color}>Complete</Tag>}
+                      {isActive&&!isDone&&<Tag color={t.color}>Active</Tag>}
+                    </div>
+                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(t.target)}</p>
+                  </div>
+                  {!isLocked&&<Ring pct={isDone?100:tierPct} size={44} stroke={4} color={t.color}><span style={{ fontSize:9, fontWeight:800, color:t.color, fontFamily:"DM Sans,sans-serif" }}>{isDone?100:tierPct}%</span></Ring>}
+                </div>
+                {(isActive||isDone)&&(
+                  <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6, fontStyle:"italic" }}>"{t.tip}"</p>
+                )}
+              </Card>
+            );
+          })}
+
+          {/* Update savings button */}
+          <Card style={{ padding:"14px 16px", border:`1px solid ${C.accent}30` }}>
+            <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Update your emergency fund savings</p>
+            <p style={{ margin:"0 0 12px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>How much do you have saved for emergencies right now?</p>
+            {!efGoal?(
+              <Btn onClick={()=>setSheet({ id:uid(), name:"Emergency Fund", emoji:"🛡️", color:C.lime, target:tiers[0].target, saved:0, deadline:"", isEmergencyFund:true })}>Set up emergency fund</Btn>
+            ):(
+              <Btn onClick={()=>setSheet(efGoal)}>Update amount</Btn>
+            )}
+          </Card>
+
+          {income===0&&(
+            <Card style={{ background:`${C.gold}0C`, border:`1px solid ${C.gold}35`, padding:"12px 16px" }}>
+              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>⚠️ Set your monthly income in <strong style={{ color:C.gold }}>Profile</strong> to get personalized tier targets.</p>
+            </Card>
+          )}
+        </div>
       )}
 
-      {goals.length===0?(
-        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
-          <div style={{ width:88, height:88, borderRadius:28, background:`${C.sky}12`, border:`2px dashed ${C.sky}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎯</div>
-          <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No goals yet</p>
-          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Set your first savings goal and watch it grow.</p>
-          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a goal</button>
-        </div>
-      ):(
-        goals.map(g=>{ const pct=Math.round((g.saved/g.target)*100); return (
-          <Card key={g.id} glow>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-              <div style={{ flex:1 }}><p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{g.emoji} {g.name}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{g.deadline?`Target: ${g.deadline}`:"No deadline set"}</p></div>
-              <Ring pct={pct} size={58} stroke={5} color={g.color}><span style={{ fontSize:10, fontWeight:800, color:g.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span></Ring>
+      {tab==="personal"&&(
+        <>
+          {goals.filter(g=>!g.isEmergencyFund).length>0&&(
+            <Card style={{ background:`${C.sky}0C`, border:`1px solid ${C.sky}28` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div><SLabel>Personal Goals</SLabel><p style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:C.text }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of {fmt(totalTarget)} across {goals.filter(g=>!g.isEmergencyFund).length} goal{goals.filter(g=>!g.isEmergencyFund).length!==1?"s":""}</p></div>
+                <Ring pct={overallPct} size={72} stroke={6} color={C.sky}><span style={{ fontSize:12, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>{overallPct}%</span></Ring>
+              </div>
+            </Card>
+          )}
+
+          {goals.filter(g=>!g.isEmergencyFund).length===0?(
+            <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
+              <div style={{ width:88, height:88, borderRadius:28, background:`${C.sky}12`, border:`2px dashed ${C.sky}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎯</div>
+              <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No personal goals yet</p>
+              <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Phone? Trip? Sneakers? Set a goal and make it real.</p>
+              <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a goal</button>
             </div>
-            <div style={{ display:"flex", gap:20, marginBottom:12 }}>
-              <div><SLabel>Saved</SLabel><p style={{ margin:0, fontSize:15, fontWeight:800, color:g.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(g.saved)}</p></div>
-              <div style={{ marginLeft:"auto", textAlign:"right" }}><SLabel>Remaining</SLabel><p style={{ margin:0, fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(g.target-g.saved)}</p></div>
-            </div>
-            <Bar pct={pct} color={g.color} h={7}/>
-            <p style={{ margin:"10px 0 8px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>💡 Save <strong style={{ color:g.color }}>{fmt(Math.round((g.target-g.saved)/6))}/mo</strong> to hit this on time</p>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>setSheet(g)} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
-              {confirm===g.id?(
-                <button onClick={()=>deleteGoal(g.id)} style={{ flex:1, background:C.coral, border:"none", borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm delete</button>
-              ):(
-                <button onClick={()=>setConfirm(g.id)} style={{ flex:1, background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Delete</button>
-              )}
-            </div>
-          </Card>
-        );})
+          ):(
+            goals.filter(g=>!g.isEmergencyFund).map(g=>{ const pct=Math.round((g.saved/g.target)*100); return (
+              <Card key={g.id} glow>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                  <div style={{ flex:1 }}><p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{g.emoji} {g.name}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{g.deadline?`Target: ${g.deadline}`:"No deadline set"}</p></div>
+                  <Ring pct={pct} size={58} stroke={5} color={g.color}><span style={{ fontSize:10, fontWeight:800, color:g.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span></Ring>
+                </div>
+                <div style={{ display:"flex", gap:20, marginBottom:12 }}>
+                  <div><SLabel>Saved</SLabel><p style={{ margin:0, fontSize:15, fontWeight:800, color:g.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(g.saved)}</p></div>
+                  <div style={{ marginLeft:"auto", textAlign:"right" }}><SLabel>Remaining</SLabel><p style={{ margin:0, fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(g.target-g.saved)}</p></div>
+                </div>
+                <Bar pct={pct} color={g.color} h={7}/>
+                <p style={{ margin:"10px 0 8px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>💡 Save <strong style={{ color:g.color }}>{fmt(Math.round((g.target-g.saved)/6))}/mo</strong> to hit this in 6 months</p>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={()=>setSheet(g)} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
+                  {confirm===g.id?(
+                    <button onClick={()=>deleteGoal(g.id)} style={{ flex:1, background:C.coral, border:"none", borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm delete</button>
+                  ):(
+                    <button onClick={()=>setConfirm(g.id)} style={{ flex:1, background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Delete</button>
+                  )}
+                </div>
+              </Card>
+            );})
+          )}
+        </>
       )}
     </div>
   );
@@ -2041,7 +2162,7 @@ export default function Bulsa() {
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
-    goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
+    goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income}/>,
     survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} hourlyRate={hourlyRate} setHourlyRate={setHourlyRate}/>,
   };
