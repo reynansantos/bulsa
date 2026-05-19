@@ -305,32 +305,49 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 // ─── ADD EXPENSE ───────────────────────────────────────────────────────────
 
-function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
+function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense }) {
+  const isEdit = !!editExpense;
   const [step,   setStep]   = useState(0);
-  const [amount, setAmount] = useState("");
-  const [name,   setName]   = useState("");
-  const [catId,  setCatId]  = useState("food");
-  const [moodId, setMoodId] = useState(null);
-  const [photo,  setPhoto]  = useState(null);
-  const [isGrocery, setIsGrocery] = useState(false);
+  const [amount, setAmount] = useState(isEdit ? String(editExpense.amount) : "");
+  const [name,   setName]   = useState(isEdit ? editExpense.name : "");
+  const [catId,  setCatId]  = useState(isEdit ? editExpense.catId : "food");
+  const [moodId, setMoodId] = useState(isEdit ? editExpense.moodId : null);
+  const [photo,  setPhoto]  = useState(isEdit ? editExpense.photo : null);
+  const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
   const [gInput, setGInput] = useState("");
-  const [gItems, setGItems] = useState([]);
+  const [gItems, setGItems] = useState(isEdit ? editExpense.groceryItems||[] : []);
   const [vis,    setVis]    = useState(false);
+
+  // Backdate
+  const today = new Date().toISOString().split("T")[0];
+  const [expDate, setExpDate] = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
+
   useState(()=>{ setTimeout(()=>setVis(true),20); });
 
   const close = ()=>{ setVis(false); setTimeout(onClose,300); };
   const save  = ()=>{
     if (!amount || +amount<=0) return;
-    const now=new Date(), h=now.getHours(), mn=now.getMinutes().toString().padStart(2,"0");
-    onSave({ id:uid(), name:name.trim()||catOf(catId).label, amount:+amount,
-      catId:isGrocery?"grocery":catId, moodId, photo, groceryItems:gItems,
-      date:"Today", time:`${h%12||12}:${mn} ${h>=12?"PM":"AM"}`, ts:now.toISOString() });
+    const d    = new Date(expDate + "T" + new Date().toTimeString().slice(0,8));
+    const h    = d.getHours(), mn = d.getMinutes().toString().padStart(2,"0");
+    const isToday = expDate === today;
+    onSave({
+      id: isEdit ? editExpense.id : uid(),
+      name: name.trim() || catOf(catId).label,
+      amount: +amount,
+      catId: isGrocery ? "grocery" : catId,
+      moodId, photo, groceryItems: gItems,
+      date: isToday ? "Today" : new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
+      time: `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
+      ts: new Date(expDate + "T" + (isToday ? new Date().toTimeString().slice(0,8) : "12:00:00")).toISOString()
+    });
     close();
   };
 
   const addGItem = ()=>{ if(!gInput.trim()) return; setGItems(p=>[...p,gInput.trim()]); setGInput(""); };
   const QUICK=[50,100,150,200,500,1000];
-  const titles=["How much?", isGrocery?"What did you buy?":"What was it?", "How were you feeling?", "Add a memory?"];
+  const titles = isEdit
+    ? ["Edit amount", "Edit details", "Edit mood", "Edit photo"]
+    : ["How much?", isGrocery?"What did you buy?":"What was it?", "How were you feeling?", "Add a memory?"];
 
   return (
     <>
@@ -361,11 +378,23 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
                   onKeyDown={e=>e.key==="Enter"&&amount&&+amount>0&&setStep(1)}
                   style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}/>
               </div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:20 }}>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
                 {QUICK.map(q=>(
                   <button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>
                 ))}
               </div>
+
+              {/* Backdate */}
+              <div style={{ marginBottom:16 }}>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Date of expense</p>
+                <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${expDate!==today?C.accent+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
+                  <span style={{ fontSize:16 }}>📅</span>
+                  <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)}
+                    style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
+                  {expDate!==today&&<Tag color={C.accent}>Backdated</Tag>}
+                </div>
+              </div>
+
               <div style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}30`, borderRadius:14, padding:"12px 16px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
                 <span style={{ fontSize:20 }}>🛒</span>
                 <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Grocery mode</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Track individual items</p></div>
@@ -458,10 +487,12 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount }) {
 
 // ─── EXPENSE DETAIL ────────────────────────────────────────────────────────
 
-function ExpenseDetail({ expense, onClose }) {
-  const [vis, setVis] = useState(true);
+function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
+  const [vis,     setVis]     = useState(true);
+  const [confirm, setConfirm] = useState(false);
   const c=catOf(expense.catId), m=moodOf(expense.moodId);
   const close=()=>{ setVis(false); setTimeout(onClose,280); };
+
   return (
     <>
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
@@ -500,6 +531,22 @@ function ExpenseDetail({ expense, onClose }) {
               </div>
             </div>
           )}
+
+          {/* Edit / Delete actions */}
+          {!confirm ? (
+            <div style={{ display:"flex", gap:8, marginTop:8 }}>
+              <button onClick={()=>{ close(); setTimeout(()=>onEdit(expense), 300); }} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:12, padding:"11px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✏️ Edit</button>
+              <button onClick={()=>setConfirm(true)} style={{ flex:1, background:`${C.coral}12`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:12, padding:"11px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑️ Delete</button>
+            </div>
+          ) : (
+            <div style={{ marginTop:8 }}>
+              <p style={{ margin:"0 0 10px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>Delete this expense? Can't be undone.</p>
+              <div style={{ display:"flex", gap:8 }}>
+                <Btn variant="outline" onClick={()=>setConfirm(false)}>Cancel</Btn>
+                <Btn onClick={()=>{ onDelete(expense.id); close(); }} style={{ background:C.coral, boxShadow:"none" }}>Yes, delete</Btn>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -513,7 +560,7 @@ function NavBar({ screen, setScreen, onAdd }) {
     { id:"home",     icon:"◈", label:"Home" },
     { id:"expenses", icon:"⊡", label:"Expenses" },
     null,
-    { id:"goals",    icon:"◎", label:"Goals" },
+    { id:"utang",    icon:"🤝", label:"Utang" },
     { id:"profile",  icon:"⊙", label:"Profile" },
   ];
   return (
@@ -611,7 +658,7 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs }) {
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const balance    = income - totalSpent;
   const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
@@ -621,6 +668,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const photoMems  = expenses.filter(e=>e.photo).slice(0,4);
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
   const totalSaved = goals.reduce((s,g)=>s+g.saved,0);
+  const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
+  const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
 
   const todayStr   = new Date().toDateString();
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
@@ -698,8 +747,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         <Card glow onClick={()=>setScreen("loans")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
         <Card glow onClick={()=>setScreen("goals")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
       </div>
-
-      {/* ── SPEND DASHBOARD ── */}
+      {(iOweTotal>0||theyOweTotal>0)&&(
+        <Card style={{ padding:"12px 16px", border:`1px solid ${iOweTotal>theyOweTotal?C.coral+"40":C.green+"40"}` }} onClick={()=>setScreen("utang")}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:18 }}>🤝</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang tracker</p></div>
+            <div style={{ display:"flex", gap:10 }}>
+              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>I owe {fmt(iOweTotal)}</span>}
+              {theyOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>+{fmt(theyOweTotal)}</span>}
+            </div>
+          </div>
+        </Card>
+      )}
       {expenses.filter(e=>e.ts).length>0&&(()=>{
         const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
         const byDay=Array(7).fill(0);
@@ -986,18 +1044,24 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
-  const [view,   setView]   = useState("list");
-  const [detail, setDetail] = useState(null);
-  const [editB,  setEditB]  = useState(null);
-  const [bInput, setBInput] = useState("");
+function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
+  const [view,      setView]     = useState("list");
+  const [detail,    setDetail]   = useState(null);
+  const [editExp,   setEditExp]  = useState(null);
+  const [editB,     setEditB]    = useState(null);
+  const [bInput,    setBInput]   = useState("");
   const total    = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs = expenses.filter(e=>e.moodId).length;
   const bymood   = MOODS.map(m=>{ const amt=expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0),cnt=expenses.filter(e=>e.moodId===m.id).length; return {...m,amount:amt,count:cnt,pct:total?Math.round((amt/total)*100):0}; }).filter(m=>m.count>0);
 
+  const handleEdit   = exp => setEditExp(exp);
+  const handleDelete = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
+  const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
+
   return (
     <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)}/>}
+      {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete}/>}
+      {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
@@ -1072,6 +1136,187 @@ function ExpensesScreen({ expenses, budgets, setBudgets, onAdd, dailyLimit, setD
       {view==="insights"&&(
         <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
       )}
+    </div>
+  );
+}
+
+// ─── UTANG ─────────────────────────────────────────────────────────────────
+
+function UtangScreen({ utangs, setUtangs }) {
+  const [view,    setView]    = useState("all"); // all | iowe | theyowe
+  const [sheet,   setSheet]   = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const saveUtang = u => {
+    setUtangs(prev => prev.find(x=>x.id===u.id) ? prev.map(x=>x.id===u.id?u:x) : [...prev,u]);
+    setSheet(null);
+  };
+  const deleteUtang = id => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
+  const markSettled = id => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
+
+  const iOwe    = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
+  const theyOwe = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
+  const settled = utangs.filter(u=>u.settled);
+  const iOweTotal    = iOwe.reduce((s,u)=>s+u.amount,0);
+  const theyOweTotal = theyOwe.reduce((s,u)=>s+u.amount,0);
+
+  const filtered = view==="iowe" ? iOwe : view==="theyowe" ? theyOwe : [...iOwe,...theyOwe,...settled];
+
+  return (
+    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+      {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)}/>}
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Utang</h2>
+        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
+          <SLabel>I owe</SLabel>
+          <p style={{ margin:"4px 0 2px", fontSize:24, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(iOweTotal)}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{iOwe.length} pending</p>
+        </Card>
+        <Card style={{ background:`${C.green}08`, border:`1px solid ${C.green}28` }}>
+          <SLabel>They owe me</SLabel>
+          <p style={{ margin:"4px 0 2px", fontSize:24, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(theyOweTotal)}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{theyOwe.length} pending</p>
+        </Card>
+      </div>
+
+      {/* Net position */}
+      {(iOwe.length>0||theyOwe.length>0)&&(
+        <Card style={{ textAlign:"center", padding:"12px 16px" }}>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            Net position: {theyOweTotal>=iOweTotal?(
+              <strong style={{ color:C.green }}>+{fmt(theyOweTotal-iOweTotal)} in your favor</strong>
+            ):(
+              <strong style={{ color:C.coral }}>-{fmt(iOweTotal-theyOweTotal)} you owe more</strong>
+            )}
+          </p>
+        </Card>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
+        {[["all","All"],["iowe","I Owe"],["theyowe","They Owe"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Empty state */}
+      {utangs.length===0&&(
+        <div style={{ textAlign:"center", padding:"56px 0" }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>🤝</div>
+          <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang utang!</p>
+          <p style={{ margin:"0 0 20px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Track who owes who — for lunches, GCash, or basta.</p>
+          <button onClick={()=>setSheet("add")} style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:14, padding:"14px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add utang</button>
+        </div>
+      )}
+
+      {/* List */}
+      {filtered.map(u=>(
+        <Card key={u.id} style={{ opacity:u.settled?0.6:1, border:`1px solid ${u.settled?C.border:u.direction==="iowe"?C.coral+"40":C.green+"40"}` }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:u.settled?0:10 }}>
+            <div style={{ width:42, height:42, borderRadius:13, background:u.direction==="iowe"?`${C.coral}15`:`${C.green}12`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+              {u.direction==="iowe"?"😬":"🤑"}
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div>
+                  <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
+                  <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{u.direction==="iowe"?"I owe them":"They owe me"}</p>
+                  {u.note&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontStyle:"italic" }}>"{u.note}"</p>}
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:u.direction==="iowe"?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(u.amount)}</p>
+                  {u.settled&&<Tag color={C.green}>Settled</Tag>}
+                </div>
+              </div>
+            </div>
+          </div>
+          {!u.settled&&(
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>markSettled(u.id)} style={{ flex:1, background:`${C.green}12`, border:`1px solid ${C.green}35`, color:C.green, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✓ Settled</button>
+              <button onClick={()=>setSheet(u)} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
+              {confirm===u.id?(
+                <button onClick={()=>deleteUtang(u.id)} style={{ flex:1, background:C.coral, border:"none", borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm</button>
+              ):(
+                <button onClick={()=>setConfirm(u.id)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"7px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑</button>
+              )}
+            </div>
+          )}
+          {u.settled&&(
+            <button onClick={()=>markSettled(u.id)} style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function UtangSheet({ utang, onSave, onClose }) {
+  const [person,    setPerson]    = useState(utang?.person||"");
+  const [amount,    setAmount]    = useState(utang?.amount?String(utang.amount):"");
+  const [direction, setDirection] = useState(utang?.direction||"iowe");
+  const [note,      setNote]      = useState(utang?.note||"");
+
+  const save = () => {
+    if (!person.trim()||!amount||+amount<=0) return;
+    onSave({ id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(), settled:utang?.settled||false, ts:utang?.ts||new Date().toISOString() });
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:200, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:420, margin:"0 auto", background:C.surface, borderRadius:"24px 24px 0 0", padding:"24px 20px calc(28px + env(safe-area-inset-bottom))", display:"flex", flexDirection:"column", gap:16 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text }}>{utang?"Edit utang":"Log utang"}</h3>
+          <button onClick={onClose} style={{ background:C.card, border:"none", borderRadius:"50%", width:32, height:32, cursor:"pointer", color:C.textSub, fontSize:16 }}>✕</button>
+        </div>
+
+        {/* Direction */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {[
+            { val:"iowe",    label:"I owe them",  emoji:"😬", color:C.coral },
+            { val:"theyowe", label:"They owe me", emoji:"🤑", color:C.green },
+          ].map(opt=>(
+            <button key={opt.val} onClick={()=>setDirection(opt.val)} style={{ padding:"14px 10px", borderRadius:14, border:`2px solid ${direction===opt.val?opt.color+"80":C.border}`, background:direction===opt.val?`${opt.color}12`:C.card, cursor:"pointer", textAlign:"center" }}>
+              <p style={{ margin:"0 0 4px", fontSize:22 }}>{opt.emoji}</p>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:direction===opt.val?opt.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{opt.label}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Person */}
+        <div>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Who?</p>
+          <input autoFocus value={person} onChange={e=>setPerson(e.target.value)} placeholder="e.g. Mico, Jessa, Sir JA..."
+            style={{ width:"100%", background:C.card, border:`1px solid ${person.trim()?C.accent+"60":C.border}`, borderRadius:14, padding:"14px 16px", color:C.text, fontSize:16, fontWeight:700, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box" }}/>
+        </div>
+
+        {/* Amount */}
+        <div>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>How much?</p>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${amount?C.accent+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input type="text" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+            {[50,100,200,500,1000].map(q=>(<button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q}</button>))}
+          </div>
+        </div>
+
+        {/* Note */}
+        <div>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>For what? (optional)</p>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. lunch, GCash load, taxi share..."
+            style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box" }}/>
+        </div>
+
+        <Btn onClick={save} disabled={!person.trim()||!amount||+amount<=0}>Log it</Btn>
+      </div>
     </div>
   );
 }
@@ -1549,6 +1794,7 @@ export default function Bulsa() {
   const [avatar,    setAvatar]    = useLocalStorage("bulsa_avatar", null);
   const [bio,       setBio]       = useLocalStorage("bulsa_bio", "");
   const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
+  const [utangs,    setUtangs]    = useLocalStorage("bulsa_utangs", []);
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -1560,9 +1806,10 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar}/>,
-    expenses: <ExpensesScreen expenses={expenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs}/>,
+    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
     survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
