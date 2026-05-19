@@ -1867,7 +1867,7 @@ export default function Bulsa() {
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
+            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", paddingBottom:"calc(80px + env(safe-area-inset-bottom))" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount}/>}
           </>
