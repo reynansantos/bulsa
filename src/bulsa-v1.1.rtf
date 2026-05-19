@@ -1,0 +1,737 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww12720\viewh7800\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import \{ useState, useCallback, useRef, useEffect \} from "react";\
+import \{ Home, Receipt, Zap, Handshake, User, Plus, Wallet, Calendar \} from "lucide-react";\
+\
+// \uc0\u9472 \u9472 \u9472  GLOBAL STYLES \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+const GlobalStyles = () => (\
+  <style>\{`\
+    * \{ box-sizing: border-box; -webkit-font-smoothing: antialiased; \}\
+    body \{ font-family: 'DM Sans', sans-serif; background: #0C0C0C; margin: 0; color: #F5F5F0; \}\
+    ::-webkit-scrollbar \{ display: none; \}\
+    * \{ scrollbar-width: none; \}\
+\
+    @keyframes fadeUp \{\
+      from \{ opacity: 0; transform: translateY(14px); \}\
+      to   \{ opacity: 1; transform: translateY(0); \}\
+    \}\
+    @keyframes fadeIn \{\
+      from \{ opacity: 0; \}\
+      to   \{ opacity: 1; \}\
+    \}\
+    @keyframes shimmer \{\
+      0%   \{ background-position: -200% center; \}\
+      100% \{ background-position: 200% center; \}\
+    \}\
+    @keyframes pulse \{\
+      0%, 100% \{ opacity: 1; \}\
+      50%       \{ opacity: 0.5; \}\
+    \}\
+    @keyframes scaleIn \{\
+      from \{ opacity: 0; transform: scale(0.92); \}\
+      to   \{ opacity: 1; transform: scale(1); \}\
+    \}\
+    @keyframes slideUp \{\
+      from \{ opacity: 0; transform: translateY(22px); \}\
+      to   \{ opacity: 1; transform: translateY(0); \}\
+    \}\
+\
+    .screen-wrap \{ animation: fadeIn 0.22s ease; \}\
+    .card-anim   \{ animation: fadeUp 0.28s ease both; \}\
+\
+    .tap-btn \{\
+      -webkit-tap-highlight-color: transparent;\
+      transition: transform 0.12s ease, opacity 0.12s ease !important;\
+    \}\
+    .tap-btn:active \{ transform: scale(0.95) !important; opacity: 0.85 !important; \}\
+\
+    .nav-btn \{\
+      -webkit-tap-highlight-color: transparent;\
+      transition: transform 0.12s ease !important;\
+    \}\
+    .nav-btn:active \{ transform: scale(0.88) !important; \}\
+\
+    input[type="number"]::-webkit-inner-spin-button,\
+    input[type="number"]::-webkit-outer-spin-button \{ -webkit-appearance: none; margin: 0; \}\
+    input[type="date"]::-webkit-calendar-picker-indicator \{ filter: invert(0.5); \}\
+\
+    .shimmer-text \{\
+      background: linear-gradient(90deg, #F5F5F0 30%, #FF9A6B 50%, #F5F5F0 70%);\
+      background-size: 200% auto;\
+      -webkit-background-clip: text;\
+      -webkit-text-fill-color: transparent;\
+      background-clip: text;\
+      animation: shimmer 3s linear infinite;\
+    \}\
+  `\}</style>\
+);\
+\
+// \uc0\u9472 \u9472 \u9472  LOCAL STORAGE HOOK \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function useLocalStorage(key, initialValue) \{\
+  const [storedValue, setStoredValue] = useState(() => \{\
+    try \{\
+      const item = localStorage.getItem(key);\
+      return item !== null ? JSON.parse(item) : initialValue;\
+    \} catch \{\
+      return initialValue;\
+    \}\
+  \});\
+\
+  useEffect(() => \{\
+    try \{\
+      localStorage.setItem(key, JSON.stringify(storedValue));\
+    \} catch (err) \{\
+      console.warn("localStorage write failed:", err);\
+    \}\
+  \}, [key, storedValue]);\
+\
+  return [storedValue, setStoredValue];\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  TOKENS & PRESETS \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+const C = \{\
+  bg:"#0C0C0C", surface:"#141414", card:"#1C1C1C", cardAlt:"#222222",\
+  border:"#2A2A2A", borderLight:"#383838",\
+  accent:"#FF6B2B", accentSoft:"#FF9A6B", accentGlow:"rgba(255,107,43,0.18)",\
+  lime:"#C8F135", sky:"#60CFFF", rose:"#FF4D8C", gold:"#FFD060", mint:"#00E0A0",\
+  text:"#F5F5F0", textSub:"#A0A09A", textFaint:"#606058",\
+  green:"#00E096", coral:"#FF4455", overlay:"rgba(12,12,12,0.94)",\
+  gradAccent:"linear-gradient(135deg,#FF6B2B,#FF9A6B)",\
+  gradLime:"linear-gradient(135deg,#C8F135,#8FB800)",\
+  gradSky:"linear-gradient(135deg,#60CFFF,#0099DD)",\
+  gradRose:"linear-gradient(135deg,#FF4D8C,#FF9ABA)",\
+\};\
+\
+const CATS = [\
+  \{ id:"food",      label:"Food & Drinks",  icon:"\uc0\u55356 \u57180 ", color:C.accent \},\
+  \{ id:"transport", label:"Transport",      icon:"\uc0\u55357 \u56983 ", color:C.sky \},\
+  \{ id:"shopping",  label:"Shopping",       icon:"\uc0\u55357 \u57037 \u65039 ", color:C.rose \},\
+  \{ id:"subs",      label:"Subscriptions",  icon:"\uc0\u55357 \u56561 ", color:C.gold \},\
+  \{ id:"health",    label:"Health",          icon:"\uc0\u55357 \u56490 ", color:C.mint \},\
+  \{ id:"grocery",   label:"Groceries",      icon:"\uc0\u55357 \u57042 ", color:C.lime \},\
+  \{ id:"bills",     label:"Bills",           icon:"\uc0\u55358 \u56830 ", color:C.textSub \},\
+  \{ id:"other",     label:"Other",          icon:"\uc0\u10022 ",  color:C.textSub \},\
+];\
+\
+const MOODS = [\
+  \{ id:"stressed",  emoji:"\uc0\u55357 \u56880 ", label:"Stressed",  color:C.coral \},\
+  \{ id:"neutral",   emoji:"\uc0\u55357 \u56848 ", label:"Neutral",   color:C.textSub \},\
+  \{ id:"happy",     emoji:"\uc0\u55357 \u56842 ", label:"Happy",     color:C.gold \},\
+  \{ id:"motivated", emoji:"\uc0\u55357 \u56613 ", label:"Motivated", color:C.green \},\
+];\
+\
+const LOAN_TYPES  = ["BNPL","Personal","Cash Loan","Credit Card","Student","Other"];\
+const LOAN_COLORS = [C.accent, C.sky, C.gold, C.rose, C.mint, C.textSub];\
+\
+const WALLET_PRESETS = [\
+  \{ key:"cash",     name:"Cash",     icon:"\uc0\u55357 \u56501 ", color:"#00E096" \},\
+  \{ key:"gcash",    name:"GCash",    icon:"\uc0\u55357 \u56561 ", color:"#0070DC" \},\
+  \{ key:"maya",     name:"Maya",     icon:"\uc0\u55357 \u56476 ", color:"#7B5CF6" \},\
+  \{ key:"bpi",      name:"BPI",      icon:"\uc0\u55356 \u57318 ", color:"#CC0000" \},\
+  \{ key:"bdo",      name:"BDO",      icon:"\uc0\u55356 \u57318 ", color:"#003087" \},\
+  \{ key:"maribank", name:"Maribank", icon:"\uc0\u55357 \u57314 ", color:"#00A86B" \},\
+  \{ key:"seabank",  name:"SeaBank",  icon:"\uc0\u55357 \u57312 ", color:"#EE4D2D" \},\
+  \{ key:"other",    name:"Other",    icon:"\uc0\u55357 \u56496 ", color:"#FFD060" \},\
+];\
+const WALLET_ICONS  = ["\uc0\u55357 \u56501 ","\u55357 \u56561 ","\u55357 \u56499 ","\u55356 \u57318 ","\u55357 \u56496 ","\u55358 \u56985 "];\
+const WALLET_COLORS = ["#00E096","#0070DC","#7B5CF6","#CC0000","#003087","#00A86B","#EE4D2D","#FFD060"];\
+\
+const fmt    = n  => "\uc0\u8369 " + Math.round(n).toLocaleString();\
+const catOf  = id => CATS.find(c => c.id === id) || CATS[7];\
+const moodOf = id => MOODS.find(m => m.id === id);\
+const uid    = ()  => Date.now() + Math.random();\
+\
+// \uc0\u9472 \u9472 \u9472  ATOMIC UI COMPONENTS \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function Orb(\{ x, y, color=C.accent, size=300, opacity=0.1 \}) \{\
+  return <div style=\{\{ position:"absolute", left:x, top:y, width:size, height:size, borderRadius:"50%", background:color, filter:"blur(100px)", opacity, pointerEvents:"none", zIndex:0 \}\}/>;\
+\}\
+\
+function Card(\{ children, style, onClick, glow, danger, animDelay=0 \}) \{\
+  const [h, setH] = useState(false);\
+  const gc = danger ? C.coral : C.accent;\
+  return (\
+    <div onClick=\{onClick\} onMouseEnter=\{()=>setH(true)\} onMouseLeave=\{()=>setH(false)\}\
+      className=\{`card-anim $\{onClick ? "tap-btn" : ""\}`\}\
+      style=\{\{ background:C.card, borderRadius:20, border:`1px solid $\{h&&glow?gc+"55":C.border\}`,\
+        padding:"16px 18px", boxShadow:h&&glow?`0 4px 32px $\{gc\}28`:"none",\
+        transition:"border 0.18s, box-shadow 0.18s",\
+        cursor:onClick?"pointer":"default", position:"relative", overflow:"hidden",\
+        animationDelay:`$\{animDelay\}ms`, ...style \}\}>\
+      \{children\}\
+    </div>\
+  );\
+\}\
+\
+function Bar(\{ pct, color=C.accent, h=6 \}) \{\
+  return (\
+    <div style=\{\{ background:C.border, borderRadius:99, height:h, overflow:"hidden" \}\}>\
+      <div style=\{\{ height:"100%", borderRadius:99, background:color, width:`$\{Math.min(pct,100)\}%`, transition:"width 1.1s cubic-bezier(0.34,1.56,0.64,1)" \}\}/>\
+    </div>\
+  );\
+\}\
+\
+function Tag(\{ children, color=C.accent \}) \{\
+  return <span style=\{\{ fontSize:10, fontWeight:800, letterSpacing:"0.06em", padding:"3px 9px", borderRadius:99, background:color+"22", color, textTransform:"uppercase", fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap" \}\}>\{children\}</span>;\
+\}\
+\
+function SLabel(\{ children \}) \{\
+  return <p style=\{\{ margin:"0 0 6px", fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:C.textSub+"bb", fontFamily:"DM Sans,sans-serif" \}\}>\{children\}</p>;\
+\}\
+\
+function Toggle(\{ on, setOn, color=C.accent \}) \{\
+  return (\
+    <div onClick=\{()=>setOn(!on)\} style=\{\{ width:44, height:24, borderRadius:99, flexShrink:0, background:on?color:C.border, transition:"background 0.2s", position:"relative", cursor:"pointer" \}\}>\
+      <div style=\{\{ width:18, height:18, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:on?23:3, transition:"left 0.2s", boxShadow:"0 1px 4px rgba(0,0,0,0.4)" \}\}/>\
+    </div>\
+  );\
+\}\
+\
+function Inp(\{ value, onChange, placeholder, type="text", style=\{\}, autoFocus=false, onKeyDown \}) \{\
+  return (\
+    <input autoFocus=\{autoFocus\} type=\{type\} value=\{value\} onChange=\{e=>onChange(e.target.value)\}\
+      placeholder=\{placeholder\} onKeyDown=\{onKeyDown\}\
+      style=\{\{ width:"100%", background:C.cardAlt, border:`1px solid $\{C.border\}`, borderRadius:12,\
+        padding:"12px 14px", color:C.text, fontSize:14, fontWeight:600, outline:"none",\
+        fontFamily:"DM Sans,sans-serif", boxSizing:"border-box", caretColor:C.accent, ...style \}\}/>\
+  );\
+\}\
+\
+function Btn(\{ children, onClick, style=\{\}, variant="primary" \}) \{\
+  const bg  = variant==="primary" ? C.gradAccent : variant==="ghost" ? "none" : C.card;\
+  const clr = variant==="primary" ? "#fff" : variant==="ghost" ? C.textSub : C.text;\
+  const bdr = variant==="outline" ? `1px solid $\{C.border\}` : "none";\
+  return (\
+    <button onClick=\{onClick\} className="tap-btn" style=\{\{ padding:"14px", borderRadius:14, border:bdr, background:bg, color:clr,\
+      fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif",\
+      boxShadow:variant==="primary"?`0 6px 20px $\{C.accentGlow\}`:"none", width:"100%", ...style \}\}>\
+      \{children\}\
+    </button>\
+  );\
+\}\
+\
+function BottomSheet(\{ children, onClose, title \}) \{\
+  const [vis, setVis] = useState(false);\
+  useEffect(()=>\{ setTimeout(()=>setVis(true),20); \}, []);\
+  const close = ()=>\{ setVis(false); setTimeout(onClose,320); \};\
+  return (\
+    <>\
+      <div onClick=\{close\} style=\{\{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" \}\}/>\
+      <div style=\{\{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY($\{vis?0:"110%"\})`,\
+        width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",\
+        border:`1px solid $\{C.borderLight\}`, borderBottom:"none", zIndex:201,\
+        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" \}\}>\
+        <div style=\{\{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 \}\}>\
+          <div style=\{\{ width:40, height:5, borderRadius:99, background:C.borderLight \}\}/>\
+        </div>\
+        <div style=\{\{ padding:"10px 22px 44px" \}\}>\
+          <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 \}\}>\
+            <h3 style=\{\{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" \}\}>\{title\}</h3>\
+            <button onClick=\{close\} className="tap-btn" style=\{\{ background:C.card, border:`1px solid $\{C.border\}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" \}\}>\'d7</button>\
+          </div>\
+          \{children\}\
+        </div>\
+      </div>\
+    </>\
+  );\
+\}\
+\
+function PhotoPicker(\{ onPhoto \}) \{\
+  const ref = useRef(null);\
+  return (\
+    <>\
+      <input ref=\{ref\} type="file" accept="image/*" style=\{\{ display:"none" \}\}\
+        onChange=\{e=>\{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>onPhoto(ev.target.result); r.readAsDataURL(f); \}\}/>\
+      <div style=\{\{ display:"flex", gap:10 \}\}>\
+        \{[["\uc0\u55357 \u56764 \u65039 ","Gallery"]].map(([ic,lbl])=>(\
+          <button key=\{lbl\} onClick=\{()=>ref.current?.click()\}\
+            style=\{\{ flex:1, padding:"13px", borderRadius:14, border:`1.5px dashed $\{C.border\}`, background:C.cardAlt, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:8 \}\}>\
+            <span style=\{\{ fontSize:18 \}\}>\{ic\}</span>\{lbl\}\
+          </button>\
+        ))\}\
+      </div>\
+    </>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  WALLETS DASHBOARD SCREEN \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function WalletSheet(\{ wallet, onSave, onClose \}) \{\
+  const editing = !!wallet;\
+  const [name,    setName]    = useState(wallet?.name    || "");\
+  const [balance, setBalance] = useState(wallet?.balance != null ? String(wallet.balance) : "");\
+  const [icon,    setIcon]    = useState(wallet?.icon    || "\uc0\u55357 \u56501 ");\
+  const [color,   setColor]   = useState(wallet?.color   || "#00E096");\
+  const valid = name.trim() && balance !== "" && !isNaN(+balance) && +balance >= 0;\
+\
+  return (\
+    <BottomSheet onClose=\{onClose\} title=\{editing ? "Edit Account" : "Add Account"\}>\
+      <div style=\{\{ display:"flex", flexDirection:"column", gap:14 \}\}>\
+        \{!editing && (\
+          <div>\
+            <SLabel>Quick presets</SLabel>\
+            <div style=\{\{ display:"flex", flexWrap:"wrap", gap:"8px" \}\}>\
+              \{WALLET_PRESETS.map(p => (\
+                <button key=\{p.key\} onClick=\{()=>\{ setName(p.name); setIcon(p.icon); setColor(p.color); \}\} style=\{\{\
+                  display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99,\
+                  border:`1px solid $\{name===p.name?p.color+"60":C.border\}`, background:name===p.name?p.color+"1A":C.card,\
+                  cursor:"pointer", fontSize:13, fontWeight:700, color:name===p.name?p.color:C.textSub, fontFamily:"DM Sans"\
+                \}\}><span>\{p.icon\}</span>\{p.name\}</button>\
+              ))\}\
+            </div>\
+          </div>\
+        )\}\
+        <div><SLabel>Account Name</SLabel><Inp value=\{name\} onChange=\{setName\} placeholder="e.g. GCash, Cash, BPI..." autoFocus=\{editing\}/></div>\
+        <div>\
+          <SLabel>Balance</SLabel>\
+          <div style=\{\{ display:"flex", alignItems:"baseline", gap:6, background:C.cardAlt, border:`1px solid $\{C.border\}`, borderRadius:14, padding:"14px 16px" \}\}>\
+            <span style=\{\{ fontFamily:"DM Sans", fontSize:24, fontWeight:800, color:C.textSub \}\}>\uc0\u8369 </span>\
+            <input type="text" inputMode="decimal" value=\{balance\} onChange=\{e=>setBalance(e.target.value.replace(/[^0-9.]/g,""))\} placeholder="0" style=\{\{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans", fontWeight:800, fontSize:32, color:C.text, width:"100%" \}\}/>\
+          </div>\
+        </div>\
+        <div style=\{\{ display:"flex", gap:10, marginTop:4 \}\}>\
+          <Btn variant="outline" onClick=\{onClose\}>Cancel</Btn>\
+          <Btn onClick=\{()=>valid && onSave(\{ id:wallet?.id||uid(), name:name.trim(), balance:+balance, icon, color \})\} style=\{\{ opacity:valid?1:0.4 \}\}>Save</Btn>\
+        </div>\
+      </div>\
+    </BottomSheet>\
+  );\
+\}\
+\
+function WalletsScreen(\{ wallets, setWallets \}) \{\
+  const [sheet, setSheet] = useState(null);\
+  const [confirm, setConfirm] = useState(null);\
+  const total = wallets.reduce((s,w) => s + w.balance, 0);\
+\
+  return (\
+    <div className="screen-wrap" style=\{\{ padding:"22px 18px 80px", display:"flex", flexDirection:"column", gap:14 \}\}>\
+      \{sheet && <WalletSheet wallet=\{sheet==="add"?null:sheet\} onSave=\{w=>\{ setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]); setSheet(null); \}\} onClose=\{()=>setSheet(null)\}/>\}\
+      <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center" \}\}>\
+        <div>\
+          <h2 style=\{\{ margin:0, fontFamily:"DM Sans", fontSize:24, fontWeight:800, color:C.text \}\}>Wallets & Accounts</h2>\
+          <p style=\{\{ margin:0, fontSize:12, color:C.textSub \}\}>Your real available liquidity</p>\
+        </div>\
+        <Btn onClick=\{()=>setSheet("add")\} style=\{\{ width:"auto", padding:"8px 16px" \}\}>+ Add</Btn>\
+      </div>\
+\
+      <div style=\{\{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid $\{C.accent\}35`, borderRadius:24, padding:"24px 22px 20px" \}\}>\
+        <SLabel>Total Available Net Balance</SLabel>\
+        <p style=\{\{ margin:"4px 0", fontFamily:"DM Sans", fontSize:38, fontWeight:800, color:C.text, letterSpacing:"-0.02em" \}\}>\{fmt(total)\}</p>\
+        <div style=\{\{ display:"flex", gap:4, height:6, borderRadius:99, overflow:"hidden", marginTop:12 \}\}>\
+          \{wallets.map(w => <div key=\{w.id\} style=\{\{ flex:w.balance, background:w.color, minWidth:w.balance>0?4:0 \}\}/>)\}\
+        </div>\
+      </div>\
+\
+      \{wallets.map(w => (\
+        <Card key=\{w.id\} glow>\
+          <div style=\{\{ display:"flex", alignItems:"center", gap:14 \}\}>\
+            <div style=\{\{ width:46, height:46, borderRadius:14, background:w.color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, border:`1px solid $\{w.color\}30` \}\}>\{w.icon\}</div>\
+            <div style=\{\{ flex:1 \}\}>\
+              <p style=\{\{ margin:0, fontSize:13, fontWeight:700, color:C.textSub \}\}>\{w.name\}</p>\
+              <p style=\{\{ margin:0, fontSize:24, fontWeight:800, color:w.color \}\}>\{fmt(w.balance)\}</p>\
+            </div>\
+            <div style=\{\{ display:"flex", gap:6 \}\}>\
+              <button onClick=\{()=>setSheet(w)\} style=\{\{ background:C.surface, border:`1px solid $\{C.border\}`, color:C.text, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:700 \}\}>Edit</button>\
+              <button onClick=\{()=>\{ if(confirm===w.id)\{ setWallets(p=>p.filter(x=>x.id!==w.id)); setConfirm(null); \}else\{ setConfirm(w.id); \} \}\} style=\{\{ background:C.coral+"15", border:`1px solid $\{C.coral\}30`, color:C.coral, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12 \}\}>\{confirm===w.id?"Confirm?":"\uc0\u55357 \u56785 "\}</button>\
+            </div>\
+          </div>\
+        </Card>\
+      ))\}\
+    </div>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  LOANS & INSTALLMENTS SCREEN (SPayLater Tracker) \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function LoanSheet(\{ loan, onSave, onClose \}) \{\
+  const [name, setName] = useState(loan?.name || "");\
+  const [amount, setAmount] = useState(loan?.amount ? String(loan.amount) : "");\
+  const [paid, setPaid] = useState(loan?.paid ? String(loan.paid) : "");\
+  const [due, setDue] = useState(loan?.due || "");\
+  const [type, setType] = useState(loan?.type || "BNPL");\
+  const valid = name.trim() && +amount > 0;\
+\
+  return (\
+    <BottomSheet onClose=\{onClose\} title=\{loan ? "Edit Loan Obligation" : "Add Buy Now Pay Later (BNPL)"\}>\
+      <div style=\{\{ display:"flex", flexDirection:"column", gap:12 \}\}>\
+        <div><SLabel>Lender / Item Name</SLabel><Inp value=\{name\} onChange=\{setName\} placeholder="e.g. SPayLater Phone, LazPayLater..." autoFocus/></div>\
+        <div style=\{\{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 \}\}>\
+          <div><SLabel>Total Principal (Cost)</SLabel><Inp value=\{amount\} onChange=\{setAmount\} placeholder="0" type="number"/></div>\
+          <div><SLabel>Amount Already Paid</SLabel><Inp value=\{paid\} onChange=\{setPaid\} placeholder="0" type="number"/></div>\
+        </div>\
+        <div><SLabel>Next Monthly Due Date</SLabel><Inp value=\{due\} onChange=\{setDue\} placeholder="e.g. Every 5th of the month"/></div>\
+        <div>\
+          <SLabel>Loan Tag Category</SLabel>\
+          <div style=\{\{ display:"flex", gap:6 \}\}>\
+            \{LOAN_TYPES.map(t=><button key=\{t\} onClick=\{()=>setType(t)\} style=\{\{ padding:"6px 12px", borderRadius:99, border:`1px solid $\{type===t?C.accent:C.border\}`, background:type===t?C.accent+"1A":C.card, color:type===t?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer" \}\}>\{t\}</button>))\}\
+          </div>\
+        </div>\
+        <Btn onClick=\{()=>valid && onSave(\{ id:loan?.id||uid(), name:name.trim(), amount:+amount, paid:+paid||0, due, type, color:C.accent \})\} style=\{\{ marginTop:10, opacity:valid?1:0.4 \}\}>Save Obligation</Btn>\
+      </div>\
+    </BottomSheet>\
+  );\
+\}\
+\
+function LoansScreen(\{ loans, setLoans, income \}) \{\
+  const [sheet, setSheet] = useState(null);\
+  const totalRemaining = loans.reduce((s,l)=>s + (l.amount - l.paid), 0);\
+  const monthlyBurdenEstimate = loans.reduce((s,l)=>s + ((l.amount - l.paid) > 0 ? (l.amount / 6) : 0), 0); // rough monthly estimate\
+  const debtToIncomeRatio = income > 0 ? (monthlyBurdenEstimate / income) * 100 : 0;\
+\
+  return (\
+    <div className="screen-wrap" style=\{\{ padding:"22px 18px 80px", display:"flex", flexDirection:"column", gap:14 \}\}>\
+      \{sheet && <LoanSheet loan=\{sheet==="add"?null:sheet\} onClose=\{()=>setSheet(null)\} onSave=\{l=>\{ setLoans(p=>p.find(x=>x.id===l.id)?p.map(x=>x.id===l.id?l:x):[...p,l]); setSheet(null); \}\}/>\}\
+      <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center" \}\}>\
+        <div>\
+          <h2 style=\{\{ margin:0, fontFamily:"DM Sans", fontSize:24, fontWeight:800, color:C.text \}\}>Loans & BNPL</h2>\
+          <p style=\{\{ margin:0, fontSize:12, color:C.textSub \}\}>Track SPayLater / Credit cards bleeding</p>\
+        </div>\
+        <Btn onClick=\{()=>setSheet("add")\} style=\{\{ width:"auto", padding:"8px 16px" \}\}>+ New</Btn>\
+      </div>\
+\
+      <div style=\{\{ background:debtToIncomeRatio > 30 ? `$\{C.coral\}15` : C.card, border:`1px solid $\{debtToIncomeRatio > 30 ? C.coral+"50" : C.border\}`, borderRadius:24, padding:20 \}\}>\
+        <SLabel>Debt Obligations Threat Level</SLabel>\
+        <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 \}\}>\
+          <span style=\{\{ fontSize:22, fontWeight:800, color:debtToIncomeRatio > 30 ? C.coral : C.text \}\}>\{debtToIncomeRatio > 30 ? "\uc0\u9888 \u65039  High Risk Overload" : "\u55357 \u57314  Controlled Debt"\}</span>\
+          <span style=\{\{ fontSize:14, fontWeight:800, color:C.textSub \}\}>\{Math.round(debtToIncomeRatio)\}% of income</span>\
+        </div>\
+        <Bar pct=\{debtToIncomeRatio\} color=\{debtToIncomeRatio > 30 ? C.coral : C.accent\} />\
+        <p style=\{\{ margin:"8px 0 0", fontSize:11, color:C.textSub \}\}>Total dynamic remaining utang balance: <strong>\{fmt(totalRemaining)\}</strong></p>\
+      </div>\
+\
+      \{loans.map(l => (\
+        <Card key=\{l.id\}>\
+          <div style=\{\{ display:"flex", justifyContent:"space-between", marginBottom:8 \}\}>\
+            <div>\
+              <Tag color=\{C.accent\}>\{l.type\}</Tag>\
+              <h4 style=\{\{ margin:"6px 0 2px", fontSize:16, fontWeight:800 \}\}>\{l.name\}</h4>\
+              <p style=\{\{ margin:0, fontSize:11, color:C.textSub \}\}>Next due cycle: \{l.due || "Not set"\}</p>\
+            </div>\
+            <div style=\{\{ textAlign:"right" \}\}>\
+              <p style=\{\{ margin:0, fontSize:11, color:C.textSub \}\}>Remaining Balance</p>\
+              <p style=\{\{ margin:0, fontSize:18, fontWeight:800, color:C.text \}\}>\{fmt(l.amount - l.paid)\}</p>\
+            </div>\
+          </div>\
+          <Bar pct=\{(l.paid / l.amount) * 100\} color=\{C.lime\} h=\{4\} />\
+          <div style=\{\{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:11, color:C.textFaint \}\}>\
+            <span>\{Math.round((l.paid / l.amount) * 100)\}% Paid Off</span>\
+            <span style=\{\{ color:C.accent, cursor:"pointer", fontWeight:700 \}\} onClick=\{()=>setSheet(l)\}>Update Balance \uc0\u8594 </span>\
+          </div>\
+        </Card>\
+      ))\}\
+    </div>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  UTANG LEDGER SCREEN (Pakisuyo Relations) \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function UtangSheet(\{ utang, onSave, onClose \}) \{\
+  const [person, setPerson] = useState(utang?.person || "");\
+  const [amount, setAmount] = useState(utang?.amount ? String(utang.amount) : "");\
+  const [type, setType] = useState(utang?.type || "borrowed_from_them");\
+  const [notes, setNotes] = useState(utang?.notes || "");\
+  const valid = person.trim() && +amount > 0;\
+\
+  return (\
+    <BottomSheet onClose=\{onClose\} title=\{utang ? "Edit Ledger Record" : "Add Borrow/Lend Ledger"\}>\
+      <div style=\{\{ display:"flex", flexDirection:"column", gap:12 \}\}>\
+        <div><SLabel>Contact Person / Name</SLabel><Inp value=\{person\} onChange=\{setPerson\} placeholder="e.g. Mark Work, Ate Jenny..." autoFocus/></div>\
+        <div><SLabel>Principal Utang Amount</SLabel><Inp value=\{amount\} onChange=\{setAmount\} placeholder="0" type="number"/></div>\
+        <div>\
+          <SLabel>Directional Flow</SLabel>\
+          <div style=\{\{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 \}\}>\
+            <button onClick=\{()=>setType("borrowed_from_them")\} style=\{\{ padding:12, borderRadius:12, border:`1px solid $\{type==="borrowed_from_them"?C.coral:C.border\}`, background:type==="borrowed_from_them"?C.coral+"10":C.card, color:type==="borrowed_from_them"?C.coral:C.textSub, fontWeight:700, cursor:"pointer" \}\}>\uc0\u55357 \u56628  Utang Ko (I Owe Them)</button>\
+            <button onClick=\{()=>setType("lent_to_them")\} style=\{\{ padding:12, borderRadius:12, border:`1px solid $\{type==="lent_to_them"?C.green:C.border\}`, background:type==="lent_to_them"?C.green+"10":C.card, color:type==="lent_to_them"?C.green:C.textSub, fontWeight:700, cursor:"pointer" \}\}>\uc0\u55357 \u57314  Utang Sa Akin (They Owe Me)</button>\
+          </div>\
+        </div>\
+        <div><SLabel>Context Note</SLabel><Inp value=\{notes\} onChange=\{setNotes\} placeholder="e.g. Lunch advance, concert ticket partial money..."/></div>\
+        <Btn onClick=\{()=>valid && onSave(\{ id:utang?.id||uid(), person:person.trim(), amount:+amount, type, notes \})\} style=\{\{ marginTop:10, opacity:valid?1:0.4 \}\}>Log Ledger</Btn>\
+      </div>\
+    </BottomSheet>\
+  );\
+\}\
+\
+function UtangScreen(\{ utangs, setUtangs \}) \{\
+  const [sheet, setSheet] = useState(null);\
+  const totalIowe = utangs.filter(u=>u.type==="borrowed_from_them").reduce((s,u)=>s+u.amount, 0);\
+  const totalTheyOwe = utangs.filter(u=>u.type==="lent_to_them").reduce((s,u)=>s+u.amount, 0);\
+\
+  return (\
+    <div className="screen-wrap" style=\{\{ padding:"22px 18px 80px", display:"flex", flexDirection:"column", gap:14 \}\}>\
+      \{sheet && <UtangSheet utang=\{sheet==="add"?null:sheet\} onClose=\{()=>setSheet(null)\} onSave=\{u=>\{ setUtangs(p=>p.find(x=>x.id===u.id)?p.map(x=>x.id===u.id?u:x):[...p,u]); setSheet(null); \}\}/>\}\
+      <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center" \}\}>\
+        <div>\
+          <h2 style=\{\{ margin:0, fontFamily:"DM Sans", fontSize:24, fontWeight:800, color:C.text \}\}>Social Utang Ledger</h2>\
+          <p style=\{\{ margin:0, fontSize:12, color:C.textSub \}\}>Drama-free fluid relationship tracker</p>\
+        </div>\
+        <Btn onClick=\{()=>setSheet("add")\} style=\{\{ width:"auto", padding:"8px 16px" \}\}>+ Record</Btn>\
+      </div>\
+\
+      <div style=\{\{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 \}\}>\
+        <div style=\{\{ background:C.card, border:`1px solid $\{C.border\}`, padding:16, borderRadius:18 \}\}>\
+          <SLabel>\uc0\u55357 \u56628  Utang Ko (Liabilities)</SLabel>\
+          <p style=\{\{ margin:0, fontSize:22, fontWeight:800, color:C.coral \}\}>\{fmt(totalIowe)\}</p>\
+        </div>\
+        <div style=\{\{ background:C.card, border:`1px solid $\{C.border\}`, padding:16, borderRadius:18 \}\}>\
+          <SLabel>\uc0\u55357 \u57314  Utang sa Akin (Assets)</SLabel>\
+          <p style=\{\{ margin:0, fontSize:22, fontWeight:800, color:C.green \}\}>\{fmt(totalTheyOwe)\}</p>\
+        </div>\
+      </div>\
+\
+      \{utangs.map(u => (\
+        <Card key=\{u.id\} style=\{\{ borderLeft:`4px solid $\{u.type==="borrowed_from_them"?C.coral:C.green\}` \}\}>\
+          <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center" \}\}>\
+            <div>\
+              <h4 style=\{\{ margin:0, fontSize:15, fontWeight:800 \}\}>\{u.person\}</h4>\
+              <p style=\{\{ margin:"4px 0 0", fontSize:12, color:C.textSub \}\}>\{u.notes || "No extra descriptive notes"\}</p>\
+            </div>\
+            <div style=\{\{ textAlign:"right" \}\}>\
+              <span style=\{\{ fontSize:10, fontWeight:800, color:u.type==="borrowed_from_them"?C.coral:C.green, background:u.type==="borrowed_from_them"?C.coral+"1A":C.green+"1A", padding:"2px 6px", borderRadius:4, textTransform:"uppercase" \}\}>\{u.type==="borrowed_from_them"?"I Owe Them":"They Owe Me"\}</span>\
+              <p style=\{\{ margin:"4px 0 0", fontSize:18, fontWeight:800, color:u.type==="borrowed_from_them"?C.coral:C.green \}\}>\{fmt(u.amount)\}</p>\
+            </div>\
+          </div>\
+          <div style=\{\{ marginTop:10, borderTop:`1px dashed $\{C.border\}`, paddingTop:8, display:"flex", justifyContent:"flex-end", gap:12 \}\}>\
+            <button onClick=\{()=>\{ alert(`Bulsa Statement text copied: Reminding politely regarding our ledger balance of $\{fmt(u.amount)\}!`); \}\} style=\{\{ background:"none", border:"none", color:C.sky, fontSize:12, fontWeight:700, cursor:"pointer" \}\}>\uc0\u55357 \u56492  Remind Softly</button>\
+            <button onClick=\{()=>setUtangs(p=>p.filter(x=>x.id!==u.id))\} style=\{\{ background:"none", border:"none", color:C.textFaint, fontSize:12, cursor:"pointer" \}\}>Settle / Clear</button>\
+          </div>\
+        </Card>\
+      ))\}\
+    </div>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  RECURRING SUBSCRIPTIONS SCREEN (Silent Bleeding Guard) \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function SubSheet(\{ sub, onSave, onClose \}) \{\
+  const [name, setName] = useState(sub?.name || "");\
+  const [amount, setAmount] = useState(sub?.amount ? String(sub.amount) : "");\
+  const [due, setDue] = useState(sub?.due || "1");\
+  const valid = name.trim() && +amount > 0;\
+\
+  return (\
+    <BottomSheet onClose=\{onClose\} title=\{sub ? "Edit Subscription" : "Track New Auto-Debit Sub"\}>\
+      <div style=\{\{ display:"flex", flexDirection:"column", gap:12 \}\}>\
+        <div><SLabel>Subscription Platform Name</SLabel><Inp value=\{name\} onChange=\{setName\} placeholder="e.g. Netflix, Spotify, iCloud, gym..." autoFocus/></div>\
+        <div><SLabel>Monthly Cost Amount</SLabel><Inp value=\{amount\} onChange=\{setAmount\} placeholder="0" type="number"/></div>\
+        <div><SLabel>Day of Month Charged (1-31)</SLabel><Inp value=\{due\} onChange=\{setDue\} placeholder="e.g. 15" type="number"/></div>\
+        <Btn onClick=\{()=>valid && onSave(\{ id:sub?.id||uid(), name:name.trim(), amount:+amount, due:Math.min(31,Math.max(1,+due)) \})\} style=\{\{ marginTop:10, opacity:valid?1:0.4 \}\}>Lock Subscription</Btn>\
+      </div>\
+    </BottomSheet>\
+  );\
+\}\
+\
+function SubsScreen(\{ subs, setSubs \}) \{\
+  const [sheet, setSheet] = useState(null);\
+  const totalMonthlyBleed = subs.reduce((s,sub)=>s + sub.amount, 0);\
+\
+  return (\
+    <div className="screen-wrap" style=\{\{ padding:"22px 18px 80px", display:"flex", flexDirection:"column", gap:14 \}\}>\
+      \{sheet && <SubSheet sub=\{sheet==="add"?null:sheet\} onClose=\{()=>setSheet(null)\} onSave=\{s=>\{ setSubs(p=>p.find(x=>x.id===s.id)?p.map(x=>x.id===s.id?s:x):[...p,s]); setSheet(null); \}\}/>\}\
+      <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center" \}\}>\
+        <div>\
+          <h2 style=\{\{ margin:0, fontFamily:"DM Sans", fontSize:24, fontWeight:800, color:C.text \}\}>Subscriptions</h2>\
+          <p style=\{\{ margin:0, fontSize:12, color:C.textSub \}\}>The silent annualized cash bleeding block</p>\
+        </div>\
+        <Btn onClick=\{()=>setSheet("add")\} style=\{\{ width:"auto", padding:"8px 16px" \}\}>+ Monitor</Btn>\
+      </div>\
+\
+      <div style=\{\{ background:"linear-gradient(135deg, #1A1015, #141414)", border:`1px solid $\{C.rose\}30`, borderRadius:22, padding:18 \}\}>\
+        <SLabel>Total Combined Annual Drain Nudge</SLabel>\
+        <p style=\{\{ margin:0, fontSize:32, fontWeight:800, color:C.rose, letterSpacing:"-0.02em" \}\}>\{fmt(totalMonthlyBleed * 100)\} <span style=\{\{ fontSize:14, color:C.textSub, fontWeight:400 \}\}>/ year ghost cost</span></p>\
+        <p style=\{\{ margin:"6px 0 0", fontSize:11, color:C.textSub \}\}>Siphoning <strong>\{fmt(totalMonthlyBleed)\}</strong> monthly out of your local accounts silently.</p>\
+      </div>\
+\
+      \{subs.map(sub => (\
+        <Card key=\{sub.id\} glow>\
+          <div style=\{\{ display:"flex", alignItems:"center", justifyBetween:"space-between", gap:12 \}\}>\
+            <div style=\{\{ width:42, height:42, borderRadius:12, background:`$\{C.gold\}15`, border:`1px solid $\{C.gold\}25`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 \}\}>\uc0\u55357 \u56561 </div>\
+            <div style=\{\{ flex:1 \}\}>\
+              <h4 style=\{\{ margin:0, fontSize:15, fontWeight:800 \}\}>\{sub.name\}</h4>\
+              <p style=\{\{ margin:0, fontSize:11, color:C.textSub \}\}>Auto-debits on day \{sub.due\} of month</p>\
+            </div>\
+            <div style=\{\{ textAlign:"right" \}\}>\
+              <p style=\{\{ margin:0, fontSize:16, fontWeight:800, color:C.text \}\}>\{fmt(sub.amount)\}<span style=\{\{ fontSize:10, color:C.textFaint \}\}>/mo</span></p>\
+              <button onClick=\{()=>setSubs(p=>p.filter(x=>x.id!==sub.id))\} style=\{\{ background:"none", border:"none", color:C.coral, fontSize:11, cursor:"pointer", padding:"4px 0 0" \}\}>Stop Monitoring</button>\
+            </div>\
+          </div>\
+        </Card>\
+      ))\}\
+    </div>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  TRANSACTION MODALS & CARDS \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+function AddExpenseSheet(\{ onClose, onSave, hourlyRate, wallets, onDeductWallet \}) \{\
+  const [step,     setStep]     = useState(0);\
+  const [amount,   setAmount]   = useState("");\
+  const [name,     setName]     = useState("");\
+  const [catId,    setCatId]    = useState("food");\
+  const [moodId,   setMoodId]   = useState(null);\
+  const [walletId, setWalletId] = useState(wallets[0]?.id || null);\
+  const [isGrocery, setIsGrocery] = useState(false);\
+  const [gInput, setGInput] = useState("");\
+  const [gItems, setGItems] = useState([]);\
+  const [vis,    setVis]    = useState(false);\
+\
+  useEffect(() => \{ setTimeout(()=>setVis(true),20); \}, []);\
+  const valid = amount !== "" && !isNaN(+amount) && +amount > 0;\
+\
+  const save = () => \{\
+    if (!valid) return;\
+    onSave(\{ id: uid(), name: name.trim() || catOf(isGrocery?"grocery":catId).label, amount: +amount, catId: isGrocery?"grocery":catId, moodId, walletId, groceryItems: isGrocery?gItems:[], ts: new Date().toISOString() \});\
+    if (walletId && onDeductWallet) onDeductWallet(walletId, +amount);\
+    setVis(false); setTimeout(onClose,300);\
+  \};\
+\
+  return (\
+    <>\
+      <div onClick=\{()=>\{ setVis(false); setTimeout(onClose,300); \}\} style=\{\{ position: "fixed", inset: 0, background: C.overlay, zIndex: 200, opacity: vis ? 1 : 0, transition: "opacity 0.25s" \}\} />\
+      <div style=\{\{ position: "fixed", bottom: 0, left: "50%", transform: `translateX(-50%) translateY($\{vis ? 0 : "110%"\})`, width: "100%", maxWidth: 420, background: C.surface, borderRadius: "26px 26px 0 0", border: `1px solid $\{C.borderLight\}`, zIndex: 201, transition: "transform 0.35s cubic-bezier(0.32,0.72,0,1)", maxHeight: "92vh", overflowY: "auto", padding:"12px 22px 44px" \}\}>\
+        <h3 style=\{\{ margin: "0 0 16px", fontFamily: "DM Sans", fontSize: 20, fontWeight: 800 \}\}>Log Expense Entry</h3>\
+        \{step === 0 ? (\
+          <div style=\{\{ display:"flex", flexDirection:"column", gap:14 \}\}>\
+            <div style=\{\{ display: "flex", alignItems: "baseline", gap: 6, background: C.cardAlt, border: `1px solid $\{C.border\}`, borderRadius: 16, padding: "14px 16px" \}\}>\
+              <span style=\{\{ fontSize: 26, fontWeight: 800, color: C.accent \}\}>\uc0\u8369 </span>\
+              <input type="text" inputMode="decimal" value=\{amount\} onChange=\{e => setAmount(e.target.value.replace(/[^0-9.]/g, ""))\} placeholder="0" autoFocus style=\{\{ background: "none", border: "none", outline: "none", fontFamily: "DM Sans", fontWeight: 800, fontSize: 36, color: C.text, width: "100%" \}\} />\
+            </div>\
+            \{valid && hourlyRate > 0 && <p style=\{\{ margin:0, fontSize:12, color:C.gold \}\}>\uc0\u9203  Costs <strong>\{((+amount)/hourlyRate).toFixed(1)\} hours</strong> of your active production work labor.</p>\}\
+            <div><SLabel>Description</SLabel><Inp value=\{name\} onChange=\{setName\} placeholder="e.g. McDo, Iced Latte, Angkas..." /></div>\
+            <div>\
+              <SLabel>Deduct Source Wallet</SLabel>\
+              <div style=\{\{ display:"flex", flexWrap:"wrap", gap:6 \}\}>\
+                \{wallets.map(w=><button key=\{w.id\} onClick=\{()=>setWalletId(w.id)\} style=\{\{ padding:"6px 12px", borderRadius:99, border:`1px solid $\{walletId===w.id?w.color:C.border\}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer" \}\}>\{w.icon\} \{w.name\}</button>)\}\
+              </div>\
+            </div>\
+            <div>\
+              <div style=\{\{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 \}\}><SLabel>Category Selector</SLabel><div onClick=\{()=>setIsGrocery(!isGrocery)\} style=\{\{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" \}\}><span style=\{\{ fontSize:11, color:isGrocery?C.lime:C.textSub \}\}>Checklist Tracker?</span><Toggle on=\{isGrocery\} setOn=\{setIsGrocery\} color=\{C.lime\}/></div></div>\
+              \{!isGrocery ? (\
+                <div style=\{\{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 \}\}>\
+                  \{CATS.filter(c=>c.id!=="grocery").map(c=><button key=\{c.id\} onClick=\{()=>setCatId(c.id)\} style=\{\{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:10, borderRadius:12, border:`1px solid $\{catId===c.id?c.color:C.border\}`, background:catId===c.id?c.color+"10":C.cardAlt, cursor:"pointer" \}\}><span style=\{\{ fontSize:20 \}\}>\{c.icon\}</span><span style=\{\{ fontSize:10, fontWeight:700, color:C.text \}\}>\{c.label.split(" ")[0]\}</span></button>)\}\
+                </div>\
+              ) : (\
+                <div style=\{\{ background:C.cardAlt, padding:12, borderRadius:12, border:`1px solid $\{C.border\}`, display:"flex", flexDirection:"column", gap:8 \}\}>\
+                  <div style=\{\{ display:"flex", gap:6 \}\}><Inp value=\{gInput\} onChange=\{setGInput\} placeholder="Add grocery item price (e.g. Eggs 90)..." onKeyDown=\{e=>e.key==="Enter"&&(setGItems([...gItems,\{id:uid(),text:gInput,checked:false\}]),setGInput(""))\}/><Btn onClick=\{()=>\{if(gInput.trim())\{setGItems([...gItems,\{id:uid(),text:gInput,checked:false\}]);setGInput("");\}\}\} style=\{\{ width:"auto", padding:"0 14px" \}\}>+</Btn></div>\
+                  \{gItems.map(it=><div key=\{it.id\} style=\{\{ display:"flex", justifyBetween:"space-between", alignItems:"center", fontSize:12 \}\}><span style=\{\{ cursor:"pointer" \}\} onClick=\{()=>setGItems(gItems.map(x=>x.id===it.id?\{...x,checked:!x.checked\}:x))\}>\{it.checked?"\uc0\u9989 ":"\u11036 "\} \{it.text\}</span></div>)\}\
+                  \{gItems.length>0 && <button onClick=\{()=>\{let sum=0; gItems.forEach(i=>\{const m=i.text.match(/\\d+$/); if(m) sum+=parseFloat(m[0]);\}); if(sum>0) setAmount(String(sum));\}\} style=\{\{ background:"none", border:"none", color:C.lime, fontSize:11, cursor:"pointer", textAlign:"left" \}\}>\uc0\u9881 \u65039  Compute & fill sum total amount?</button>\}\
+                </div>\
+              )\}\
+            </div>\
+            <Btn onClick=\{()=>valid && setStep(1)\} style=\{\{ opacity:valid?1:0.4 \}\}>Continue Step \uc0\u8594 </Btn>\
+          </div>\
+        ) : (\
+          <div style=\{\{ display:"flex", flexDirection:"column", gap:16 \}\}>\
+            <SLabel>Psychological Emotional Budget State</SLabel>\
+            <div style=\{\{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 \}\}>\
+              \{MOODS.map(m=><button key=\{m.id\} onClick=\{()=>setMoodId(m.id)\} style=\{\{ display:"flex", flexDirection:"column", alignItems:"center", padding:12, borderRadius:12, border:`2px solid $\{moodId===m.id?m.color:"transparent"\}`, background:C.cardAlt, cursor:"pointer" \}\}><span style=\{\{ fontSize:24 \}\}>\{m.emoji\}</span><span style=\{\{ fontSize:11, fontWeight:700, color:C.text \}\}>\{m.label\}</span></button>)\}\
+            </div>\
+            <div style=\{\{ display:"flex", gap:10, marginTop:10 \}\}><Btn variant="outline" onClick=\{()=>setStep(0)\}>\uc0\u8592  Back</Btn><Btn onClick=\{save\}>Finish Log Entry</Btn></div>\
+          </div>\
+        )\}\
+      </div>\
+    </>\
+  );\
+\}\
+\
+function HomeScreen(\{ expenses, setEditExpense, wallets, payday \}) \{\
+  const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);\
+  const totalWalletAvailable = wallets.reduce((s, w) => s + w.balance, 0);\
+\
+  return (\
+    <div className="screen-wrap" style=\{\{ padding: "22px 18px 80px", display:"flex", flexDirection:"column", gap:16 \}\}>\
+      <div>\
+        <h2 style=\{\{ margin: 0, fontFamily: "DM Sans", fontSize: 24, fontWeight: 800 \}\}>Bulsa Dashboard</h2>\
+        <p style=\{\{ margin: 0, fontSize: 11, color: C.textSub \}\}>Smart structural automated wallet workspace</p>\
+      </div>\
+\
+      <div style=\{\{ background: "linear-gradient(135deg, #161616, #0D0D0D)", border: `1px solid $\{C.border\}`, borderRadius: 24, padding: "20px 22px" \}\}>\
+        <div style=\{\{ display: "grid", gridTemplateColumns: "1fr 1fr", gap:12 \}\}>\
+          <div>\
+            <SLabel>Total Expenses</SLabel>\
+            <h3 style=\{\{ margin: 0, fontSize: 26, fontWeight: 800, color: C.accent \}\}>\{fmt(totalSpent)\}</h3>\
+          </div>\
+          <div style=\{\{ borderLeft: `1px solid $\{C.border\}`, paddingLeft: 16 \}\}>\
+            <SLabel>Available Net Monies</SLabel>\
+            <h3 style=\{\{ margin: 0, fontSize: 26, fontWeight: 800, color: C.green \}\}>\{fmt(totalWalletAvailable)\}</h3>\
+          </div>\
+        </div>\
+      </div>\
+\
+      <SLabel>Transaction History Ledger</SLabel>\
+      \{expenses.map(e => \{\
+        const cat = catOf(e.catId);\
+        return (\
+          <div key=\{e.id\} onClick=\{()=>setEditExpense(e)\} style=\{\{ display:"flex", alignItems:"center", gap:12, background:C.card, padding:14, borderRadius:16, border:`1px solid $\{C.border\}`, cursor:"pointer" \}\}>\
+            <div style=\{\{ width:40, height:40, borderRadius:10, background:cat.color+"15", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 \}\}>\{cat.icon\}</div>\
+            <div style=\{\{ flex:1 \}\}><p style=\{\{ margin:0, fontSize:14, fontWeight:700 \}\}>\{e.name\}</p><p style=\{\{ margin:0, fontSize:11, color:C.textSub \}\}>\{cat.label\}</p></div>\
+            <p style=\{\{ margin:0, fontSize:15, fontWeight:800 \}\}>-\{fmt(e.amount)\}</p>\
+          </div>\
+        );\
+      \})\}\
+    </div>\
+  );\
+\}\
+\
+// \uc0\u9472 \u9472 \u9472  MAIN SYSTEM RUNNER SHELL \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+export default function App() \{\
+  const [screen, setScreen] = useState("home");\
+  const [expenses, setExpenses] = useLocalStorage("b_exp", []);\
+  const [wallets, setWallets] = useLocalStorage("b_wallets", [\
+    \{ id: "w-1", name: "GCash Preset", balance: 5000, icon: "\uc0\u55357 \u56561 ", color: "#0070DC" \},\
+    \{ id: "w-2", name: "Cash Wallet", balance: 1500, icon: "\uc0\u55357 \u56501 ", color: "#00E096" \}\
+  ]);\
+  const [loans, setLoans] = useLocalStorage("b_loans", []);\
+  const [utangs, setUtangs] = useLocalStorage("b_utang", []);\
+  const [subs, setSubs] = useLocalStorage("b_subs", []);\
+  const [hourlyRate] = useLocalStorage("b_hourly", 150);\
+  const [addSheet, setAddSheet] = useState(false);\
+  const [editExpense, setEditExpense] = useState(null);\
+\
+  const screens = \{\
+    home: <HomeScreen expenses=\{expenses\} setEditExpense=\{setEditExpense\} wallets=\{wallets\} />,\
+    wallets: <WalletsScreen wallets=\{wallets\} setWallets=\{setWallets\} />,\
+    loans: <LoansScreen loans=\{loans\} setLoans=\{setLoans\} income=\{30000\} />,\
+    utang: <UtangScreen utangs=\{utangs\} setUtangs=\{setUtangs\} />,\
+    subs: <SubsScreen subs=\{subs\} setSubs=\{setSubs\} />\
+  \};\
+\
+  return (\
+    <div style=\{\{ background: C.bg, height: "100vh", display: "flex", justifyContent: "center", overflow: "hidden", color:C.text \}\}>\
+      <GlobalStyles />\
+      <div style=\{\{ width: "100%", maxWidth: 420, height: "100vh", background: C.bg, display: "flex", flexDirection: "column", position:"relative" \}\}>\
+        \
+        <div style=\{\{ flex: 1, overflowY: "auto" \}\}>\{screens[screen]\}</div>\
+\
+        \{addSheet && <AddExpenseSheet wallets=\{wallets\} hourlyRate=\{hourlyRate\} onClose=\{()=>setAddSheet(false)\} onSave=\{e=>setExpenses([e,...expenses])\} onDeductWallet=\{(id,amt)=>setWallets(wallets.map(w=>w.id===id?\{...w,balance:Math.max(0,w.balance-amt)\}:w))\} />\}\
+\
+        \{/* \uc0\u9472 \u9472 \u9472  NEW FIVE-BUTTON COMPREHENSIVE BOTTOM NAV BAR \u9472 \u9472 \u9472  */\}\
+        <div style=\{\{ position: "absolute", bottom: 0, left: 0, right: 0, height: 68, background: C.surface, borderTop: `1px solid $\{C.border\}`, display: "flex", justifyAround: "space-between", alignItems: "center", padding: "0 10px", zIndex: 10 \}\}>\
+          <button onClick=\{()=>setScreen("home")\} style=\{\{ background:"none", border:"none", color:screen==="home"?C.accent:C.textSub, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", flex:1 \}\}>\
+            <Home size=\{18\}/>\
+            <span style=\{\{ fontSize:9, fontWeight:700 \}\}>Home</span>\
+          </button>\
+          <button onClick=\{()=>setScreen("wallets")\} style=\{\{ background:"none", border:"none", color:screen==="wallets"?C.accent:C.textSub, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", flex:1 \}\}>\
+            <Wallet size=\{18\}/>\
+            <span style=\{\{ fontSize:9, fontWeight:700 \}\}>Accounts</span>\
+          </button>\
+          <button onClick=\{()=>setAddSheet(true)\} style=\{\{ background:C.gradAccent, border:"none", color:"#fff", width:44, height:44, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", boxShadow:`0 4px 12px $\{C.accentGlow\}`, transform:"translateY(-10px)" \}\}>\
+            <Plus size=\{22\}/>\
+          </button>\
+          <button onClick=\{()=>setScreen("loans")\} style=\{\{ background:"none", border:"none", color:screen==="loans"?C.accent:C.textSub, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", flex:1 \}\}>\
+            <Zap size=\{18\}/>\
+            <span style=\{\{ fontSize:9, fontWeight:700 \}\}>Loans</span>\
+          </button>\
+          <button onClick=\{()=>setScreen("utang")\} style=\{\{ background:"none", border:"none", color:screen==="utang"?C.accent:C.textSub, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", flex:1 \}\}>\
+            <Handshake size=\{18\}/>\
+            <span style=\{\{ fontSize:9, fontWeight:700 \}\}>Utang</span>\
+          </button>\
+          <button onClick=\{()=>setScreen("subs")\} style=\{\{ background:"none", border:"none", color:screen==="subs"?C.accent:C.textSub, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", flex:1 \}\}>\
+            <Calendar size=\{18\}/>\
+            <span style=\{\{ fontSize:9, fontWeight:700 \}\}>Subs</span>\
+          </button>\
+        </div>\
+      </div>\
+    </div>\
+  );\
+\}\
+\
+}
