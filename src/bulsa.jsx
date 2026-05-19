@@ -643,12 +643,17 @@ function NavIcon({ icon: Icon, active, label, onClick }) {
       background:"none", border:"none", cursor:"pointer", minWidth:52,
       display:"flex", flexDirection:"column", alignItems:"center", gap:3,
       color: active ? C.accent : C.textFaint,
-      padding:"4px 8px", position:"relative",
+      padding:"4px 6px", position:"relative",
     }}>
-      <div style={{ position:"relative", width:36, height:28, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        {active && <div style={{ position:"absolute", inset:0, borderRadius:10, background:`${C.accent}18`, transition:"all 0.25s" }}/>}
+      <div style={{
+        position:"relative", width:52, height:30,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        borderRadius:99,
+        background: active ? `${C.accent}20` : "transparent",
+        transition:"background 0.25s",
+      }}>
         <Icon
-          size={21}
+          size={20}
           strokeWidth={active ? 2.5 : 1.8}
           color={active ? C.accent : C.textFaint}
           style={{ transition:"color 0.2s", position:"relative" }}
@@ -663,7 +668,7 @@ function NavBar({ screen, setScreen, onAdd }) {
   return (
     <div style={{
       display:"flex", justifyContent:"space-around", alignItems:"center",
-      padding:"6px 4px calc(18px + env(safe-area-inset-bottom))",
+      padding:`10px 8px calc(16px + env(safe-area-inset-bottom))`,
       background:C.surface, borderTop:`1px solid ${C.border}`,
       position:"sticky", bottom:0, zIndex:100,
     }}>
