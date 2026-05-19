@@ -1860,14 +1860,14 @@ export default function Bulsa() {
   };
 
   return (
-    <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center" }}>
+    <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", justifyContent:"center" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
+      <div style={{ width:"100%", maxWidth:420, minHeight:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
         {!onboarded?(
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", paddingBottom:"calc(80px + env(safe-area-inset-bottom))" }}>{screens[screen]}</div>
+            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", paddingBottom:"calc(120px + env(safe-area-inset-bottom))" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount}/>}
           </>
