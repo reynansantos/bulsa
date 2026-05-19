@@ -1636,70 +1636,154 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
 // ─── UTANG ─────────────────────────────────────────────────────────────────
 
-function UtangScreen({ utangs, setUtangs }) {
-  const [view,    setView]    = useState("all"); // all | iowe | theyowe
-  const [sheet,   setSheet]   = useState(null);
-  const [confirm, setConfirm] = useState(null);
+function PaymentSheet({ utang, onSave, onClose }) {
+  const color     = utang.direction==="iowe" ? C.coral : C.green;
+  const remaining = utang.amount - (utang.payments||[]).reduce((s,p)=>s+p.amount,0);
+  const today     = new Date().toISOString().split("T")[0];
+  const [amt,  setAmt]  = useState("");
+  const [date, setDate] = useState(today);
+  const [note, setNote] = useState("");
 
-  const saveUtang = u => {
-    setUtangs(prev => prev.find(x=>x.id===u.id) ? prev.map(x=>x.id===u.id?u:x) : [...prev,u]);
-    setSheet(null);
+  const save = () => {
+    if (!amt || +amt<=0) return;
+    onSave({ id:uid(), amount:+amt, date, note:note.trim(),
+      label:new Date(date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) });
   };
-  const deleteUtang = id => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
-  const markSettled = id => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
 
-  const iOwe    = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
-  const theyOwe = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
-  const settled = utangs.filter(u=>u.settled);
-  const iOweTotal    = iOwe.reduce((s,u)=>s+u.amount,0);
-  const theyOweTotal = theyOwe.reduce((s,u)=>s+u.amount,0);
+  return (
+    <BottomSheet onClose={onClose} title={`Log payment · ${utang.person}`}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Still remaining</p>
+            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Original</p>
+            <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(utang.amount)}</p>
+          </div>
+        </div>
 
-  const filtered = view==="iowe" ? iOwe : view==="theyowe" ? theyOwe : [...iOwe,...theyOwe,...settled];
+        <div>
+          <SLabel>Payment amount</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${amt?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amt}
+              onChange={e=>setAmt(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+            {[100,200,500,1000].filter(q=>q<remaining).map(q=>(
+              <button key={q} onClick={()=>setAmt(String(q))} className="tap-btn"
+                style={{ background:amt===String(q)?`${color}20`:C.card, border:`1px solid ${amt===String(q)?color+"55":C.border}`, color:amt===String(q)?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                ₱{q.toLocaleString()}
+              </button>
+            ))}
+            <button onClick={()=>setAmt(String(Math.round(remaining)))} className="tap-btn"
+              style={{ background:amt===String(Math.round(remaining))?`${color}20`:C.card, border:`1px solid ${amt===String(Math.round(remaining))?color+"55":C.border}`, color:amt===String(Math.round(remaining))?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
+              Full ({fmt(remaining)})
+            </button>
+          </div>
+          {+amt>0&&(
+            <p style={{ margin:"8px 0 0", fontSize:11, fontFamily:"DM Sans,sans-serif", color:remaining-+amt<=0?C.green:C.textSub }}>
+              After: <strong style={{ color:remaining-+amt<=0?C.green:C.text }}>{remaining-+amt<=0?"🎉 Fully settled!":fmt(Math.max(remaining-+amt,0))+" remaining"}</strong>
+            </p>
+          )}
+        </div>
+
+        <div>
+          <SLabel>Date paid</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?color+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
+            <span style={{ fontSize:16 }}>📅</span>
+            <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value)}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+            {date!==today&&<Tag color={color}>Past date</Tag>}
+          </div>
+        </div>
+
+        <div>
+          <SLabel>Note (optional)</SLabel>
+          <Inp value={note} onChange={setNote} placeholder="e.g. GCash transfer, cash bayad…"/>
+        </div>
+
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:+amt>0?1:0.4, background:`linear-gradient(135deg,${color},${color}bb)`, boxShadow:"none" }}>Log payment</Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+function UtangScreen({ utangs, setUtangs }) {
+  const [view,     setView]     = useState("all");
+  const [sheet,    setSheet]    = useState(null);
+  const [paySheet, setPaySheet] = useState(null);
+  const [confirm,  setConfirm]  = useState(null);
+  const [expanded, setExpanded] = useState({});
+
+  const saveUtang  = u => { setUtangs(prev=>prev.find(x=>x.id===u.id)?prev.map(x=>x.id===u.id?u:x):[...prev,u]); setSheet(null); };
+  const deleteUtang= id=> { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
+  const markSettled= id=> setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
+
+  const logPayment = (utangId, payment) => {
+    setUtangs(prev=>prev.map(u=>{
+      if (u.id!==utangId) return u;
+      const payments  = [...(u.payments||[]), payment];
+      const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
+      return { ...u, payments, settled: totalPaid>=u.amount };
+    }));
+    setPaySheet(null);
+  };
+
+  const remaining  = u => Math.max(u.amount-(u.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
+  const iOwe       = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
+  const theyOwe    = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
+  const settled    = utangs.filter(u=>u.settled);
+  const iOweTotal  = iOwe.reduce((s,u)=>s+remaining(u),0);
+  const theyOweTotal=theyOwe.reduce((s,u)=>s+remaining(u),0);
+  const filtered   = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe,...settled];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)}/>}
+      {paySheet&&<PaymentSheet utang={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)}/>}
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Utang</h2>
-        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
+        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
 
-      {/* Summary cards */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
-          <SLabel>I owe</SLabel>
+          <SLabel>I still owe</SLabel>
           <p style={{ margin:"4px 0 2px", fontSize:24, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(iOweTotal)}</p>
           <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{iOwe.length} pending</p>
         </Card>
         <Card style={{ background:`${C.green}08`, border:`1px solid ${C.green}28` }}>
-          <SLabel>They owe me</SLabel>
+          <SLabel>They still owe</SLabel>
           <p style={{ margin:"4px 0 2px", fontSize:24, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(theyOweTotal)}</p>
           <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{theyOwe.length} pending</p>
         </Card>
       </div>
 
-      {/* Net position */}
       {(iOwe.length>0||theyOwe.length>0)&&(
         <Card style={{ textAlign:"center", padding:"12px 16px" }}>
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            Net position: {theyOweTotal>=iOweTotal?(
-              <strong style={{ color:C.green }}>+{fmt(theyOweTotal-iOweTotal)} in your favor</strong>
-            ):(
-              <strong style={{ color:C.coral }}>-{fmt(iOweTotal-theyOweTotal)} you owe more</strong>
-            )}
+            Net position: {theyOweTotal>=iOweTotal
+              ?<strong style={{ color:C.green }}>+{fmt(theyOweTotal-iOweTotal)} in your favor</strong>
+              :<strong style={{ color:C.coral }}>-{fmt(iOweTotal-theyOweTotal)} you owe more</strong>}
           </p>
         </Card>
       )}
 
-      {/* Filter tabs */}
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
         {[["all","All"],["iowe","I Owe"],["theyowe","They Owe"]].map(([v,l])=>(
-          <button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
+          <button key={v} onClick={()=>setView(v)} className="tap-btn"
+            style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
         ))}
       </div>
 
-      {/* Empty state */}
       {utangs.length===0&&(
         <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🤝</div>
@@ -1709,43 +1793,100 @@ function UtangScreen({ utangs, setUtangs }) {
         </div>
       )}
 
-      {/* List */}
-      {filtered.map(u=>(
-        <Card key={u.id} style={{ opacity:u.settled?0.6:1, border:`1px solid ${u.settled?C.border:u.direction==="iowe"?C.coral+"40":C.green+"40"}` }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:u.settled?0:10 }}>
-            <div style={{ width:42, height:42, borderRadius:13, background:u.direction==="iowe"?`${C.coral}15`:`${C.green}12`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
-              {u.direction==="iowe"?"😬":"🤑"}
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                <div>
-                  <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
-                  <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{u.direction==="iowe"?"I owe them":"They owe me"}</p>
-                  {u.note&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontStyle:"italic" }}>"{u.note}"</p>}
-                </div>
-                <div style={{ textAlign:"right" }}>
-                  <p style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:u.direction==="iowe"?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(u.amount)}</p>
-                  {u.settled&&<Tag color={C.green}>Settled</Tag>}
-                </div>
+      {filtered.map((u,i)=>{
+        const color     = u.direction==="iowe" ? C.coral : C.green;
+        const payments  = u.payments||[];
+        const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
+        const rem       = Math.max(u.amount-totalPaid, 0);
+        const pct       = Math.min((totalPaid/u.amount)*100, 100);
+        const isExp     = expanded[u.id];
+        return (
+          <Card key={u.id} animDelay={i*40} style={{ opacity:u.settled?0.65:1, border:`1.5px solid ${u.settled?C.border:color+"40"}` }}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
+              <div style={{ width:44, height:44, borderRadius:14, background:u.direction==="iowe"?`${C.coral}15`:`${C.green}12`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
+                {u.direction==="iowe"?"😬":"🤑"}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:"0 0 2px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  {u.direction==="iowe"?"I owe them":"They owe me"}
+                  {u.note&&<span style={{ color:C.textFaint }}> · "{u.note}"</span>}
+                </p>
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                {u.settled?(
+                  <Tag color={C.green}>Settled ✓</Tag>
+                ):(
+                  <>
+                    <p style={{ margin:"0 0 1px", fontSize:20, fontWeight:800, color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(rem)}</p>
+                    {totalPaid>0&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of {fmt(u.amount)}</p>}
+                  </>
+                )}
               </div>
             </div>
-          </div>
-          {!u.settled&&(
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>markSettled(u.id)} style={{ flex:1, background:`${C.green}12`, border:`1px solid ${C.green}35`, color:C.green, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✓ Settled</button>
-              <button onClick={()=>setSheet(u)} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
-              {confirm===u.id?(
-                <button onClick={()=>deleteUtang(u.id)} style={{ flex:1, background:C.coral, border:"none", borderRadius:9, padding:"7px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm</button>
-              ):(
-                <button onClick={()=>setConfirm(u.id)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"7px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑</button>
-              )}
-            </div>
-          )}
-          {u.settled&&(
-            <button onClick={()=>markSettled(u.id)} style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
-          )}
-        </Card>
-      ))}
+
+            {!u.settled&&totalPaid>0&&(
+              <div style={{ marginBottom:10 }}>
+                <Bar pct={pct} color={color} h={6}/>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
+                  <span style={{ fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid {fmt(totalPaid)}</span>
+                  <span style={{ fontSize:10, color, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{Math.round(pct)}%</span>
+                </div>
+              </div>
+            )}
+
+            {payments.length>0&&(
+              <div style={{ marginBottom:10 }}>
+                <button onClick={()=>setExpanded(p=>({...p,[u.id]:!p[u.id]}))} className="tap-btn"
+                  style={{ background:"none", border:"none", color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"0 0 6px", display:"flex", alignItems:"center", gap:4 }}>
+                  {isExp?"▾":"▸"} {payments.length} payment{payments.length!==1?"s":""} logged
+                </button>
+                {isExp&&(
+                  <div style={{ background:C.bg, borderRadius:12, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+                    {payments.slice().reverse().map((p,pi)=>(
+                      <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:pi<payments.length-1?6:0, borderBottom:pi<payments.length-1?`1px solid ${C.border}`:undefined }}>
+                        <div>
+                          <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
+                          {p.note&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{p.note}</p>}
+                        </div>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!u.settled&&(
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={()=>setPaySheet(u)} className="tap-btn"
+                  style={{ flex:2, background:`${color}15`, border:`1px solid ${color}40`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                  💸 Log payment
+                </button>
+                <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                  style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                  ✓ Settle
+                </button>
+                <button onClick={()=>setSheet(u)} className="tap-btn"
+                  style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                  ✎
+                </button>
+                {confirm===u.id?(
+                  <button onClick={()=>deleteUtang(u.id)} className="tap-btn"
+                    style={{ background:C.coral, border:"none", borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
+                ):(
+                  <button onClick={()=>setConfirm(u.id)} className="tap-btn"
+                    style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑</button>
+                )}
+              </div>
+            )}
+            {u.settled&&(
+              <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -1758,60 +1899,41 @@ function UtangSheet({ utang, onSave, onClose }) {
 
   const save = () => {
     if (!person.trim()||!amount||+amount<=0) return;
-    onSave({ id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(), settled:utang?.settled||false, ts:utang?.ts||new Date().toISOString() });
+    onSave({ id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(),
+      settled:utang?.settled||false, payments:utang?.payments||[], ts:utang?.ts||new Date().toISOString() });
   };
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:200, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:420, margin:"0 auto", background:C.surface, borderRadius:"24px 24px 0 0", padding:"24px 20px calc(28px + env(safe-area-inset-bottom))", display:"flex", flexDirection:"column", gap:16 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text }}>{utang?"Edit utang":"Log utang"}</h3>
-          <button onClick={onClose} style={{ background:C.card, border:"none", borderRadius:"50%", width:32, height:32, cursor:"pointer", color:C.textSub, fontSize:16 }}>✕</button>
-        </div>
-
-        {/* Direction */}
+    <BottomSheet onClose={onClose} title={utang?"Edit utang":"Log utang"}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          {[
-            { val:"iowe",    label:"I owe them",  emoji:"😬", color:C.coral },
-            { val:"theyowe", label:"They owe me", emoji:"🤑", color:C.green },
-          ].map(opt=>(
-            <button key={opt.val} onClick={()=>setDirection(opt.val)} style={{ padding:"14px 10px", borderRadius:14, border:`2px solid ${direction===opt.val?opt.color+"80":C.border}`, background:direction===opt.val?`${opt.color}12`:C.card, cursor:"pointer", textAlign:"center" }}>
+          {[{ val:"iowe", label:"I owe them", emoji:"😬", color:C.coral },{ val:"theyowe", label:"They owe me", emoji:"🤑", color:C.green }].map(opt=>(
+            <button key={opt.val} onClick={()=>setDirection(opt.val)} className="tap-btn"
+              style={{ padding:"14px 10px", borderRadius:14, border:`2px solid ${direction===opt.val?opt.color+"80":C.border}`, background:direction===opt.val?`${opt.color}12`:C.card, cursor:"pointer", textAlign:"center" }}>
               <p style={{ margin:"0 0 4px", fontSize:22 }}>{opt.emoji}</p>
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:direction===opt.val?opt.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{opt.label}</p>
             </button>
           ))}
         </div>
-
-        {/* Person */}
+        <div><SLabel>Who?</SLabel><Inp autoFocus value={person} onChange={setPerson} placeholder="e.g. Mico, Jessa, Sir JA…"/></div>
         <div>
-          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Who?</p>
-          <input autoFocus value={person} onChange={e=>setPerson(e.target.value)} placeholder="e.g. Mico, Jessa, Sir JA..."
-            style={{ width:"100%", background:C.card, border:`1px solid ${person.trim()?C.accent+"60":C.border}`, borderRadius:14, padding:"14px 16px", color:C.text, fontSize:16, fontWeight:700, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box" }}/>
-        </div>
-
-        {/* Amount */}
-        <div>
-          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>How much?</p>
+          <SLabel>Total amount</SLabel>
           <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${amount?C.accent+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
             <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
             <input type="text" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
               style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
           </div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-            {[50,100,200,500,1000].map(q=>(<button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q}</button>))}
+            {[50,100,200,500,1000].map(q=>(<button key={q} onClick={()=>setAmount(String(q))} className="tap-btn" style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q}</button>))}
           </div>
         </div>
-
-        {/* Note */}
-        <div>
-          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>For what? (optional)</p>
-          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. lunch, GCash load, taxi share..."
-            style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box" }}/>
+        <div><SLabel>For what? (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. lunch, GCash load, taxi share…"/></div>
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:person.trim()&&+amount>0?1:0.4 }}>Log it</Btn>
         </div>
-
-        <Btn onClick={save} disabled={!person.trim()||!amount||+amount<=0}>Log it</Btn>
       </div>
-    </div>
+    </BottomSheet>
   );
 }
 
