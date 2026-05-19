@@ -387,7 +387,7 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 // ─── ADD EXPENSE ───────────────────────────────────────────────────────────
 
-function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense }) {
+function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRate }) {
   const isEdit = !!editExpense;
   const [step,   setStep]   = useState(0);
   const [amount, setAmount] = useState(isEdit ? String(editExpense.amount) : "");
@@ -465,6 +465,26 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense }) {
                   <button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>
                 ))}
               </div>
+
+              {/* Working hours badge */}
+              {hourlyRate>0&&amount&&+amount>0&&(()=>{
+                const hrs  = +amount / hourlyRate;
+                const hrsRounded = Math.round(hrs * 10) / 10;
+                const label = hrs < 0.25 ? "Less than 15 mins of work"
+                  : hrs < 1   ? `${Math.round(hrs*60)} minutes of work`
+                  : hrs < 1.5 ? "About 1 hour of work"
+                  : `${hrsRounded} hours of hard work`;
+                const intensity = hrs>=8?C.coral:hrs>=4?C.gold:hrs>=1?C.accentSoft:C.textSub;
+                return (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, background:`${intensity}0F`, border:`1px solid ${intensity}30`, borderRadius:13, padding:"10px 14px", marginBottom:14 }}>
+                    <span style={{ fontSize:18 }}>⏱️</span>
+                    <div>
+                      <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:intensity, fontFamily:"DM Sans,sans-serif" }}>{label}</p>
+                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Based on your ₱{Math.round(hourlyRate).toLocaleString()}/hr rate</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Backdate */}
               <div style={{ marginBottom:16 }}>
@@ -1768,13 +1788,15 @@ function SurviveScreen({ expenses, income, loans, goals, payday }) {
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
-  const [editIncome, setEditIncome] = useState(false);
-  const [editName,   setEditName]   = useState(false);
-  const [editBio,    setEditBio]    = useState(false);
-  const [incInput,   setIncInput]   = useState(String(income));
-  const [nameInput,  setNameInput]  = useState(name);
-  const [bioInput,   setBioInput]   = useState(bio);
+function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday, hourlyRate, setHourlyRate }) {
+  const [editIncome,  setEditIncome]  = useState(false);
+  const [editName,    setEditName]    = useState(false);
+  const [editBio,     setEditBio]     = useState(false);
+  const [editHourly,  setEditHourly]  = useState(false);
+  const [incInput,    setIncInput]    = useState(String(income));
+  const [nameInput,   setNameInput]   = useState(name);
+  const [bioInput,    setBioInput]    = useState(bio);
+  const [hrInput,     setHrInput]     = useState(String(hourlyRate||""));
   const [confirmClear, setCC]       = useState(false);
   const avatarRef = useRef(null);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
@@ -1876,6 +1898,48 @@ function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, 
         </Card>
       </div>
 
+      {/* Hourly rate */}
+      <div>
+        <SLabel>Hourly Rate</SLabel>
+        <Card>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:editHourly?14:0 }}>
+            <div style={{ fontSize:20 }}>⏱️</div>
+            <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Your hourly net rate</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Shows cost in hours when logging expenses</p></div>
+            {!editHourly&&(
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:hourlyRate>0?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{hourlyRate>0?`₱${Math.round(hourlyRate).toLocaleString()}/hr`:"Not set"}</p>
+                <button onClick={()=>{ setHrInput(String(hourlyRate||"")); setEditHourly(true); }} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{hourlyRate>0?"Edit":"Set"}</button>
+              </div>
+            )}
+          </div>
+          {editHourly&&(
+            <div>
+              <div style={{ display:"flex", alignItems:"center", background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:16, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+                <input autoFocus type="text" inputMode="decimal" value={hrInput} onChange={e=>setHrInput(e.target.value.replace(/[^0-9.]/g,""))} placeholder="e.g. 150"
+                  onKeyDown={e=>{ if(e.key==="Enter"){ setHourlyRate(+hrInput||0); setEditHourly(false); } }}
+                  style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:22, color:C.text, caretColor:C.accent }}/>
+                <span style={{ fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>/hr</span>
+              </div>
+              <p style={{ margin:"0 0 10px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {income>0?`Your ₱${Math.round(income).toLocaleString()} monthly income ÷ ~${income>0?Math.round(income/160):160} working hours = ₱${income>0?Math.round(income/160).toLocaleString():"?"}/hr suggested`:"Set your monthly income first to get a suggestion."}
+              </p>
+              {income>0&&(
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                  {[Math.round(income/200), Math.round(income/176), Math.round(income/160), Math.round(income/120)].filter((v,i,a)=>a.indexOf(v)===i).map(q=>(
+                    <button key={q} onClick={()=>setHrInput(String(q))} style={{ background:hrInput===String(q)?C.accentGlow:C.surface, border:`1px solid ${hrInput===String(q)?C.accent+"55":C.border}`, color:hrInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}/hr</button>
+                  ))}
+                </div>
+              )}
+              <div style={{ display:"flex", gap:8 }}>
+                <Btn variant="outline" onClick={()=>setEditHourly(false)}>Cancel</Btn>
+                <Btn onClick={()=>{ setHourlyRate(+hrInput||0); setEditHourly(false); }}>Save rate</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
       {/* Payday setting */}
       <div>
         <SLabel>Payday Schedule</SLabel>
@@ -1957,6 +2021,7 @@ export default function Bulsa() {
   const [income,    setIncome]    = useLocalStorage("bulsa_income", 0);
   const [name,      setName]      = useLocalStorage("bulsa_name", "");
   const [dailyLimit,setDailyLimit]= useLocalStorage("bulsa_dailylimit", 0);
+  const [hourlyRate,setHourlyRate]= useLocalStorage("bulsa_hourlyrate", 0);
   const [avatar,    setAvatar]    = useLocalStorage("bulsa_avatar", null);
   const [bio,       setBio]       = useLocalStorage("bulsa_bio", "");
   const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
@@ -1978,7 +2043,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals}/>,
     survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} hourlyRate={hourlyRate} setHourlyRate={setHourlyRate}/>,
   };
 
   return (
@@ -1992,7 +2057,7 @@ export default function Bulsa() {
           <>
             <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount}/>}
+            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} hourlyRate={hourlyRate}/>}
           </>
         )}
       </div>
