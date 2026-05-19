@@ -1,6 +1,69 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Home, Receipt, Zap, Handshake, User, Plus } from "lucide-react";
 
+// ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
+const GlobalStyles = () => (
+  <style>{`
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { display: none; }
+    * { scrollbar-width: none; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.92); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .screen-wrap { animation: fadeIn 0.22s ease; }
+    .card-anim   { animation: fadeUp 0.28s ease both; }
+
+    .tap-btn {
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.12s ease, opacity 0.12s ease !important;
+    }
+    .tap-btn:active { transform: scale(0.95) !important; opacity: 0.85 !important; }
+
+    .nav-btn {
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.12s ease !important;
+    }
+    .nav-btn:active { transform: scale(0.88) !important; }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+
+    .shimmer-text {
+      background: linear-gradient(90deg, #F5F5F0 30%, #FF9A6B 50%, #F5F5F0 70%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 3s linear infinite;
+    }
+  `}</style>
+);
+
 // ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
 function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
@@ -84,14 +147,17 @@ function Orb({ x, y, color=C.accent, size=300, opacity=0.1 }) {
   return <div style={{ position:"absolute", left:x, top:y, width:size, height:size, borderRadius:"50%", background:color, filter:"blur(100px)", opacity, pointerEvents:"none", zIndex:0 }}/>;
 }
 
-function Card({ children, style, onClick, glow, danger }) {
+function Card({ children, style, onClick, glow, danger, animDelay=0 }) {
   const [h, setH] = useState(false);
   const gc = danger ? C.coral : C.accent;
   return (
     <div onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-      style={{ background:C.card, borderRadius:18, border:`1px solid ${h&&glow?gc+"55":C.border}`,
-        padding:"16px 18px", boxShadow:h&&glow?`0 0 28px ${gc}22`:"none", transition:"all 0.18s",
-        cursor:onClick?"pointer":"default", position:"relative", overflow:"hidden", ...style }}>
+      className={`card-anim ${onClick ? "tap-btn" : ""}`}
+      style={{ background:C.card, borderRadius:20, border:`1px solid ${h&&glow?gc+"55":C.border}`,
+        padding:"16px 18px", boxShadow:h&&glow?`0 4px 32px ${gc}28`:"none",
+        transition:"border 0.18s, box-shadow 0.18s",
+        cursor:onClick?"pointer":"default", position:"relative", overflow:"hidden",
+        animationDelay:`${animDelay}ms`, ...style }}>
       {children}
     </div>
   );
@@ -104,7 +170,8 @@ function Ring({ pct, size=64, stroke=5, color=C.accent, children }) {
       <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={stroke}/>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition:"stroke-dasharray 0.9s ease" }}/>
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{ transition:"stroke-dasharray 1.1s cubic-bezier(0.34,1.56,0.64,1)", filter:`drop-shadow(0 0 6px ${color}60)` }}/>
       </svg>
       <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>{children}</div>
     </div>
@@ -114,7 +181,7 @@ function Ring({ pct, size=64, stroke=5, color=C.accent, children }) {
 function Bar({ pct, color=C.accent, h=6 }) {
   return (
     <div style={{ background:C.border, borderRadius:99, height:h, overflow:"hidden" }}>
-      <div style={{ height:"100%", borderRadius:99, background:color, width:`${Math.min(pct,100)}%`, transition:"width 0.9s ease" }}/>
+      <div style={{ height:"100%", borderRadius:99, background:color, width:`${Math.min(pct,100)}%`, transition:"width 1.1s cubic-bezier(0.34,1.56,0.64,1)" }}/>
     </div>
   );
 }
@@ -124,7 +191,7 @@ function Tag({ children, color=C.accent }) {
 }
 
 function SLabel({ children }) {
-  return <p style={{ margin:"0 0 5px", fontSize:10, fontWeight:700, letterSpacing:"0.09em", textTransform:"uppercase", color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{children}</p>;
+  return <p style={{ margin:"0 0 6px", fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:C.textSub+"bb", fontFamily:"DM Sans,sans-serif" }}>{children}</p>;
 }
 
 function Toggle({ on, setOn, color=C.accent }) {
@@ -150,9 +217,9 @@ function Btn({ children, onClick, style={}, variant="primary" }) {
   const clr = variant==="primary" ? "#fff" : variant==="ghost" ? C.textSub : C.text;
   const bdr = variant==="outline" ? `1px solid ${C.border}` : "none";
   return (
-    <button onClick={onClick} style={{ padding:"14px", borderRadius:14, border:bdr, background:bg, color:clr,
+    <button onClick={onClick} className="tap-btn" style={{ padding:"14px", borderRadius:14, border:bdr, background:bg, color:clr,
       fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-      boxShadow:variant==="primary"?`0 4px 16px ${C.accentGlow}`:"none", width:"100%", ...style }}>
+      boxShadow:variant==="primary"?`0 6px 20px ${C.accentGlow}`:"none", width:"100%", ...style }}>
       {children}
     </button>
   );
@@ -163,21 +230,22 @@ function Btn({ children, onClick, style={}, variant="primary" }) {
 function BottomSheet({ children, onClose, title }) {
   const [vis, setVis] = useState(false);
   useState(()=>{ setTimeout(()=>setVis(true),20); });
-  const close = ()=>{ setVis(false); setTimeout(onClose,300); };
+  const close = ()=>{ setVis(false); setTimeout(onClose,320); };
   return (
     <>
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
-        width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0",
-        border:`1px solid ${C.border}`, borderBottom:"none", zIndex:201,
-        transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
-        <div style={{ display:"flex", justifyContent:"center", paddingTop:14, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
-          <div style={{ width:36, height:4, borderRadius:99, background:C.border }}/>
+        width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",
+        border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
+        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
+        {/* Drag handle */}
+        <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
+          <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
         </div>
-        <div style={{ padding:"14px 22px 40px" }}>
+        <div style={{ padding:"10px 22px 44px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-            <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text }}>{title}</h3>
-            <button onClick={close} style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+            <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{title}</h3>
+            <button onClick={close} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
           </div>
           {children}
         </div>
@@ -376,8 +444,8 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense }) {
         <div style={{ padding:"16px 22px 40px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
             <div>
-              <div style={{ display:"flex", gap:5, marginBottom:6 }}>
-                {titles.map((_,i)=>(<div key={i} style={{ width:i===step?18:5, height:5, borderRadius:99, background:i===step?C.accent:i<step?C.green:C.border, transition:"all 0.25s" }}/>))}
+              <div style={{ display:"flex", gap:5, marginBottom:8 }}>
+                {titles.map((_,i)=>(<div key={i} style={{ width:i===step?20:6, height:6, borderRadius:99, background:i===step?C.accent:i<step?C.green+"80":C.border, transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}/>))}
               </div>
               <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text }}>{titles[step]}</h3>
             </div>
@@ -571,21 +639,22 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
 
 function NavIcon({ icon: Icon, active, label, onClick }) {
   return (
-    <button onClick={onClick} style={{
+    <button onClick={onClick} className="nav-btn" style={{
       background:"none", border:"none", cursor:"pointer", minWidth:52,
       display:"flex", flexDirection:"column", alignItems:"center", gap:3,
       color: active ? C.accent : C.textFaint,
-      transition:"color 0.2s", padding:"4px 8px",
-      WebkitTapHighlightColor:"transparent",
+      padding:"4px 8px", position:"relative",
     }}>
-      <Icon
-        size={22}
-        strokeWidth={active ? 2.5 : 1.8}
-        fill={active ? C.accent + "22" : "none"}
-        color={active ? C.accent : C.textFaint}
-        style={{ transition:"all 0.2s" }}
-      />
-      <span style={{ fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:active?800:500, letterSpacing:"0.01em" }}>{label}</span>
+      <div style={{ position:"relative", width:36, height:28, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        {active && <div style={{ position:"absolute", inset:0, borderRadius:10, background:`${C.accent}18`, transition:"all 0.25s" }}/>}
+        <Icon
+          size={21}
+          strokeWidth={active ? 2.5 : 1.8}
+          color={active ? C.accent : C.textFaint}
+          style={{ transition:"color 0.2s", position:"relative" }}
+        />
+      </div>
+      <span style={{ fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:active?800:500, letterSpacing:"0.01em", transition:"color 0.2s" }}>{label}</span>
     </button>
   );
 }
@@ -594,7 +663,7 @@ function NavBar({ screen, setScreen, onAdd }) {
   return (
     <div style={{
       display:"flex", justifyContent:"space-around", alignItems:"center",
-      padding:"8px 4px calc(20px + env(safe-area-inset-bottom))",
+      padding:"6px 4px calc(18px + env(safe-area-inset-bottom))",
       background:C.surface, borderTop:`1px solid ${C.border}`,
       position:"sticky", bottom:0, zIndex:100,
     }}>
@@ -602,12 +671,12 @@ function NavBar({ screen, setScreen, onAdd }) {
       <NavIcon icon={Receipt}    active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
 
       {/* Center add button */}
-      <button onClick={onAdd} style={{
-        width:52, height:52, borderRadius:"50%", border:"none",
+      <button onClick={onAdd} className="tap-btn" style={{
+        width:54, height:54, borderRadius:"50%", border:"none",
         background:C.gradAccent, color:"#fff", cursor:"pointer",
         display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:`0 4px 20px ${C.accentGlow}`, marginTop:-18, flexShrink:0,
-        WebkitTapHighlightColor:"transparent",
+        boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
+        marginTop:-22, flexShrink:0,
       }}>
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
@@ -722,41 +791,41 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, zIndex:1 }}>
           <BulsaLogo size={36}/>
           <div>
-            <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey {name||"there"} 👋</p>
+            <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text, letterSpacing:"-0.04em", lineHeight:1.1 }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey <span style={{ fontWeight:800, color:C.text }}>{name||"there"}</span> 👋</p>
           </div>
         </div>
-        <div onClick={()=>setScreen("profile")} style={{ cursor:"pointer" }}>
+        <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
           {avatar?(
-            <img src={avatar} alt="avatar" style={{ width:38, height:38, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
+            <img src={avatar} alt="avatar" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>
           ):(
-            <div style={{ width:38, height:38, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+            <div style={{ width:40, height:40, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 14px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
           )}
         </div>
       </div>
 
-      <div style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30`, borderRadius:22, padding:"26px 20px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
-        <Orb x="50%" y="-20px" color={C.accent} size={200} opacity={0.22}/>
+      <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"28px 22px 22px", position:"relative", overflow:"hidden", zIndex:1 }}>
+        <Orb x="40%" y="-30px" color={C.accent} size={220} opacity={0.25}/>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
             <SLabel>Available Balance</SLabel>
-            <h2 style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>{fmt(balance)}</h2>
+            <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(balance)}</h2>
             <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
           </div>
-          <Ring pct={savePct} size={60} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{savePct}%</span></Ring>
+          <Ring pct={savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{savePct}%</span></Ring>
         </div>
-        <div style={{ marginTop:18 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+        <div style={{ marginTop:20 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSpent)} spent of {fmt(income)}</span>
-            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
+            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM est: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
           </div>
-          <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={6}/>
+          <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
         </div>
       </div>
 
@@ -1103,7 +1172,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete}/>}
       {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1120,7 +1189,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
       {view==="list"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {expenses.length===0&&<div style={{ textAlign:"center", padding:"56px 0" }}><div style={{ fontSize:48, marginBottom:12 }}>👛</div><p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log your first expense.</p></div>}
+          {expenses.length===0&&<div style={{ textAlign:"center", padding:"60px 0 40px" }}><div style={{ width:80, height:80, borderRadius:26, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px" }}>👛</div><p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log your first expense.</p></div>}
           {expenses.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
             <Card key={e.id} onClick={()=>setDetail(e)} glow>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1207,7 +1276,7 @@ function UtangScreen({ utangs, setUtangs }) {
   const filtered = view==="iowe" ? iOwe : view==="theyowe" ? theyOwe : [...iOwe,...theyOwe,...settled];
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)}/>}
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1251,11 +1320,11 @@ function UtangScreen({ utangs, setUtangs }) {
 
       {/* Empty state */}
       {utangs.length===0&&(
-        <div style={{ textAlign:"center", padding:"56px 0" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>🤝</div>
-          <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang utang!</p>
-          <p style={{ margin:"0 0 20px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Track who owes who — for lunches, GCash, or basta.</p>
-          <button onClick={()=>setSheet("add")} style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:14, padding:"14px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add utang</button>
+        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
+          <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🤝</div>
+          <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang utang!</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track who owes who — for lunches, GCash, or basta.</p>
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add utang</button>
         </div>
       )}
 
@@ -1376,7 +1445,7 @@ function LoansScreen({ loans, setLoans }) {
   const deleteLoan= id=>{ setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Loans & Debt</h2>
@@ -1384,11 +1453,11 @@ function LoansScreen({ loans, setLoans }) {
       </div>
 
       {loans.length===0?(
-        <div style={{ textAlign:"center", padding:"56px 0" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>🎉</div>
-          <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Debt-free!</p>
-          <p style={{ margin:"0 0 20px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No loans tracked. Add one if needed.</p>
-          <button onClick={()=>setSheet("add")} style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:14, padding:"14px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a loan</button>
+        <div style={{ textAlign:"center", padding:"60px 0 40px", animation:"scaleIn 0.3s ease" }}>
+          <div style={{ width:88, height:88, borderRadius:28, background:`${C.green}12`, border:`2px dashed ${C.green}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎉</div>
+          <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Debt-free!</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>No loans tracked. Add one if needed.</p>
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a loan</button>
         </div>
       ):(
         <>
@@ -1443,7 +1512,7 @@ function GoalsScreen({ goals, setGoals }) {
   const deleteGoal  = id=>{ setGoals(prev=>prev.filter(g=>g.id!==id)); setConfirm(null); };
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<GoalSheet goal={sheet==="add"?null:sheet} onSave={saveGoal} onClose={()=>setSheet(null)}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Goals</h2>
@@ -1460,11 +1529,11 @@ function GoalsScreen({ goals, setGoals }) {
       )}
 
       {goals.length===0?(
-        <div style={{ textAlign:"center", padding:"56px 0" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>🎯</div>
-          <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No goals yet</p>
-          <p style={{ margin:"0 0 20px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Set your first savings goal.</p>
-          <button onClick={()=>setSheet("add")} style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:14, padding:"14px 28px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a goal</button>
+        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
+          <div style={{ width:88, height:88, borderRadius:28, background:`${C.sky}12`, border:`2px dashed ${C.sky}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎯</div>
+          <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No goals yet</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Set your first savings goal and watch it grow.</p>
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a goal</button>
         </div>
       ):(
         goals.map(g=>{ const pct=Math.round((g.saved/g.target)*100); return (
@@ -1574,7 +1643,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday }) {
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Survive</h2>
         <Tag color={C.accent}>{cycle.label}</Tag>
@@ -1587,18 +1656,18 @@ function SurviveScreen({ expenses, income, loans, goals, payday }) {
       )}
 
       {/* Status */}
-      <div style={{ background:`linear-gradient(145deg,${statusColor}18,${statusColor}08)`, border:`1.5px solid ${statusColor}50`, borderRadius:22, padding:"28px 22px", textAlign:"center", position:"relative", overflow:"hidden" }}>
-        <Orb x="50%" y="-40px" color={statusColor} size={200} opacity={0.15}/>
-        <div style={{ fontSize:52, marginBottom:10 }}>{statusEmoji}</div>
-        <p style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:statusColor }}>{status}</p>
+      <div style={{ background:`linear-gradient(145deg,${statusColor}1A,${statusColor}08)`, border:`1.5px solid ${statusColor}45`, borderRadius:24, padding:"30px 22px", textAlign:"center", position:"relative", overflow:"hidden" }}>
+        <Orb x="50%" y="-40px" color={statusColor} size={220} opacity={0.18}/>
+        <div style={{ fontSize:56, marginBottom:12, filter:`drop-shadow(0 4px 16px ${statusColor}60)` }}>{statusEmoji}</div>
+        <p style={{ margin:"0 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:24, fontWeight:800, color:statusColor, letterSpacing:"-0.02em" }}>{status}</p>
         <p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.65, maxWidth:260, marginInline:"auto" }}>{statusMsg}</p>
       </div>
 
       {/* The one number */}
-      <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${spendPerDay>0?C.accent+"40":C.coral+"40"}`, textAlign:"center", padding:"24px 20px" }}>
+      <Card style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${spendPerDay>0?C.accent+"45":C.coral+"45"}`, textAlign:"center", padding:"28px 20px" }}>
         <SLabel>You can spend per day</SLabel>
-        <p style={{ margin:"8px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:52, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.03em" }}>{fmt(spendPerDay)}</p>
-        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} days until {cycle.label} · {fmt(balance)} left</p>
+        <p style={{ margin:"10px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(spendPerDay)}</p>
+        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} day{daysLeft!==1?"s":""} until {cycle.label} · <span style={{ color:C.text, fontWeight:700 }}>{fmt(balance)}</span> left</p>
       </Card>
 
       {/* Cycle vs spend */}
@@ -1669,7 +1738,7 @@ function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, 
   };
 
   return (
-    <div style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Profile</h2>
         <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive →</button>
@@ -1861,6 +1930,7 @@ export default function Bulsa() {
 
   return (
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
+      <GlobalStyles/>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
         {!onboarded?(
