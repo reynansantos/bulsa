@@ -795,6 +795,28 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const dailyPct   = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
   const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
 
+  // ── Walang Gastos streak ──
+  const walangGastosStreak = (() => {
+    const impulse = ["shopping","food"];
+    let streak = 0;
+    const tod = new Date(); tod.setHours(0,0,0,0);
+    for (let i=0; i<90; i++) {
+      const d = new Date(tod); d.setDate(tod.getDate()-i);
+      const ds = d.toDateString();
+      if (expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds&&impulse.includes(e.catId))) break;
+      streak++;
+    }
+    return streak;
+  })();
+
+  const streakEmoji = walangGastosStreak>=30?"🏆":walangGastosStreak>=14?"🔥":walangGastosStreak>=7?"⚡":"✨";
+  const streakColor = walangGastosStreak>=30?C.gold:walangGastosStreak>=14?C.accent:walangGastosStreak>=7?C.lime:C.textSub;
+  const streakMsg   = walangGastosStreak>=30?"Legendary. Wala kang budol nang isang buwan."
+    :walangGastosStreak>=14?"Two weeks strong. Resist the groupchat recommendations."
+    :walangGastosStreak>=7?"One week! The urge to splurge is losing."
+    :walangGastosStreak>=1?"Keep going. Every day counts."
+    :"Log a day with no shopping or food spend to start your streak.";
+
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
@@ -845,6 +867,32 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           <Bar pct={dailyPct} color={dailyColor} h={5}/>
         </Card>
       )}
+
+      {/* Walang Gastos Streak */}
+      <Card style={{ background: walangGastosStreak>=7?`${streakColor}0C`:`${C.surface}`, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`, padding:"14px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
+              <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
+                <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
+              </div>
+            </div>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
+          </div>
+        </div>
+        {walangGastosStreak>=1&&(
+          <div style={{ marginTop:12, display:"flex", gap:4 }}>
+            {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(
+              <div key={i} style={{ flex:1, height:5, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>
+            ))}
+            {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(
+              <div key={i} style={{ flex:1, height:5, borderRadius:99, background:C.border }}/>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {moodLogs>=5&&stressAmt>0&&(
         <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} glow onClick={()=>setScreen("expenses")}>
