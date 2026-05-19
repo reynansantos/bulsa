@@ -89,10 +89,10 @@ function useLocalStorage(key, initialValue) {
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 const C = {
   bg:"#0C0C0C", surface:"#141414", card:"#1C1C1C", cardAlt:"#222222",
-  border:"#2A2A2A", borderLight:"#333333",
+  border:"#2A2A2A", borderLight:"#383838",
   accent:"#FF6B2B", accentSoft:"#FF9A6B", accentGlow:"rgba(255,107,43,0.18)",
   lime:"#C8F135", sky:"#60CFFF", rose:"#FF4D8C", gold:"#FFD060", mint:"#00E0A0",
-  text:"#F5F5F0", textSub:"#888880", textFaint:"#333330",
+  text:"#F5F5F0", textSub:"#A0A09A", textFaint:"#606058",
   green:"#00E096", coral:"#FF4455", overlay:"rgba(12,12,12,0.94)",
   gradAccent:"linear-gradient(135deg,#FF6B2B,#FF9A6B)",
   gradLime:"linear-gradient(135deg,#C8F135,#8FB800)",
