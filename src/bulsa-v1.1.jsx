@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet } from "lucide-react";
 
 // ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
 const GlobalStyles = () => (
@@ -124,6 +124,21 @@ const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
 const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, bills:3000, other:1000 };
+
+// ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
+const WALLET_PRESETS = [
+  { key:"cash",     name:"Cash",     icon:"💵", color:"#00E096" },
+  { key:"gcash",    name:"GCash",    icon:"📱", color:"#0070DC" },
+  { key:"maya",     name:"Maya",     icon:"💜", color:"#7B5CF6" },
+  { key:"bpi",      name:"BPI",      icon:"🏦", color:"#CC0000" },
+  { key:"bdo",      name:"BDO",      icon:"🏦", color:"#003087" },
+  { key:"maribank", name:"Maribank", icon:"🟢", color:"#00A86B" },
+  { key:"seabank",  name:"SeaBank",  icon:"🟠", color:"#EE4D2D" },
+  { key:"unionbank",name:"UnionBank",icon:"🏛️", color:"#E67E22" },
+  { key:"other",    name:"Other",    icon:"💰", color:"#FFD060" },
+];
+const WALLET_ICONS  = ["💵","📱","💳","🏦","💰","🪙","💎","🎒","🔐","💼"];
+const WALLET_COLORS = ["#00E096","#0070DC","#7B5CF6","#CC0000","#003087","#00A86B","#EE4D2D","#FFD060","#FF6B2B","#60CFFF"];
 const SEED_LOANS = [
   { id:1, name:"Maya Credit",       amount:25000, paid:8000,  rate:3.5,   due:"Jun 15", type:"BNPL",     color:C.accent },
   { id:2, name:"BPI Personal Loan", amount:50000, paid:18000, rate:14.88, due:"Jun 30", type:"Personal", color:C.sky },
@@ -287,7 +302,222 @@ function PhotoPicker({ onPhoto }) {
   );
 }
 
-// ─── LOAN SHEET ────────────────────────────────────────────────────────────
+// ─── WALLET SHEET ──────────────────────────────────────────────────────────
+
+function WalletSheet({ wallet, onSave, onClose }) {
+  const editing = !!wallet;
+  const [name,    setName]    = useState(wallet?.name    || "");
+  const [balance, setBalance] = useState(wallet?.balance != null ? String(wallet.balance) : "");
+  const [icon,    setIcon]    = useState(wallet?.icon    || "💵");
+  const [color,   setColor]   = useState(wallet?.color   || "#00E096");
+  const valid = name.trim() && balance !== "" && !isNaN(+balance) && +balance >= 0;
+
+  const save = () => {
+    if (!valid) return;
+    onSave({ id:wallet?.id||uid(), name:name.trim(), balance:+balance, icon, color });
+  };
+
+  const applyPreset = (p) => { setName(p.name); setIcon(p.icon); setColor(p.color); };
+
+  return (
+    <BottomSheet onClose={onClose} title={editing ? "Edit Account" : "Add Account"}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Presets — only on new */}
+        {!editing && (
+          <div>
+            <SLabel>Quick select</SLabel>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8" }}>
+              {WALLET_PRESETS.map(p => (
+                <button key={p.key} onClick={()=>applyPreset(p)} style={{
+                  display:"flex", alignItems:"center", gap:6, padding:"7px 13px",
+                  borderRadius:99, border:`1px solid ${name===p.name?p.color+"60":C.border}`,
+                  background:name===p.name?p.color+"1A":C.card,
+                  cursor:"pointer", fontSize:13, fontWeight:700,
+                  color:name===p.name?p.color:C.textSub, fontFamily:"DM Sans,sans-serif",
+                }}>
+                  <span>{p.icon}</span>{p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Name */}
+        <div>
+          <SLabel>Account Name</SLabel>
+          <Inp value={name} onChange={setName} placeholder="e.g. GCash, BPI Savings, Cash…" autoFocus={editing}/>
+        </div>
+
+        {/* Balance */}
+        <div>
+          <SLabel>{editing ? "Current Balance" : "Starting Balance"}</SLabel>
+          <div style={{ display:"flex", alignItems:"baseline", gap:6, background:C.cardAlt, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px" }}>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:24, fontWeight:800, color:C.textSub }}>₱</span>
+            <input type="text" inputMode="decimal" value={balance}
+              onChange={e=>setBalance(e.target.value.replace(/[^0-9.]/g,""))}
+              placeholder="0" autoFocus={!editing}
+              style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif",
+                fontWeight:800, fontSize:32, color:balance?C.text:C.textFaint,
+                width:"100%", caretColor:C.accent }}/>
+          </div>
+        </div>
+
+        {/* Icon */}
+        <div>
+          <SLabel>Icon</SLabel>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {WALLET_ICONS.map(ic => (
+              <button key={ic} onClick={()=>setIcon(ic)} style={{
+                width:42, height:42, borderRadius:12, fontSize:20, cursor:"pointer",
+                border:`2px solid ${icon===ic?color:C.border}`,
+                background:icon===ic?color+"1A":C.card, transition:"all 0.15s",
+              }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color */}
+        <div>
+          <SLabel>Color</SLabel>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {WALLET_COLORS.map(cl => (
+              <div key={cl} onClick={()=>setColor(cl)} style={{
+                width:28, height:28, borderRadius:"50%", background:cl, cursor:"pointer",
+                border:`3px solid ${color===cl?"#fff":"transparent"}`,
+                boxShadow:color===cl?`0 0 0 1px ${cl}`:"none",
+                transition:"all 0.15s",
+              }}/>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:10, marginTop:4 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:valid?1:0.4 }}>
+            {editing ? "Save changes" : "Add account"}
+          </Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ─── WALLETS SCREEN ────────────────────────────────────────────────────────
+
+function WalletsScreen({ wallets, setWallets }) {
+  const [sheet,   setSheet]   = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const total = wallets.reduce((s,w) => s + w.balance, 0);
+
+  const saveWallet = w => {
+    setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]);
+    setSheet(null);
+  };
+  const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
+
+  return (
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+      {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
+        </div>
+        <button onClick={()=>setSheet("add")} style={{
+          background:C.gradAccent, border:"none", borderRadius:12,
+          padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800,
+          cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+          boxShadow:`0 4px 16px ${C.accentGlow}`,
+        }} className="tap-btn">+ Add</button>
+      </div>
+
+      {/* Total balance hero */}
+      {wallets.length > 0 && (
+        <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
+          <Orb x="40%" y="-30px" color={C.accent} size={200} opacity={0.22}/>
+          <SLabel>Total Available</SLabel>
+          <p style={{ margin:"4px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
+            {fmt(total)}
+          </p>
+          <p style={{ margin:"0 0 16px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            across {wallets.length} account{wallets.length!==1?"s":""}
+          </p>
+          {/* Mini bars */}
+          <div style={{ display:"flex", gap:4, height:6, borderRadius:99, overflow:"hidden" }}>
+            {wallets.map(w => (
+              <div key={w.id} style={{
+                flex:w.balance, background:w.color,
+                transition:"flex 0.8s ease",
+                minWidth:w.balance>0?4:0,
+              }}/>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {wallets.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"56px 0" }}>
+          <div style={{ fontSize:52, marginBottom:14 }}>💰</div>
+          <p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No accounts yet</p>
+          <p style={{ margin:"0 0 22px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+            Add your cash on hand, GCash, Maya, BPI — whatever you have. That's your real balance.
+          </p>
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{
+            background:C.accentGlow, border:`2px dashed ${C.accent}40`,
+            color:C.accent, borderRadius:14, padding:"14px 28px",
+            fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+          }}>+ Add your first account</button>
+        </div>
+      ) : (
+        wallets.map((w, idx) => (
+          <Card key={w.id} glow animDelay={idx*50}>
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
+              <div style={{ width:50, height:50, borderRadius:16, background:w.color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0, border:`1px solid ${w.color}30` }}>
+                {w.icon}
+              </div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</p>
+                <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
+              </div>
+              <div style={{ display:"flex", gap:8" }}>
+                <button onClick={()=>setSheet(w)} className="tap-btn" style={{
+                  background:C.surface, border:`1px solid ${C.border}`, color:C.textSub,
+                  borderRadius:10, padding:"8px 14px", cursor:"pointer",
+                  fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700,
+                }}>Edit</button>
+                {confirm===w.id ? (
+                  <button onClick={()=>deleteWallet(w.id)} className="tap-btn" style={{
+                    background:C.coral, border:"none", borderRadius:10, padding:"8px 12px",
+                    cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif",
+                    fontWeight:800, color:"#fff",
+                  }}>Confirm</button>
+                ) : (
+                  <button onClick={()=>setConfirm(w.id)} className="tap-btn" style={{
+                    background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral,
+                    borderRadius:10, padding:"8px 12px", cursor:"pointer",
+                    fontSize:14, fontFamily:"DM Sans,sans-serif",
+                  }}>🗑</button>
+                )}
+              </div>
+            </div>
+            {/* Share of total bar */}
+            <Bar pct={total>0?(w.balance/total)*100:0} color={w.color} h={4}/>
+            <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              {total>0?Math.round((w.balance/total)*100):0}% of total
+            </p>
+          </Card>
+        ))
+      )}
+
+      <p style={{ textAlign:"center", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
+        💡 Tip: Update balances after every transfer or top-up.
+      </p>
+    </div>
+  );
+}
 
 function LoanSheet({ loan, onSave, onClose }) {
   const editing = !!loan;
@@ -387,14 +617,15 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 // ─── ADD EXPENSE ───────────────────────────────────────────────────────────
 
-function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRate }) {
+function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRate, wallets, onDeductWallet }) {
   const isEdit = !!editExpense;
-  const [step,   setStep]   = useState(0);
-  const [amount, setAmount] = useState(isEdit ? String(editExpense.amount) : "");
-  const [name,   setName]   = useState(isEdit ? editExpense.name : "");
-  const [catId,  setCatId]  = useState(isEdit ? editExpense.catId : "food");
-  const [moodId, setMoodId] = useState(isEdit ? editExpense.moodId : null);
-  const [photo,  setPhoto]  = useState(isEdit ? editExpense.photo : null);
+  const [step,     setStep]     = useState(0);
+  const [amount,   setAmount]   = useState(isEdit ? String(editExpense.amount) : "");
+  const [name,     setName]     = useState(isEdit ? editExpense.name : "");
+  const [catId,    setCatId]    = useState(isEdit ? editExpense.catId : "food");
+  const [moodId,   setMoodId]   = useState(isEdit ? editExpense.moodId : null);
+  const [photo,    setPhoto]    = useState(isEdit ? editExpense.photo : null);
+  const [walletId, setWalletId] = useState(isEdit ? editExpense.walletId : null);
   const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
   const [gInput, setGInput] = useState("");
   const [gItems, setGItems] = useState(isEdit ? editExpense.groceryItems||[] : []);
@@ -417,11 +648,15 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRa
       name: name.trim() || catOf(catId).label,
       amount: +amount,
       catId: isGrocery ? "grocery" : catId,
-      moodId, photo, groceryItems: gItems,
+      moodId, photo, groceryItems: gItems, walletId,
       date: isToday ? "Today" : new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
       time: `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
       ts: new Date(expDate + "T" + (isToday ? new Date().toTimeString().slice(0,8) : "12:00:00")).toISOString()
     });
+    // Deduct from selected wallet
+    if (walletId && onDeductWallet && !isEdit) {
+      onDeductWallet(walletId, +amount);
+    }
     close();
   };
 
@@ -497,11 +732,52 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRa
                 </div>
               </div>
 
-              <div style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}30`, borderRadius:14, padding:"12px 16px", marginBottom:20, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}30`, borderRadius:14, padding:"12px 16px", marginBottom:wallets&&wallets.length>0?12:20, display:"flex", alignItems:"center", gap:12 }}>
                 <span style={{ fontSize:20 }}>🛒</span>
                 <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Grocery mode</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Track individual items</p></div>
                 <Toggle on={isGrocery} setOn={setIsGrocery} color={C.lime}/>
               </div>
+
+              {/* Wallet picker */}
+              {wallets && wallets.length > 0 && (
+                <div style={{ marginBottom:20 }}>
+                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Pay from</p>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {wallets.map(w => {
+                      const selected = walletId === w.id;
+                      const insufficient = selected && +amount > w.balance;
+                      return (
+                        <button key={w.id} onClick={()=>setWalletId(selected?null:w.id)} style={{
+                          display:"flex", alignItems:"center", gap:6, padding:"8px 14px",
+                          borderRadius:99,
+                          border:`1.5px solid ${selected?(insufficient?C.coral:w.color)+"80":C.border}`,
+                          background:selected?w.color+"18":C.card,
+                          cursor:"pointer", fontSize:13, fontWeight:700,
+                          fontFamily:"DM Sans,sans-serif",
+                          color:selected?(insufficient?C.coral:w.color):C.textSub,
+                          transition:"all 0.15s",
+                        }}>
+                          <span>{w.icon}</span>
+                          <span>{w.name}</span>
+                          <span style={{ fontSize:11, opacity:0.8 }}>{fmt(w.balance)}</span>
+                          {insufficient && <span style={{ fontSize:11, color:C.coral }}>⚠️</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {walletId && (() => {
+                    const w = wallets.find(x=>x.id===walletId);
+                    const insufficient = w && +amount > w.balance;
+                    if (insufficient) return (
+                      <p style={{ margin:"8px 0 0", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                        ⚠️ Not enough in {w.name}. Balance: {fmt(w.balance)}
+                      </p>
+                    );
+                    return null;
+                  })()}
+                </div>
+              )}
+
               <Btn onClick={()=>amount&&+amount>0&&setStep(1)} style={{ opacity:amount&&+amount>0?1:0.4 }}>Continue →</Btn>
             </div>
           )}
@@ -706,7 +982,7 @@ function NavBar({ screen, setScreen, onAdd }) {
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
 
-      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={Wallet}     active={screen==="wallets"}  label="Accounts" onClick={()=>setScreen("wallets")}/>
       <NavIcon icon={User}       active={screen==="profile"}  label="Profile"  onClick={()=>setScreen("profile")}/>
     </div>
   );
@@ -796,10 +1072,11 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets }) {
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
-  const balance    = income - totalSpent;
-  const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
+  const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
+  const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
+  const savePct    = income > 0 ? Math.max(Math.round(((income-totalSpent)/income)*100),0) : 0;
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const stressAmt  = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
   const budgetOver = Object.entries(budgets).filter(([id,lim])=>expenses.filter(e=>e.catId===id).reduce((s,e)=>s+e.amount,0)>lim).length;
@@ -861,7 +1138,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         <Orb x="40%" y="-30px" color={C.accent} size={220} opacity={0.25}/>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <SLabel>Available Balance</SLabel>
+            <SLabel>{walletTotal !== null ? "Total Across Accounts" : "Available Balance"}</SLabel>
             <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(balance)}</h2>
             <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
           </div>
@@ -874,6 +1151,37 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           </div>
           <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
         </div>
+        {/* Wallet breakdown strip */}
+        {wallets && wallets.length > 0 && (
+          <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.accent}20` }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {wallets.map(w => (
+                <div key={w.id} onClick={()=>setScreen("wallets")} style={{
+                  display:"flex", alignItems:"center", gap:6,
+                  background:w.color+"15", border:`1px solid ${w.color}30`,
+                  borderRadius:99, padding:"5px 12px", cursor:"pointer",
+                }}>
+                  <span style={{ fontSize:13 }}>{w.icon}</span>
+                  <span style={{ fontSize:11, fontWeight:700, color:w.color, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
+                  <span style={{ fontSize:11, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(w.balance)}</span>
+                </div>
+              ))}
+              <div onClick={()=>setScreen("wallets")} style={{
+                display:"flex", alignItems:"center", gap:4,
+                background:C.accentGlow, border:`1px dashed ${C.accent}40`,
+                borderRadius:99, padding:"5px 12px", cursor:"pointer",
+              }}>
+                <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>+ account</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {(!wallets || wallets.length === 0) && (
+          <div onClick={()=>setScreen("wallets")} style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.accent}20`, display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <span style={{ fontSize:14 }}>💰</span>
+            <span style={{ fontSize:12, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Add accounts for real balance →</span>
+          </div>
+        )}
       </div>
 
       {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
@@ -2124,7 +2432,7 @@ function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, 
         )}
       </div>
 
-      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.0 · built for Filipinos 🇵🇭</p>
+      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.1 · built for Filipinos 🇵🇭</p>
     </div>
   );
 }
@@ -2147,9 +2455,15 @@ export default function Bulsa() {
   const [bio,       setBio]       = useLocalStorage("bulsa_bio", "");
   const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
   const [utangs,    setUtangs]    = useLocalStorage("bulsa_utangs", []);
+  const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
+  const handleDeductWallet = useCallback((walletId, amount) => {
+    setWallets(prev => prev.map(w =>
+      w.id === walletId ? { ...w, balance: Math.max(w.balance - amount, 0) } : w
+    ));
+  }, []);
 
   const handleOnboardDone = ({ name:n, income:inc }) => {
     if (n) setName(n);
@@ -2158,12 +2472,13 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income}/>,
-    survive: <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
+    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
+    wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} hourlyRate={hourlyRate} setHourlyRate={setHourlyRate}/>,
   };
 
@@ -2178,7 +2493,7 @@ export default function Bulsa() {
           <>
             <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} hourlyRate={hourlyRate}/>}
+            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} hourlyRate={hourlyRate} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
         )}
       </div>
