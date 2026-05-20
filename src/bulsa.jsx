@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus, Wallet } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
 
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
@@ -976,6 +976,436 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
   );
 }
 
+// ─── SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+
+const SUB_CATS = [
+  { id:"streaming", label:"Streaming",  icon:"🎬", color:"#E50914" },
+  { id:"music",     label:"Music",      icon:"🎵", color:"#1DB954" },
+  { id:"gaming",    label:"Gaming",     icon:"🎮", color:C.sky },
+  { id:"cloud",     label:"Cloud",      icon:"☁️", color:"#0061FF" },
+  { id:"news",      label:"News/Reads", icon:"📰", color:C.gold },
+  { id:"fitness",   label:"Fitness",    icon:"💪", color:C.mint },
+  { id:"tools",     label:"Tools/Work", icon:"🛠️", color:C.accent },
+  { id:"other",     label:"Other",      icon:"📦", color:C.textSub },
+];
+
+const SUB_CYCLES = [
+  { id:"monthly",  label:"Monthly",   months:1  },
+  { id:"quarterly",label:"Quarterly", months:3  },
+  { id:"yearly",   label:"Yearly",    months:12 },
+  { id:"weekly",   label:"Weekly",    months:0.25 },
+];
+
+const SUB_PRESETS = [
+  { name:"Netflix",      icon:"🎬", cat:"streaming", color:"#E50914", amount:269  },
+  { name:"Spotify",      icon:"🎵", cat:"music",     color:"#1DB954", amount:159  },
+  { name:"Apple Music",  icon:"🍎", cat:"music",     color:"#FC3C44", amount:149  },
+  { name:"YouTube Premium",icon:"▶️",cat:"streaming", color:"#FF0000", amount:219  },
+  { name:"Disney+",      icon:"✨", cat:"streaming", color:"#113CCF", amount:149  },
+  { name:"Crunchyroll",  icon:"🍥", cat:"streaming", color:"#F47521", amount:99   },
+  { name:"iCloud+",      icon:"☁️", cat:"cloud",     color:"#0061FF", amount:49   },
+  { name:"Google One",   icon:"🔵", cat:"cloud",     color:"#4285F4", amount:99   },
+  { name:"Canva Pro",    icon:"🎨", cat:"tools",     color:"#00C4CC", amount:499  },
+  { name:"ChatGPT Plus", icon:"🤖", cat:"tools",     color:"#10A37F", amount:1099 },
+];
+
+const subCatOf = id => SUB_CATS.find(c=>c.id===id) || SUB_CATS[SUB_CATS.length-1];
+const cycleOf  = id => SUB_CYCLES.find(c=>c.id===id) || SUB_CYCLES[0];
+
+// Returns days until a date string (YYYY-MM-DD)
+const daysUntil = dateStr => {
+  const now   = new Date(); now.setHours(0,0,0,0);
+  const due   = new Date(dateStr+"T00:00:00");
+  return Math.round((due-now)/(1000*60*60*24));
+};
+
+// Advance next due date by one billing cycle
+const advanceDue = (dateStr, cycleId) => {
+  const d = new Date(dateStr+"T12:00:00");
+  const c = cycleOf(cycleId);
+  if (cycleId==="weekly")   d.setDate(d.getDate()+7);
+  else if (cycleId==="monthly")   d.setMonth(d.getMonth()+1);
+  else if (cycleId==="quarterly") d.setMonth(d.getMonth()+3);
+  else if (cycleId==="yearly")    d.setFullYear(d.getFullYear()+1);
+  return d.toISOString().split("T")[0];
+};
+
+// Monthly equivalent cost
+const monthlyAmt = sub => {
+  if (sub.cycle==="weekly")    return sub.amount * 4.33;
+  if (sub.cycle==="quarterly") return sub.amount / 3;
+  if (sub.cycle==="yearly")    return sub.amount / 12;
+  return sub.amount;
+};
+
+// Request browser push notification permission
+const requestNotifPermission = async () => {
+  if (!("Notification" in window)) return false;
+  if (Notification.permission === "granted") return true;
+  const result = await Notification.requestPermission();
+  return result === "granted";
+};
+
+const sendNotif = (title, body) => {
+  if (Notification.permission === "granted") {
+    new Notification(title, { body, icon:"/favicon.ico" });
+  }
+};
+
+// ─── SUB SHEET ─────────────────────────────────────────────────────────────
+
+function SubSheet({ sub, onSave, onClose }) {
+  const editing = !!sub;
+  const today   = new Date().toISOString().split("T")[0];
+  const [name,    setName]    = useState(sub?.name    || "");
+  const [amount,  setAmount]  = useState(sub?.amount  ? String(sub.amount) : "");
+  const [cycle,   setCycle]   = useState(sub?.cycle   || "monthly");
+  const [cat,     setCat]     = useState(sub?.cat     || "streaming");
+  const [dueDate, setDueDate] = useState(sub?.dueDate || today);
+  const [icon,    setIcon]    = useState(sub?.icon    || "📦");
+  const [color,   setColor]   = useState(sub?.color   || C.accent);
+  const [presetPicked, setPresetPicked] = useState(false);
+
+  const applyPreset = p => {
+    setName(p.name); setIcon(p.icon); setCat(p.cat);
+    setColor(p.color); setAmount(String(p.amount));
+    setPresetPicked(true);
+  };
+
+  const valid = name.trim() && +amount > 0 && dueDate;
+  const save  = () => {
+    if (!valid) return;
+    onSave({ id:sub?.id||uid(), name:name.trim(), amount:+amount, cycle, cat, dueDate, icon, color, active:sub?.active!==false });
+  };
+
+  const days   = daysUntil(dueDate);
+  const urgClr = days<=0?C.coral:days<=3?C.coral:days<=7?C.gold:C.green;
+
+  return (
+    <BottomSheet onClose={onClose} title={editing?"Edit Subscription":"Add Subscription"}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Presets */}
+        {!editing&&(
+          <div>
+            <SLabel>Quick add</SLabel>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+              {SUB_PRESETS.map(p=>(
+                <button key={p.name} onClick={()=>applyPreset(p)} className="tap-btn"
+                  style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 11px", borderRadius:99,
+                    border:`1px solid ${name===p.name?p.color+"70":C.border}`,
+                    background:name===p.name?`${p.color}18`:C.card, cursor:"pointer" }}>
+                  <span style={{ fontSize:14 }}>{p.icon}</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:name===p.name?p.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Name */}
+        <div><SLabel>Name</SLabel><Inp autoFocus={editing||presetPicked} value={name} onChange={setName} placeholder="e.g. Netflix, Spotify…"/></div>
+
+        {/* Amount */}
+        <div>
+          <SLabel>Amount per billing</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${amount?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input type="text" inputMode="decimal" value={amount}
+              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+          </div>
+        </div>
+
+        {/* Cycle */}
+        <div>
+          <SLabel>Billing cycle</SLabel>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:7 }}>
+            {SUB_CYCLES.map(c=>(
+              <button key={c.id} onClick={()=>setCycle(c.id)} className="tap-btn"
+                style={{ padding:"9px 4px", borderRadius:12, border:`2px solid ${cycle===c.id?color+"80":C.border}`,
+                  background:cycle===c.id?`${color}15`:C.card, cursor:"pointer", textAlign:"center" }}>
+                <span style={{ fontSize:11, fontWeight:800, color:cycle===c.id?color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+          {amount&&+amount>0&&cycle!=="monthly"&&(
+            <p style={{ margin:"7px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              ≈ <strong style={{ color }}>{`₱${Math.round(monthlyAmt({amount:+amount,cycle})).toLocaleString()}`}</strong>/mo equivalent
+            </p>
+          )}
+        </div>
+
+        {/* Category */}
+        <div>
+          <SLabel>Category</SLabel>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+            {SUB_CATS.map(c=>(
+              <button key={c.id} onClick={()=>setCat(c.id)} className="tap-btn"
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:99,
+                  border:`1px solid ${cat===c.id?c.color+"70":C.border}`,
+                  background:cat===c.id?`${c.color}15`:C.card, cursor:"pointer" }}>
+                <span style={{ fontSize:13 }}>{c.icon}</span>
+                <span style={{ fontSize:12, fontWeight:700, color:cat===c.id?c.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Next due date */}
+        <div>
+          <SLabel>Next due date</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${urgClr+"60"}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
+            <span style={{ fontSize:16 }}>📅</span>
+            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+            <Tag color={urgClr}>{days<=0?"Overdue":days===0?"Today":days===1?"Tomorrow":`${days}d`}</Tag>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:10, marginTop:4 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?C.gradAccent:undefined }}>
+            {editing?"Save changes":"Add subscription"}
+          </Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ─── SUBSCRIPTIONS SCREEN ──────────────────────────────────────────────────
+
+function SubscriptionsScreen({ subs, setSubs, setScreen }) {
+  const [sheet,   setSheet]   = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [notifOk, setNotifOk] = useState(Notification?.permission==="granted");
+  const [filter,  setFilter]  = useState("active"); // active | all
+
+  const saveSub = s => {
+    setSubs(prev=>prev.find(x=>x.id===s.id)?prev.map(x=>x.id===s.id?s:x):[...prev,s]);
+    setSheet(null);
+  };
+
+  const deleteSub  = id => { setSubs(prev=>prev.filter(s=>s.id!==id)); setConfirm(null); };
+  const toggleActive = id => setSubs(prev=>prev.map(s=>s.id===id?{...s,active:!s.active}:s));
+
+  // Mark paid: log payment date and advance next due
+  const markPaid = id => {
+    setSubs(prev=>prev.map(s=>{
+      if (s.id!==id) return s;
+      return { ...s, lastPaid:new Date().toISOString().split("T")[0], dueDate:advanceDue(s.dueDate, s.cycle) };
+    }));
+  };
+
+  const enableNotifs = async () => {
+    const ok = await requestNotifPermission();
+    setNotifOk(ok);
+    if (ok) sendNotif("bulsa. 🔔", "You'll get reminders before subscriptions are due!");
+  };
+
+  const activeSubs = subs.filter(s=>s.active!==false);
+  const monthlyTotal = activeSubs.reduce((sum,s)=>sum+monthlyAmt(s), 0);
+  const yearlyTotal  = monthlyTotal * 12;
+
+  // Due soon (within 7 days, active only)
+  const dueSoon = activeSubs
+    .map(s=>({...s, days:daysUntil(s.dueDate)}))
+    .filter(s=>s.days<=7)
+    .sort((a,b)=>a.days-b.days);
+
+  const displayed = filter==="active" ? activeSubs : subs;
+
+  const urgColor = days => days<=0?C.coral:days<=3?C.coral:days<=7?C.gold:C.green;
+  const urgLabel = days => days<0?`${Math.abs(days)}d overdue`:days===0?"Due today":days===1?"Due tomorrow":`${days}d left`;
+
+  return (
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+      {sheet&&<SubSheet sub={sheet==="add"?null:sheet} onSave={saveSub} onClose={()=>setSheet(null)}/>}
+
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>Subscriptions</h2>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Recurring bills tracker</p>
+        </div>
+        <button onClick={()=>setSheet("add")} className="tap-btn"
+          style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>
+          + Add
+        </button>
+      </div>
+
+      {/* Notification prompt */}
+      {!notifOk&&subs.length>0&&(
+        <div style={{ background:`${C.gold}0E`, border:`1px solid ${C.gold}35`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:22, flexShrink:0 }}>🔔</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Get due date reminders</p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Enable notifications so we can remind you before you're charged.</p>
+          </div>
+          <button onClick={enableNotifs} className="tap-btn"
+            style={{ background:C.gold, border:"none", borderRadius:10, padding:"8px 14px", color:"#000", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+            Enable
+          </button>
+        </div>
+      )}
+
+      {/* Monthly total hero */}
+      {activeSubs.length>0&&(
+        <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
+          <Orb x="60%" y="-20px" color={C.accent} size={200} opacity={0.2}/>
+          <SLabel>Monthly subscriptions</SLabel>
+          <h2 style={{ margin:"4px 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
+            ₱{Math.round(monthlyTotal).toLocaleString()}
+            <span style={{ fontSize:16, color:C.textSub, fontWeight:500 }}>/mo</span>
+          </h2>
+          <p style={{ margin:"0 0 14px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            ₱{Math.round(yearlyTotal).toLocaleString()}/yr · {activeSubs.length} active subscription{activeSubs.length!==1?"s":""}
+          </p>
+          {/* Category breakdown bar */}
+          {(()=>{
+            const byCat = SUB_CATS.map(c=>({ ...c, total:activeSubs.filter(s=>s.cat===c.id).reduce((sum,s)=>sum+monthlyAmt(s),0) })).filter(c=>c.total>0);
+            const total = byCat.reduce((s,c)=>s+c.total,0);
+            return total>0?(
+              <div style={{ display:"flex", gap:3, borderRadius:99, overflow:"hidden", height:6 }}>
+                {byCat.map(c=>(
+                  <div key={c.id} style={{ flex:c.total/total, background:c.color, minWidth:4 }}/>
+                ))}
+              </div>
+            ):null;
+          })()}
+        </div>
+      )}
+
+      {/* Due soon alert */}
+      {dueSoon.length>0&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <SLabel>⚠️ Due soon</SLabel>
+          {dueSoon.map(s=>(
+            <div key={s.id} style={{ background:`${urgColor(s.days)}0E`, border:`1.5px solid ${urgColor(s.days)}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:12, background:`${s.color||C.accent}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{s.icon||"📦"}</div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{s.name}</p>
+                <p style={{ margin:0, fontSize:11, color:urgColor(s.days), fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(s.days)} · {fmt(s.amount)}</p>
+              </div>
+              <button onClick={()=>markPaid(s.id)} className="tap-btn"
+                style={{ background:`${C.green}15`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+                ✓ Paid
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      {subs.length>0&&(
+        <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
+          {[["active",`Active (${activeSubs.length})`],["all",`All (${subs.length})`]].map(([v,l])=>(
+            <button key={v} onClick={()=>setFilter(v)} className="tap-btn"
+              style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:filter===v?C.card:"none", color:filter===v?C.text:C.textSub, fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {subs.length===0&&(
+        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
+          <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🔄</div>
+          <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No subscriptions yet</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track Netflix, Spotify, iCloud — everything that auto-charges you.</p>
+          <button onClick={()=>setSheet("add")} className="tap-btn"
+            style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            + Add subscription
+          </button>
+        </div>
+      )}
+
+      {/* Sub cards */}
+      {displayed.map((s,i)=>{
+        const days  = daysUntil(s.dueDate);
+        const uc    = urgColor(days);
+        const cat   = subCatOf(s.cat);
+        const isOff = s.active===false;
+        return (
+          <Card key={s.id} animDelay={i*35} style={{ opacity:isOff?0.5:1, border:`1.5px solid ${isOff?C.border:uc+"35"}` }}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
+              {/* Icon */}
+              <div style={{ width:46, height:46, borderRadius:14, background:`${s.color||C.accent}18`, border:`1px solid ${s.color||C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
+                {s.icon||cat.icon}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:2 }}>
+                  <p style={{ margin:0, fontSize:15, fontWeight:800, color:isOff?C.textSub:C.text, fontFamily:"DM Sans,sans-serif" }}>{s.name}</p>
+                  {isOff&&<Tag color={C.textSub}>Paused</Tag>}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <Tag color={cat.color}>{cat.icon} {cat.label}</Tag>
+                  <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{cycleOf(s.cycle).label}</span>
+                </div>
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <p style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:isOff?C.textSub:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(s.amount)}</p>
+                {s.cycle!=="monthly"&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>≈{fmt(Math.round(monthlyAmt(s)))}/mo</p>}
+              </div>
+            </div>
+
+            {/* Due date bar */}
+            {!isOff&&(
+              <div style={{ background:`${uc}12`, border:`1px solid ${uc}25`, borderRadius:10, padding:"8px 12px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ fontSize:13 }}>📅</span>
+                  <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                    {new Date(s.dueDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
+                  </span>
+                </div>
+                <Tag color={uc}>{urgLabel(days)}</Tag>
+              </div>
+            )}
+
+            {/* Last paid */}
+            {s.lastPaid&&(
+              <p style={{ margin:"0 0 10px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                Last paid: {new Date(s.lastPaid+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
+              </p>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display:"flex", gap:8 }}>
+              {!isOff&&(
+                <button onClick={()=>markPaid(s.id)} className="tap-btn"
+                  style={{ flex:2, background:`${C.green}12`, border:`1px solid ${C.green}35`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                  ✓ Mark paid
+                </button>
+              )}
+              <button onClick={()=>setSheet(s)} className="tap-btn"
+                style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                Edit
+              </button>
+              <button onClick={()=>toggleActive(s.id)} className="tap-btn"
+                style={{ flex:1, background:isOff?`${C.accent}12`:`${C.gold}10`, border:`1px solid ${isOff?C.accent+"35":C.gold+"35"}`, color:isOff?C.accent:C.gold, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                {isOff?"Resume":"Pause"}
+              </button>
+              {confirm===s.id?(
+                <button onClick={()=>deleteSub(s.id)} className="tap-btn"
+                  style={{ background:C.coral, border:"none", borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
+              ):(
+                <button onClick={()=>setConfirm(s.id)} className="tap-btn"
+                  style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑</button>
+              )}
+            </div>
+          </Card>
+        );
+      })}
+
+      {subs.length>0&&(
+        <p style={{ textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
+          💡 Tap "Mark paid" after you're charged — it auto-advances the next due date.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── NAV ───────────────────────────────────────────────────────────────────
 
 function NavIcon({ icon: Icon, active, label, onClick }) {
@@ -1027,8 +1457,8 @@ function NavBar({ screen, setScreen, onAdd }) {
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
 
-      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Wallet}     active={screen==="wallets"}  label="Accounts" onClick={()=>setScreen("wallets")}/>
+      <NavIcon icon={Handshake}  active={screen==="utang"}  label="Utang"  onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={Repeat}     active={screen==="subs"}   label="Subs"   onClick={()=>setScreen("subs")}/>
     </div>
   );
 }
@@ -1117,7 +1547,7 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets, hidden, setHidden }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[] }) {
   const fmt = useFmt();
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
@@ -1294,6 +1724,30 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       {/* ── 2. ALERTS — only show if triggered ── */}
       {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
+
+      {/* Subscriptions due soon nudge */}
+      {(()=>{
+        const dueSoon = subs.filter(s=>s.active!==false).map(s=>({...s,days:daysUntil(s.dueDate)})).filter(s=>s.days<=3).sort((a,b)=>a.days-b.days);
+        if (!dueSoon.length) return null;
+        const first = dueSoon[0];
+        const uc = first.days<=0?C.coral:first.days<=1?C.coral:C.gold;
+        return (
+          <Card style={{ background:`${uc}0E`, border:`1.5px solid ${uc}40`, padding:"13px 16px" }} onClick={()=>setScreen("subs")}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:22 }}>{first.days<=0?"🚨":"🔔"}</span>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+                  {first.days<=0?`${first.name} is overdue!`:first.days===0?`${first.name} due today`:first.days===1?`${first.name} due tomorrow`:`${first.name} due in ${first.days} days`}
+                </p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  {fmt(first.amount)}{dueSoon.length>1?` · +${dueSoon.length-1} more due soon`:""}
+                </p>
+              </div>
+              <span style={{ color:C.textFaint, fontSize:16 }}>›</span>
+            </div>
+          </Card>
+        );
+      })()}
       {dailyLimit>0&&dailyOver&&(
         <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}40`, padding:"14px 16px" }} onClick={()=>setScreen("expenses")}>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}><span style={{ fontSize:16 }}>🚨</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over daily limit today</p><p style={{ margin:"0 0 0 auto", fontSize:13, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} / {fmt(dailyLimit)}</p></div>
@@ -2768,7 +3222,20 @@ export default function Bulsa() {
   const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
   const [utangs,    setUtangs]    = useLocalStorage("bulsa_utangs", []);
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
+  const [subs,      setSubs]      = useLocalStorage("bulsa_subs", []);
   const [hidden,    setHidden]    = useState(false);
+
+  // Check for due-soon subs on mount and send notifications
+  useEffect(()=>{
+    if (Notification?.permission!=="granted") return;
+    const activeSubs = subs.filter(s=>s.active!==false);
+    activeSubs.forEach(s=>{
+      const days = daysUntil(s.dueDate);
+      if (days<=0)  sendNotif(`${s.name} is overdue! 🚨`, `₱${s.amount.toLocaleString()} was due on ${s.dueDate}`);
+      else if (days===1) sendNotif(`${s.name} due tomorrow 🔔`, `₱${s.amount.toLocaleString()} — don't forget!`);
+      else if (days===3) sendNotif(`${s.name} due in 3 days`, `₱${s.amount.toLocaleString()} coming up`);
+    });
+  }, []);
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -2785,13 +3252,14 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets}/>,
+    subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} hourlyRate={hourlyRate} setHourlyRate={setHourlyRate}/>,
   };
 
