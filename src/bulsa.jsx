@@ -762,11 +762,33 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRa
                 />
               </div>
 
-              {/* Quick amounts */}
-              <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:16 }}>
-                {QUICK.map(q=>(
-                  <button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>
+              {/* Quick amounts — fixed set */}
+              <div style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                  {QUICK.map(q=>(
+                    <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
+                      style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                      ₱{q.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additive pills — tap to add on top of current amount */}
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:16 }}>
+                <span style={{ fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>Add</span>
+                {[20, 50, 100, 500].map(q=>(
+                  <button key={q} onClick={()=>setAmount(prev=>String((+prev||0)+q))} className="tap-btn"
+                    style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}35`, color:C.lime, borderRadius:99, padding:"6px 13px", cursor:"pointer", fontSize:13, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+                    +₱{q}
+                  </button>
                 ))}
+                {+amount > 0 && (
+                  <button onClick={()=>setAmount("0")} className="tap-btn"
+                    style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:99, padding:"6px 10px", cursor:"pointer", fontSize:11, fontWeight:800, fontFamily:"DM Sans,sans-serif", marginLeft:"auto", flexShrink:0 }}>
+                    ✕
+                  </button>
+                )}
               </div>
 
               {/* Hourly rate badge */}
