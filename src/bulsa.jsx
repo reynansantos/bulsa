@@ -1955,19 +1955,44 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
                 </div>
               </div>
             )}
-            {/* Balance strip — available + can spend/day only, no wallet breakdown */}
+            {/* Balance strip */}
             <div style={{ display:"flex", gap:8, flexWrap:"wrap", paddingTop:12, borderTop:`1px solid ${C.accent}20`, position:"relative", zIndex:1 }}>
-              <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
-                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
-              </div>
-              {runway && (
-                <div style={{ background:`${runway.color}15`, border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 12px" }}>
-                  <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Can spend/day</p>
-                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
+              <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px", display:"flex", gap:10, alignItems:"center" }}>
+                <div>
+                  <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
+                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
                 </div>
-              )}
+              </div>
+              {income>0&&<div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
+                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Monthly budget</p>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(income)}</p>
+              </div>}
+              {runway&&<div style={{ background:`${runway.color}15`, border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 12px" }}>
+                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Can spend/day</p>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
+              </div>}
             </div>
+            {/* Wallet chips */}
+            {wallets&&wallets.length>0&&(
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10, position:"relative", zIndex:1 }}>
+                {wallets.map(w=>(
+                  <div key={w.id} onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", gap:5, background:w.color+"15", border:`1px solid ${w.color}30`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
+                    <span style={{ fontSize:12 }}>{w.icon}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:w.color, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
+                    <span style={{ fontSize:11, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(w.balance)}</span>
+                  </div>
+                ))}
+                <div onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", background:C.accentGlow, border:`1px dashed ${C.accent}40`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
+                  <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>+ account</span>
+                </div>
+              </div>
+            )}
+            {(!wallets||wallets.length===0)&&(
+              <div onClick={()=>setScreen("accounts")} style={{ marginTop:10, display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative", zIndex:1 }}>
+                <span style={{ fontSize:13 }}>💰</span>
+                <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Add accounts for real balance →</span>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -2020,17 +2045,67 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       {/* ── 4. FINANCIAL SUMMARY ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
-        <Card glow onClick={()=>setScreen("accounts")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
+
+        {/* Remaining debt */}
+        <Card glow onClick={()=>setScreen("loans")} style={{ padding:"14px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ width:32, height:32, borderRadius:10, background:`${C.coral}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              {/* trending-down icon */}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.coral} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+                <polyline points="17 18 23 18 23 12"/>
+              </svg>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+          <p style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(totalDebt)}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p>
+        </Card>
+
+        {/* Total saved */}
+        <Card glow onClick={()=>setScreen("goals")} style={{ padding:"14px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ width:32, height:32, borderRadius:10, background:`${C.sky}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              {/* piggy bank / trending-up icon */}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sky} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+          <p style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(totalSaved)}</p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p>
+        </Card>
+
       </div>
 
+      {/* Utang card — compact single row */}
       {(iOweTotal>0||theyOweTotal>0)&&(
         <Card style={{ padding:"12px 16px", border:`1px solid ${iOweTotal>theyOweTotal?C.coral+"40":C.green+"40"}` }} onClick={()=>setScreen("utang")}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:18 }}>🤝</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang tracker</p></div>
-            <div style={{ display:"flex", gap:10 }}>
-              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>I owe {fmt(iOweTotal)}</span>}
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:10, background:`${C.accent}14`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                {/* handshake / users icon */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang</p>
+            </div>
+            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>–{fmt(iOweTotal)}</span>}
               {theyOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>+{fmt(theyOweTotal)}</span>}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </div>
           </div>
         </Card>
