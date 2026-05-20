@@ -904,7 +904,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
               <div style={{ marginBottom:22 }}>
                 <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
                   Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>— optional</span>
-                  {moodLogsCount<5 && <span style={{ color:C.rose, fontWeight:700 }}> · {5-moodLogsCount} more to unlock insights</span>}
+                  {moodLogsCount<2 && <span style={{ color:C.rose, fontWeight:700 }}> · {2-moodLogsCount} more to unlock insights</span>}
                 </p>
                 <div style={{ display:"flex", gap:8 }}>
                   {MOODS.map(m=>(
@@ -1858,7 +1858,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           )}
         </Card>
 
-        {moodLogs>=5&&stressAmt>0&&(
+        {moodLogs>=2&&stressAmt>0&&(
           <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} onClick={()=>setScreen("expenses")}>
             <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
               <div style={{ width:42, height:42, borderRadius:13, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>😰</div>
@@ -2273,12 +2273,12 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
       {view==="mood"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {moodLogs<5?(
+          {moodLogs<2?(
             <div style={{ textAlign:"center", padding:"48px 20px" }}>
               <div style={{ width:80, height:80, borderRadius:"50%", background:`${C.rose}14`, border:`2px dashed ${C.rose}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>🔒</div>
               <p style={{ margin:"0 0 8px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
-              <p style={{ margin:"0 0 18px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Tag your mood on {5-moodLogs} more expense{5-moodLogs!==1?"s":""} to unlock.</p>
-              <Ring pct={(moodLogs/5)*100} size={80} stroke={6} color={C.rose}><span style={{ fontSize:14, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif" }}>{moodLogs}/5</span></Ring>
+              <p style={{ margin:"0 0 18px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Tag your mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
+              <Ring pct={(moodLogs/2)*100} size={80} stroke={6} color={C.rose}><span style={{ fontSize:14, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif" }}>{moodLogs}/2</span></Ring>
             </div>
           ):(
             <>
