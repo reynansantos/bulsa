@@ -1,5 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
 import { Home, Receipt, Zap, Handshake, User, Plus, Wallet } from "lucide-react";
+
+// ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
+const HideCtx = createContext(false);
+const useHide = () => useContext(HideCtx);
+const mask = "₱••••";
 
 // ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
 const GlobalStyles = () => (
@@ -152,6 +157,7 @@ const SEED_GOALS = [
 ];
 
 const fmt    = n  => "₱" + Math.round(n).toLocaleString();
+const useFmt = () => { const h = useHide(); return n => h ? mask : fmt(n); };
 const catOf  = id => CATS.find(c => c.id === id) || CATS[7];
 const moodOf = id => MOODS.find(m => m.id === id);
 const uid    = ()  => Date.now() + Math.random();
@@ -444,6 +450,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
 function WalletsScreen({ wallets, setWallets }) {
+  const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
 
@@ -1110,7 +1117,8 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets, hidden, setHidden }) {
+  const fmt = useFmt();
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -1163,12 +1171,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey <span style={{ fontWeight:800, color:C.text }}>{name||"there"}</span> 👋</p>
           </div>
         </div>
-        <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
-          {avatar?(
-            <img src={avatar} alt="avatar" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>
-          ):(
-            <div style={{ width:40, height:40, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 14px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
-          )}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:16, transition:"all 0.2s" }}>
+            {hidden ? "🙈" : "👁️"}
+          </button>
+          <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
+            {avatar?(
+              <img src={avatar} alt="avatar" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>
+            ):(
+              <div style={{ width:40, height:40, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 14px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1178,16 +1191,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           <div>
             <SLabel>{walletTotal !== null ? "Total Across Accounts" : "Available Balance"}</SLabel>
             <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(balance)}</h2>
-            <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
+            <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{hidden?"Balance hidden":savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
           </div>
-          <Ring pct={savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{savePct}%</span></Ring>
+          <Ring pct={hidden?0:savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{hidden?"••":savePct+"%"}</span></Ring>
         </div>
         <div style={{ marginTop:20 }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSpent)} spent of {fmt(income)}</span>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM est: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
           </div>
-          <Bar pct={(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
+          <Bar pct={hidden?0:(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
         </div>
         {/* Wallet breakdown strip */}
         {wallets && wallets.length > 0 && (
@@ -1397,6 +1410,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 // ─── INSIGHTS TAB ──────────────────────────────────────────────────────────
 
 function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
+  const fmt = useFmt();
   const [editLimit, setEditLimit] = useState(false);
   const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
 
@@ -1577,6 +1591,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
+  const fmt = useFmt();
   const [view,      setView]     = useState("list");
   const [detail,    setDetail]   = useState(null);
   const [editExp,   setEditExp]  = useState(null);
@@ -1754,6 +1769,7 @@ function PaymentSheet({ utang, onSave, onClose }) {
 }
 
 function UtangScreen({ utangs, setUtangs }) {
+  const fmt = useFmt();
   const [view,     setView]     = useState("all");
   const [sheet,    setSheet]    = useState(null);
   const [paySheet, setPaySheet] = useState(null);
@@ -1978,6 +1994,7 @@ function UtangSheet({ utang, onSave, onClose }) {
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
 function LoansScreen({ loans, setLoans }) {
+  const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
   const total     = loans.reduce((s,l)=>s+l.amount,0);
@@ -2044,6 +2061,7 @@ function LoansScreen({ loans, setLoans }) {
 // ─── GOALS ─────────────────────────────────────────────────────────────────
 
 function GoalsScreen({ goals, setGoals, income }) {
+  const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [tab,     setTab]     = useState("emergency"); // emergency | personal
@@ -2265,6 +2283,7 @@ function getPaycycle(payday) {
 }
 
 function SurviveScreen({ expenses, income, loans, goals, payday }) {
+  const fmt = useFmt();
   const now        = new Date();
   const cycle      = getPaycycle(payday||"both");
   const cycleIncome= Math.round(income * cycle.incomeMultiplier);
@@ -2378,6 +2397,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday }) {
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
 function ProfileScreen({ income, setIncome, name, setName, bio, setBio, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday, hourlyRate, setHourlyRate }) {
+  const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
   const [editBio,     setEditBio]     = useState(false);
@@ -2616,6 +2636,7 @@ export default function Bulsa() {
   const [payday,    setPayday]    = useLocalStorage("bulsa_payday", "both");
   const [utangs,    setUtangs]    = useLocalStorage("bulsa_utangs", []);
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
+  const [hidden,    setHidden]    = useState(false);
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -2632,7 +2653,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
@@ -2643,6 +2664,7 @@ export default function Bulsa() {
   };
 
   return (
+    <HideCtx.Provider value={hidden}>
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -2658,5 +2680,6 @@ export default function Bulsa() {
         )}
       </div>
     </div>
+    </HideCtx.Provider>
   );
 }
