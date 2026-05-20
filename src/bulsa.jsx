@@ -1705,6 +1705,109 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     :walangGastosStreak>=1?"Keep going. Every day counts."
     :"Log a day with no shopping or food spend to start your streak.";
 
+  // ── Daily Budget Streak (days under daily limit in a row) ──────────────
+  const budgetStreak = (() => {
+    if (dailyLimit <= 0) return null; // needs a daily limit set
+    let streak = 0;
+    const tod = new Date(); tod.setHours(0,0,0,0);
+    // Check today first — counts if under limit (even if day isn't done)
+    for (let i = 0; i < 365; i++) {
+      const d  = new Date(tod); d.setDate(tod.getDate() - i);
+      const ds = d.toDateString();
+      const daySpent = expenses
+        .filter(e => e.ts && new Date(e.ts).toDateString() === ds)
+        .reduce((s, e) => s + e.amount, 0);
+      const hasLogs = expenses.some(e => e.ts && new Date(e.ts).toDateString() === ds);
+      // Day 0 = today: count it if under limit OR no logs yet (don't break streak for unstarted day)
+      if (i === 0) {
+        if (daySpent <= dailyLimit) { streak++; continue; }
+        else break; // already over today
+      }
+      // Past days: must have logs and be under limit
+      if (!hasLogs) break; // gap in logging = streak ends
+      if (daySpent > dailyLimit) break;
+      streak++;
+    }
+    return streak;
+  })();
+
+  // Ring pct for daily ring (0-100, where 100 = hit limit)
+  const ringPct   = dailyLimit > 0 ? Math.min((todaySpent / dailyLimit) * 100, 100) : 0;
+  const ringColor = dailyLimit > 0
+    ? (todaySpent > dailyLimit ? C.coral : ringPct > 80 ? C.gold : C.green)
+    : C.accent;
+  const ringDone  = dailyLimit > 0 && todaySpent <= dailyLimit && todaySpent > 0;
+
+  // ── Morning Brief ───────────────────────────────────────────────────────
+  const morningBrief = (() => {
+    const hour = new Date().getHours();
+    const firstName = name ? name.split(" ")[0] : "ka";
+
+    // Yesterday's spend
+    const yd = new Date(); yd.setDate(yd.getDate()-1);
+    const ydStr = yd.toDateString();
+    const ydSpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ydStr).reduce((s,e)=>s+e.amount,0);
+    const ydUnder = dailyLimit > 0 && ydSpent <= dailyLimit && ydSpent > 0;
+    const ydOver  = dailyLimit > 0 && ydSpent > dailyLimit;
+
+    // Last 7 days under-budget count
+    const last7 = Array.from({length:7},(_,i)=>{
+      const d = new Date(); d.setDate(d.getDate()-i-1);
+      const ds = d.toDateString();
+      const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+      const hl = expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+      return { spent:sp, hasLogs:hl };
+    });
+    const underDays = last7.filter(d=>d.hasLogs && dailyLimit>0 && d.spent<=dailyLimit).length;
+
+    let greeting, subtext, color;
+
+    if (hour >= 5 && hour < 12) {
+      // Morning
+      greeting = ydUnder
+        ? `Magandang umaga, ${firstName}! 🌅 Yesterday ₱${ydSpent.toLocaleString()} — under budget.`
+        : ydOver
+        ? `Umaga na, ${firstName}. Yesterday was ₱${ydSpent.toLocaleString()} — a bit over. Fresh start today.`
+        : `Magandang umaga, ${firstName}! 🌅 Ready to track today?`;
+      subtext = runway
+        ? `You have ₱${runway.allowedPerDay.toLocaleString()}/day until ${runway.label}.`
+        : `Set your income to see your daily runway.`;
+      color = ydOver ? C.gold : C.accent;
+    } else if (hour >= 12 && hour < 17) {
+      // Afternoon
+      greeting = todaySpent === 0
+        ? `Walang gastos pa, ${firstName}. 👀 Keep it up or log what you spent.`
+        : todaySpent <= (runway?.allowedPerDay||dailyLimit||Infinity)
+        ? `Tanghali na, ${firstName}. ₱${todaySpent.toLocaleString()} spent so far — you're good. 🟢`
+        : `Heads up, ${firstName}. ₱${todaySpent.toLocaleString()} spent today — check your limit. ⚠️`;
+      subtext = budgetStreak && budgetStreak > 1
+        ? `${budgetStreak}-day streak under budget. Don't break it.`
+        : `Log everything — even the ₱35 taho.`;
+      color = todaySpent > (runway?.allowedPerDay||dailyLimit||Infinity) ? C.gold : C.green;
+    } else if (hour >= 17 && hour < 22) {
+      // Evening
+      const remaining = runway ? runway.allowedPerDay - todaySpent : dailyLimit - todaySpent;
+      greeting = remaining > 0 && dailyLimit > 0
+        ? `Gabi na, ${firstName}. ₱${remaining.toLocaleString()} left for today — close the ring. 🎯`
+        : todaySpent === 0
+        ? `Evening, ${firstName}. No spend logged today. Zero day! 🏆`
+        : `Gabi na, ${firstName}. Today: ₱${todaySpent.toLocaleString()}. ${underDays} of last 7 days under budget.`;
+      subtext = underDays >= 5
+        ? `${underDays}/7 days under budget this week. Solid week. 💪`
+        : underDays >= 3
+        ? `${underDays}/7 days under budget. Room to improve.`
+        : `Tara, try to finish strong this week.`;
+      color = remaining > 0 ? C.green : C.coral;
+    } else {
+      // Late night
+      greeting = `Handa ka na ba bukas, ${firstName}? 🌙`;
+      subtext = `Today: ₱${todaySpent.toLocaleString()} spent. Sleep well.`;
+      color = C.textSub;
+    }
+
+    return { greeting, subtext, color };
+  })();
+
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
@@ -1744,6 +1847,73 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
             {avatar?(<img src={avatar} alt="avatar" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>):(<div style={{ width:40, height:40, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 14px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>)}
           </div>
+        </div>
+      </div>
+
+      {/* ── MORNING BRIEF + RING + STREAK ── */}
+      <div style={{ background:`linear-gradient(145deg,#151515,#111)`, border:`1px solid ${morningBrief.color}30`, borderRadius:22, padding:"16px 18px", display:"flex", gap:16, alignItems:"center", position:"relative", overflow:"hidden", zIndex:1 }}>
+        <Orb x="80%" y="50%" color={morningBrief.color} size={140} opacity={0.1}/>
+
+        {/* Daily ring — the close-the-ring moment */}
+        <div style={{ flexShrink:0, position:"relative" }}>
+          <Ring
+            pct={ringPct}
+            size={72}
+            stroke={7}
+            color={ringColor}
+            bg={ringColor+"22"}
+          >
+            {dailyLimit > 0 ? (
+              <div style={{ textAlign:"center" }}>
+                <p style={{ margin:0, fontSize:10, fontWeight:800, color:ringColor, fontFamily:"DM Sans,sans-serif", lineHeight:1 }}>
+                  {ringPct >= 100 ? "MAX" : `${Math.round(ringPct)}%`}
+                </p>
+                <p style={{ margin:0, fontSize:8, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>today</p>
+              </div>
+            ) : (
+              <span style={{ fontSize:22 }}>💰</span>
+            )}
+          </Ring>
+          {/* Streak badge on ring */}
+          {budgetStreak !== null && budgetStreak > 0 && (
+            <div style={{ position:"absolute", bottom:-4, right:-4, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, minWidth:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.bg}`, padding:"0 4px" }}>
+              <span style={{ fontSize:9, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>{budgetStreak}🔥</span>
+            </div>
+          )}
+        </div>
+
+        {/* Brief text */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.4 }}>
+            {morningBrief.greeting}
+          </p>
+          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.4 }}>
+            {morningBrief.subtext}
+          </p>
+          {/* Mini streak row */}
+          {budgetStreak !== null && (
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:7 }}>
+              <div style={{ display:"flex", gap:3 }}>
+                {Array.from({length:7},(_,i)=>{
+                  const d = new Date(); d.setDate(d.getDate()-i);
+                  const ds = d.toDateString();
+                  const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+                  const hl = i===0 ? todaySpent>0 : expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+                  const ok = hl && (dailyLimit<=0 || sp<=dailyLimit);
+                  const over = hl && dailyLimit>0 && sp>dailyLimit;
+                  return (
+                    <div key={i} style={{ width:8, height:8, borderRadius:"50%", background: over?C.coral:ok?C.green:C.border, transition:"background 0.3s" }}/>
+                  );
+                }).reverse()}
+              </div>
+              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>last 7 days</span>
+              {budgetStreak >= 3 && (
+                <span style={{ fontSize:10, fontWeight:800, color:budgetStreak>=7?C.gold:C.lime, fontFamily:"DM Sans,sans-serif", marginLeft:"auto" }}>
+                  {budgetStreak} day streak 🔥
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
