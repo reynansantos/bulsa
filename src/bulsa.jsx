@@ -628,19 +628,7 @@ function LoanSheet({ loan, onSave, onClose }) {
           <div><SLabel>Total Amount</SLabel><Inp value={amount} onChange={setAmount} placeholder="0" type="number"/></div>
           <div><SLabel>Amount Paid</SLabel><Inp value={paid} onChange={setPaid} placeholder="0" type="number"/></div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <div>
-            <SLabel>Interest Rate %</SLabel>
-            <Inp value={rate} onChange={setRate} placeholder="0.0" type="number"/>
-            <div style={{ display:"flex", gap:6, marginTop:6 }}>
-              {[["monthly","Monthly"],["annual","Annual"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setRateType(v)}
-                  style={{ flex:1, padding:"5px 0", borderRadius:8, border:`1px solid ${rateType===v?color+"60":C.border}`, background:rateType===v?color+"1A":C.card, color:rateType===v?color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:10 }}>
           <div>
             <SLabel>Due Day of Month</SLabel>
             <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:6 }}>
@@ -3152,7 +3140,11 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
   // Compute the next due date from startDate + dueDay + payments made
   const nextDueDate = l => {
     if (!l.dueDay || !l.startDate) return l.due || null;
-    const paidCount = l.payments?.length || 0;
+    const loggedCount = l.payments?.length || 0;
+    const prePaidCount = (l.monthlyAmount > 0 && l.paid > 0 && loggedCount === 0)
+      ? Math.round(l.paid / l.monthlyAmount)
+      : 0;
+    const paidCount = loggedCount + prePaidCount;
     const base = new Date(l.startDate + "T12:00:00");
     const next = new Date(base.getFullYear(), base.getMonth() + paidCount, l.dueDay);
     return next.toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
@@ -3254,7 +3246,12 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
             const pct        = Math.round(((loan.amount-rem)/loan.amount)*100);
             const tc         = trueCost(loan);
             const payments   = loan.payments || [];
-            const paidCount  = payments.length;
+            // paidCount: logged payments + any pre-entered paid amount as installments
+            const loggedCount = payments.length;
+            const prePaidCount = (loan.monthlyAmount > 0 && loan.paid > 0 && loggedCount === 0)
+              ? Math.round((loan.paid) / loan.monthlyAmount)
+              : 0;
+            const paidCount  = loggedCount + prePaidCount;
             const left       = loan.termMonths > 0 ? Math.max(loan.termMonths - paidCount, 0) : null;
             const histOpen   = expandedHistory[loan.id];
             const fullyPaid  = rem <= 0;
@@ -3276,21 +3273,18 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
                 </div>
 
                 {/* Stats grid */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
                   {[
                     ["Total",     fmt(loan.amount)],
                     ["Remaining", fmt(rem)],
-                    ["Rate",      loan.rate > 0 ? `${loan.rate}%${loan.rateType==="annual"?" pa":" mo"}` : "—"],
                   ].map(([l,v])=>(
                     <div key={l}><SLabel>{l}</SLabel><p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p></div>
                   ))}
                 </div>
                 <Bar pct={pct} color={fullyPaid?C.green:loan.color} h={5}/>
 
-                {/* Installment + True Cost pills */}
-                {(loan.monthlyAmount > 0 || tc) && (
+                {loan.monthlyAmount > 0 && (
                   <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
-                    {loan.monthlyAmount > 0 && (
                       <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
                         <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Monthly</p>
                         <p style={{ margin:0, fontSize:15, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.monthlyAmount)}</p>
@@ -3300,14 +3294,6 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
                           </p>
                         )}
                       </div>
-                    )}
-                    {tc && (
-                      <div style={{ background:`${C.coral}08`, border:`1px solid ${C.coral}25`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
-                        <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>True Cost</p>
-                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(tc)}</p>
-                        <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>+{fmt(tc - loan.amount)} interest</p>
-                      </div>
-                    )}
                   </div>
                 )}
 
