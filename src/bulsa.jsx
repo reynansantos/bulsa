@@ -1040,14 +1040,14 @@ const monthlyAmt = sub => {
 
 // Request browser push notification permission
 const requestNotifPermission = async () => {
-  if (!("Notification" in window)) return false;
+  if (typeof Notification === "undefined") return false;
   if (Notification.permission === "granted") return true;
   const result = await Notification.requestPermission();
   return result === "granted";
 };
 
 const sendNotif = (title, body) => {
-  if (Notification.permission === "granted") {
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
     new Notification(title, { body, icon:"/favicon.ico" });
   }
 };
@@ -1179,7 +1179,7 @@ function SubSheet({ sub, onSave, onClose }) {
 function SubscriptionsScreen({ subs, setSubs, setScreen }) {
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
-  const [notifOk, setNotifOk] = useState(Notification?.permission==="granted");
+  const [notifOk, setNotifOk] = useState(typeof Notification !== "undefined" && Notification.permission==="granted");
   const [filter,  setFilter]  = useState("active"); // active | all
 
   const saveSub = s => {
@@ -3227,7 +3227,7 @@ export default function Bulsa() {
 
   // Check for due-soon subs on mount and send notifications
   useEffect(()=>{
-    if (Notification?.permission!=="granted") return;
+    if (typeof Notification === "undefined" || Notification?.permission!=="granted") return;
     const activeSubs = subs.filter(s=>s.active!==false);
     activeSubs.forEach(s=>{
       const days = daysUntil(s.dueDate);
