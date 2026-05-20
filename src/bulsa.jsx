@@ -588,15 +588,34 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
 
 function LoanSheet({ loan, onSave, onClose }) {
   const editing = !!loan;
-  const [name,   setName]   = useState(loan?.name   || "");
-  const [amount, setAmount] = useState(loan?.amount  ? String(loan.amount) : "");
-  const [paid,   setPaid]   = useState(loan?.paid    ? String(loan.paid)   : "");
-  const [rate,   setRate]   = useState(loan?.rate    ? String(loan.rate)   : "");
-  const [due,    setDue]    = useState(loan?.due     || "");
-  const [type,   setType]   = useState(loan?.type    || "Personal");
-  const [color,  setColor]  = useState(loan?.color   || C.accent);
+  const [name,          setName]          = useState(loan?.name          || "");
+  const [amount,        setAmount]        = useState(loan?.amount        ? String(loan.amount)        : "");
+  const [paid,          setPaid]          = useState(loan?.paid          ? String(loan.paid)          : "");
+  const [rate,          setRate]          = useState(loan?.rate          ? String(loan.rate)          : "");
+  const [rateType,      setRateType]      = useState(loan?.rateType      || "monthly");
+  const [due,           setDue]           = useState(loan?.due           || "");
+  const [type,          setType]          = useState(loan?.type          || "Personal");
+  const [color,         setColor]         = useState(loan?.color         || C.accent);
+  const [monthlyAmount, setMonthlyAmount] = useState(loan?.monthlyAmount ? String(loan.monthlyAmount) : "");
+  const [termMonths,    setTermMonths]    = useState(loan?.termMonths    ? String(loan.termMonths)    : "");
   const valid = name.trim() && +amount > 0;
-  const save  = () => { if (!valid) return; onSave({ id:loan?.id||uid(), name:name.trim(), amount:+amount, paid:+paid||0, rate:+rate||0, due:due.trim(), type, color }); };
+  const save  = () => {
+    if (!valid) return;
+    onSave({
+      id: loan?.id || uid(),
+      name: name.trim(),
+      amount: +amount,
+      paid: +paid || 0,
+      payments: loan?.payments || [],
+      rate: +rate || 0,
+      rateType,
+      due: due.trim(),
+      type,
+      color,
+      monthlyAmount: +monthlyAmount || 0,
+      termMonths: +termMonths || 0,
+    });
+  };
 
   return (
     <BottomSheet onClose={onClose} title={editing?"Edit Loan":"Add Loan"}>
@@ -607,8 +626,23 @@ function LoanSheet({ loan, onSave, onClose }) {
           <div><SLabel>Amount Paid</SLabel><Inp value={paid} onChange={setPaid} placeholder="0" type="number"/></div>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <div><SLabel>Interest Rate %</SLabel><Inp value={rate} onChange={setRate} placeholder="0.0" type="number"/></div>
-          <div><SLabel>Due Date</SLabel><Inp value={due} onChange={setDue} placeholder="Jun 15"/></div>
+          <div>
+            <SLabel>Interest Rate %</SLabel>
+            <Inp value={rate} onChange={setRate} placeholder="0.0" type="number"/>
+            <div style={{ display:"flex", gap:6, marginTop:6 }}>
+              {[["monthly","Monthly"],["annual","Annual"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setRateType(v)}
+                  style={{ flex:1, padding:"5px 0", borderRadius:8, border:`1px solid ${rateType===v?color+"60":C.border}`, background:rateType===v?color+"1A":C.card, color:rateType===v?color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div><SLabel>Next Due Date</SLabel><Inp value={due} onChange={setDue} placeholder="Jun 15"/></div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div><SLabel>Monthly Payment</SLabel><Inp value={monthlyAmount} onChange={setMonthlyAmount} placeholder="0" type="number"/></div>
+          <div><SLabel>Term (months)</SLabel><Inp value={termMonths} onChange={setTermMonths} placeholder="12" type="number"/></div>
         </div>
         <div>
           <SLabel>Type</SLabel>
@@ -629,6 +663,120 @@ function LoanSheet({ loan, onSave, onClose }) {
         <div style={{ display:"flex", gap:10, marginTop:4 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:valid?1:0.4 }}>{editing?"Save changes":"Add loan"}</Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// ─── LOAN PAYMENT SHEET ────────────────────────────────────────────────────
+
+function LoanPaymentSheet({ loan, onSave, onClose, wallets=[] }) {
+  const color     = loan.color || C.accent;
+  const remaining = (() => {
+    if (loan.payments && loan.payments.length > 0)
+      return Math.max(loan.amount - loan.payments.reduce((s,p)=>s+p.amount,0), 0);
+    return Math.max(loan.amount - (loan.paid||0), 0);
+  })();
+  const today     = new Date().toISOString().split("T")[0];
+  const [amt,      setAmt]      = useState(loan.monthlyAmount ? String(loan.monthlyAmount) : "");
+  const [date,     setDate]     = useState(today);
+  const [note,     setNote]     = useState("");
+  const [walletId, setWalletId] = useState(null);
+
+  const save = () => {
+    if (!amt || +amt <= 0) return;
+    const w = wallets.find(w => w.id === walletId);
+    onSave({
+      id: uid(), amount: +amt, date, note: note.trim(),
+      walletId: walletId || null,
+      walletName: w?.name || null,
+      label: new Date(date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}),
+    });
+  };
+
+  const QUICK = [500,1000,2000,5000].filter(q => q < remaining);
+
+  return (
+    <BottomSheet onClose={onClose} title={`Log Payment · ${loan.name}`}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Remaining summary */}
+        <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Still remaining</p>
+            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total loan</p>
+            <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.amount)}</p>
+          </div>
+        </div>
+
+        {/* Amount */}
+        <div>
+          <SLabel>Payment amount</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${amt?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amt}
+              onChange={e=>setAmt(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+            {QUICK.map(q=>(
+              <button key={q} onClick={()=>setAmt(String(q))} className="tap-btn"
+                style={{ background:amt===String(q)?`${color}20`:C.card, border:`1px solid ${amt===String(q)?color+"55":C.border}`, color:amt===String(q)?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                ₱{q.toLocaleString()}
+              </button>
+            ))}
+            <button onClick={()=>setAmt(String(Math.round(remaining)))} className="tap-btn"
+              style={{ background:amt===String(Math.round(remaining))?`${color}20`:C.card, border:`1px solid ${amt===String(Math.round(remaining))?color+"55":C.border}`, color:amt===String(Math.round(remaining))?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
+              Full ({fmt(remaining)})
+            </button>
+          </div>
+          {+amt>0&&(
+            <p style={{ margin:"8px 0 0", fontSize:11, fontFamily:"DM Sans,sans-serif", color:remaining-+amt<=0?C.green:C.textSub }}>
+              After: <strong style={{ color:remaining-+amt<=0?C.green:C.text }}>{remaining-+amt<=0?"🎉 Fully paid!":fmt(Math.max(remaining-+amt,0))+" remaining"}</strong>
+            </p>
+          )}
+        </div>
+
+        {/* Date */}
+        <div>
+          <SLabel>Date paid</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?color+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
+            <span style={{ fontSize:16 }}>📅</span>
+            <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value)}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
+            {date!==today&&<Tag color={color}>Past date</Tag>}
+          </div>
+        </div>
+
+        {/* Wallet picker */}
+        {wallets.length>0&&(
+          <div>
+            <SLabel>Paid from (optional)</SLabel>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              <button onClick={()=>setWalletId(null)} className="tap-btn"
+                style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===null?C.accent+"60":C.border}`, background:walletId===null?C.accentGlow:C.card, color:walletId===null?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                —
+              </button>
+              {wallets.map(w=>(
+                <button key={w.id} onClick={()=>setWalletId(w.id)} className="tap-btn"
+                  style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===w.id?w.color+"60":C.border}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {w.icon} {w.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Note */}
+        <div><SLabel>Note (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. GCash transfer, installment #3…"/></div>
+
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:+amt>0?1:0.4, background:`linear-gradient(135deg,${color},${color}bb)`, boxShadow:"none" }}>Log payment</Btn>
         </div>
       </div>
     </BottomSheet>
@@ -2701,7 +2849,7 @@ function PaymentSheet({ utang, onSave, onClose }) {
   );
 }
 
-function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
+function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, income=0, wallets=[] }) {
   const [utangTab, setUtangTab] = useState("personal"); // "personal" | "loans"
   const fmt = useFmt();
   const [view,     setView]     = useState("all");
@@ -2763,7 +2911,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
 
       {/* Loans tab — embed LoansScreen content inline */}
       {utangTab === "loans" && (
-        <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded/>
+        <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded income={income} wallets={wallets}/>
       )}
 
       {/* Personal utang tab */}
@@ -2955,18 +3103,56 @@ function UtangSheet({ utang, onSave, onClose }) {
 
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
-function LoansScreen({ loans, setLoans, setScreen, embedded=false }) {
+function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wallets=[] }) {
   const fmt = useFmt();
-  const [sheet,   setSheet]   = useState(null);
-  const [confirm, setConfirm] = useState(null);
-  const total     = loans.reduce((s,l)=>s+l.amount,0);
-  const paid      = loans.reduce((s,l)=>s+l.paid,0);
-  const saveLoan  = loan=>{ setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
-  const deleteLoan= id=>{ setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
+  const [sheet,           setSheet]           = useState(null);
+  const [confirm,         setConfirm]         = useState(null);
+  const [paySheet,        setPaySheet]        = useState(null);
+  const [expandedHistory, setExpandedHistory] = useState({});
+
+  // Backward-compat: use payments[] if present, else fall back to flat paid field
+  const loanRemaining = l => {
+    if (l.payments && l.payments.length > 0)
+      return Math.max(l.amount - l.payments.reduce((s,p)=>s+p.amount,0), 0);
+    return Math.max(l.amount - (l.paid||0), 0);
+  };
+
+  // True cost: what you actually pay back in total
+  const trueCost = l => {
+    if (l.monthlyAmount > 0 && l.termMonths > 0) return l.monthlyAmount * l.termMonths;
+    if (l.rate > 0 && l.termMonths > 0) {
+      const mr = l.rateType === "annual" ? l.rate/100/12 : l.rate/100;
+      return Math.round(l.amount * (1 + mr * l.termMonths));
+    }
+    return null;
+  };
+
+  const saveLoan   = loan => { setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
+  const deleteLoan = id   => { setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
+  const logPayment = (loanId, payment) => {
+    setLoans(prev=>prev.map(l=>{
+      if (l.id!==loanId) return l;
+      const payments  = [...(l.payments||[]), payment];
+      const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
+      return { ...l, payments, paid:totalPaid };
+    }));
+    setPaySheet(null);
+  };
+  const toggleHistory = id => setExpandedHistory(prev=>({...prev,[id]:!prev[id]}));
+
+  const total        = loans.reduce((s,l)=>s+l.amount,0);
+  const totalRemain  = loans.reduce((s,l)=>s+loanRemaining(l),0);
+  const paidTotal    = total - totalRemain;
+
+  // Debt-to-income ratio (monthly installments / monthly income)
+  const monthlyPayments = loans.filter(l=>loanRemaining(l)>0).reduce((s,l)=>s+(l.monthlyAmount||0),0);
+  const dti = income > 0 && monthlyPayments > 0 ? monthlyPayments/income : 0;
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
+      {paySheet&&<LoanPaymentSheet loan={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets}/>}
+
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -2989,39 +3175,163 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false }) {
         </div>
       ):(
         <>
+          {/* ── Summary card ── */}
           <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
             <SLabel>Total Remaining Debt</SLabel>
-            <p style={{ margin:"0 0 14px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text }}>{fmt(total-paid)}</p>
-            <Bar pct={total?(paid/total)*100:0} color={C.green} h={7}/>
+            <p style={{ margin:"0 0 14px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text }}>{fmt(totalRemain)}</p>
+            <Bar pct={total?(paidTotal/total)*100:0} color={C.green} h={7}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
-              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid: {fmt(paid)}</span>
-              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paid/total)*100):0}% done</span>
+              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid: {fmt(paidTotal)}</span>
+              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paidTotal/total)*100):0}% done</span>
             </div>
           </Card>
 
-          {loans.map(loan=>{ const pct=Math.round((loan.paid/loan.amount)*100); return (
-            <Card key={loan.id} glow>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                <div style={{ flex:1 }}><p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p><Tag color={loan.color}>{loan.type}</Tag></div>
-                <Ring pct={pct} size={56} stroke={5} color={loan.color}><span style={{ fontSize:10, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span></Ring>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
-                {[["Total",fmt(loan.amount)],["Remaining",fmt(loan.amount-loan.paid)],["Rate",`${loan.rate}%`]].map(([l,v])=>(<div key={l}><SLabel>{l}</SLabel><p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p></div>))}
-              </div>
-              <Bar pct={pct} color={loan.color} h={5}/>
-              <div style={{ display:"flex", justifyContent:"space-between", marginTop:10, alignItems:"center" }}>
-                <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{loan.due?`Due ${loan.due}`:"No due date"}</span>
-                <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={()=>setSheet(loan)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
-                  {confirm===loan.id?(
-                    <button onClick={()=>deleteLoan(loan.id)} style={{ background:C.coral, border:"none", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm</button>
-                  ):(
-                    <button onClick={()=>setConfirm(loan.id)} style={{ background:`${C.coral}18`, border:`1px solid ${C.coral}40`, color:C.coral, borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Delete</button>
-                  )}
+          {/* ── Debt-to-income warning ── */}
+          {dti > 0 && (
+            <Card style={{
+              background: dti>=0.3 ? `${C.coral}0C` : `${C.gold}08`,
+              border: `1px solid ${dti>=0.3 ? C.coral : C.gold}40`,
+              padding:"12px 16px",
+            }}>
+              <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                <span style={{ fontSize:22 }}>{dti>=0.3?"🚨":"⚠️"}</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                    <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+                      Debt-to-income ratio
+                    </p>
+                    <span style={{ fontSize:15, fontWeight:800, color:dti>=0.3?C.coral:C.gold, fontFamily:"DM Sans,sans-serif" }}>
+                      {Math.round(dti*100)}%
+                    </span>
+                  </div>
+                  <div style={{ marginBottom:6 }}>
+                    <Bar pct={Math.min(dti*100,100)} color={dti>=0.3?C.coral:C.gold} h={5}/>
+                  </div>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>
+                    {dti>=0.3
+                      ? `₱${monthlyPayments.toLocaleString()}/mo in loan payments is ${Math.round(dti*100)}% of your income. Financial advisors recommend staying under 30%.`
+                      : `₱${monthlyPayments.toLocaleString()}/mo in payments (${Math.round(dti*100)}% of income). You're within a healthy range — keep it under 30%.`}
+                  </p>
                 </div>
               </div>
             </Card>
-          );})}
+          )}
+
+          {/* ── Loan cards ── */}
+          {loans.map(loan=>{
+            const rem        = loanRemaining(loan);
+            const pct        = Math.round(((loan.amount-rem)/loan.amount)*100);
+            const tc         = trueCost(loan);
+            const payments   = loan.payments || [];
+            const paidCount  = payments.length;
+            const left       = loan.termMonths > 0 ? Math.max(loan.termMonths - paidCount, 0) : null;
+            const histOpen   = expandedHistory[loan.id];
+            const fullyPaid  = rem <= 0;
+
+            return (
+              <Card key={loan.id} glow>
+                {/* Header */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                      <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p>
+                      {fullyPaid&&<Tag color={C.green}>Paid off ✓</Tag>}
+                    </div>
+                    <Tag color={loan.color}>{loan.type}</Tag>
+                  </div>
+                  <Ring pct={pct} size={56} stroke={5} color={fullyPaid?C.green:loan.color}>
+                    <span style={{ fontSize:10, fontWeight:800, color:fullyPaid?C.green:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span>
+                  </Ring>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                  {[
+                    ["Total",     fmt(loan.amount)],
+                    ["Remaining", fmt(rem)],
+                    ["Rate",      loan.rate > 0 ? `${loan.rate}%${loan.rateType==="annual"?" pa":" mo"}` : "—"],
+                  ].map(([l,v])=>(
+                    <div key={l}><SLabel>{l}</SLabel><p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p></div>
+                  ))}
+                </div>
+                <Bar pct={pct} color={fullyPaid?C.green:loan.color} h={5}/>
+
+                {/* Installment + True Cost pills */}
+                {(loan.monthlyAmount > 0 || tc) && (
+                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                    {loan.monthlyAmount > 0 && (
+                      <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
+                        <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Monthly</p>
+                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.monthlyAmount)}</p>
+                        {left !== null && <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{left} mo left</p>}
+                      </div>
+                    )}
+                    {tc && (
+                      <div style={{ background:`${C.coral}08`, border:`1px solid ${C.coral}25`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
+                        <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>True Cost</p>
+                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(tc)}</p>
+                        <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>+{fmt(tc - loan.amount)} interest</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer row */}
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:12, alignItems:"center", flexWrap:"wrap", gap:8 }}>
+                  <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                    {loan.due ? `Due ${loan.due}` : "No due date"}
+                  </span>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {!fullyPaid&&(
+                      <button onClick={()=>setPaySheet(loan)} className="tap-btn"
+                        style={{ background:loan.color+"22", border:`1px solid ${loan.color}55`, color:loan.color, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                        💳 Pay
+                      </button>
+                    )}
+                    <button onClick={()=>setSheet(loan)}
+                      style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                      Edit
+                    </button>
+                    {confirm===loan.id?(
+                      <button onClick={()=>deleteLoan(loan.id)}
+                        style={{ background:C.coral, border:"none", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>
+                        Confirm
+                      </button>
+                    ):(
+                      <button onClick={()=>setConfirm(loan.id)}
+                        style={{ background:`${C.coral}18`, border:`1px solid ${C.coral}40`, color:C.coral, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment history */}
+                {payments.length > 0 && (
+                  <div style={{ marginTop:12, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+                    <button onClick={()=>toggleHistory(loan.id)}
+                      style={{ background:"none", border:"none", color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:0, display:"flex", alignItems:"center", gap:6 }}>
+                      📋 {payments.length} payment{payments.length!==1?"s":""} · {fmt(loan.amount - rem)} paid
+                      <span style={{ fontSize:10, color:C.textFaint }}>{histOpen?"▲":"▼"}</span>
+                    </button>
+                    {histOpen&&(
+                      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+                        {[...payments].reverse().map(p=>(
+                          <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:10, padding:"8px 12px" }}>
+                            <div>
+                              <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{p.label||p.date}</p>
+                              {(p.walletName||p.note)&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{[p.walletName,p.note].filter(Boolean).join(" · ")}</p>}
+                            </div>
+                            <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>-{fmt(p.amount)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </>
       )}
     </div>
@@ -3855,12 +4165,12 @@ export default function Bulsa() {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
-    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
+    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} income={income} wallets={wallets}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
     // new combined screens
-    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} income={income} wallets={wallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
