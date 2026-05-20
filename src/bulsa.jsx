@@ -710,6 +710,64 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
   const nameRef = useRef(null);
 
+  const [aiMode,    setAiMode]    = useState(false);
+  const [aiInput,   setAiInput]   = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError,   setAiError]   = useState("");
+  const aiInputRef = useRef(null);
+
+  useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
+
+  const parseWithAI = async () => {
+    if (!aiInput.trim()) return;
+    setAiLoading(true); setAiError("");
+    try {
+      const catList = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+      const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:300,
+          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown or explanation.
+
+Categories available: ${catList}
+Moods available: ${moodList}
+
+Return this exact JSON shape:
+{"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
+
+Rules:
+- name: the merchant/item name, cleaned up and capitalized
+- amount: numeric only, no currency symbols. If not found, return 0.
+- catId: best matching category from the list
+- moodId: if emotional words present (stressed, sad, happy, motivated, excited), map to mood. Otherwise null.
+- note: any extra context worth saving, or null
+
+Examples:
+"mang inasal 235 stressed" → {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
+"grab 150 pabili" → {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
+"7/11 iced coffee 55 masaya" → {"name":"7-Eleven Iced Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
+"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`,
+          messages:[{ role:"user", content:aiInput }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "";
+      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+      if (parsed.amount > 0) setAmount(String(parsed.amount));
+      if (parsed.name)   setName(parsed.name);
+      if (parsed.catId && CATS.find(c=>c.id===parsed.catId)) setCatId(parsed.catId);
+      if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) setMoodId(parsed.moodId);
+      setAiMode(false);
+      setAiInput("");
+    } catch(e) {
+      setAiError("Couldn't parse that. Try: 'mang inasal 235' or 'grab 150 stressed'");
+    }
+    setAiLoading(false);
+  };
+
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
   // Auto-focus name field when reaching step 1
   useEffect(()=>{ if (step===1) setTimeout(()=>nameRef.current?.focus(), 80); }, [step]);
@@ -781,11 +839,53 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
           {/* ── STEP 0: Amount + Category ── */}
           {step === 0 && (
             <div>
+              {/* AI quick-log toggle */}
+              {!isEdit&&(
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      🔢 Type amount
+                    </button>
+                    <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      ✨ Describe it
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* AI describe mode */}
+              {aiMode&&(
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>✨</span>
+                    <input
+                      ref={aiInputRef}
+                      value={aiInput}
+                      onChange={e=>setAiInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
+                      placeholder="mang inasal 235 stressed..."
+                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
+                    />
+                    {aiInput&&!aiLoading&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+                    {["mang inasal 235","grab 150","7/11 coffee 55","load 99","sm 500 stressed"].map(s=>(
+                      <button key={s} onClick={()=>setAiInput(s)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"4px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>{s}</button>
+                    ))}
+                  </div>
+                  {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
+                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading} style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
+                    {aiLoading?"Parsing...":"Parse →"}
+                  </Btn>
+                </div>
+              )}
+              {/* Manual amount input — hidden in AI mode */}
+              {!aiMode&&(<>
               {/* Big amount input */}
               <div style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:14 }}>
                 <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
                 <input
-                  autoFocus type="text" inputMode="decimal" placeholder="0" value={amount}
+                  autoFocus={!aiMode} type="text" inputMode="decimal" placeholder="0" value={amount}
                   onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
                   onKeyDown={e=>e.key==="Enter" && canProceed && setStep(1)}
                   style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}
@@ -882,6 +982,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
               )}
 
               <Btn onClick={()=>canProceed&&setStep(1)} style={{ opacity:canProceed?1:0.4 }}>Next →</Btn>
+              </>)}
             </div>
           )}
 
