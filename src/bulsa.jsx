@@ -465,7 +465,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
 
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
-function WalletsScreen({ wallets, setWallets, setScreen }) {
+function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
   const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -479,22 +479,27 @@ function WalletsScreen({ wallets, setWallets, setScreen }) {
   const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
 
   return (
-    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
 
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <BackBtn onClick={()=>setScreen("home")}/>
-          <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
+      {!embedded && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <BackBtn onClick={()=>setScreen("home")}/>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
+          </div>
+          <button onClick={()=>setSheet("add")} style={{
+            background:C.gradAccent, border:"none", borderRadius:12,
+            padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800,
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            boxShadow:`0 4px 16px ${C.accentGlow}`,
+          }} className="tap-btn">+ Add</button>
         </div>
-        <button onClick={()=>setSheet("add")} style={{
-          background:C.gradAccent, border:"none", borderRadius:12,
-          padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800,
-          cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-          boxShadow:`0 4px 16px ${C.accentGlow}`,
-        }} className="tap-btn">+ Add</button>
-      </div>
+      )}
+      {embedded && (
+        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add account</button>
+      )}
 
       {/* Total balance hero */}
       {wallets.length > 0 && (
@@ -1533,8 +1538,8 @@ function NavBar({ screen, setScreen, onAdd }) {
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
 
-      <NavIcon icon={Handshake}  active={screen==="utang"}  label="Utang"  onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Repeat}     active={screen==="subs"}   label="Subs"   onClick={()=>setScreen("subs")}/>
+      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={Wallet}     active={screen==="accounts"} label="Accounts" onClick={()=>setScreen("accounts")}/>
     </div>
   );
 }
@@ -1774,19 +1779,19 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
             {wallets&&wallets.length>0&&(
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10, position:"relative", zIndex:1 }}>
                 {wallets.map(w=>(
-                  <div key={w.id} onClick={()=>setScreen("wallets")} style={{ display:"flex", alignItems:"center", gap:5, background:w.color+"15", border:`1px solid ${w.color}30`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
+                  <div key={w.id} onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", gap:5, background:w.color+"15", border:`1px solid ${w.color}30`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
                     <span style={{ fontSize:12 }}>{w.icon}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:w.color, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
                     <span style={{ fontSize:11, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(w.balance)}</span>
                   </div>
                 ))}
-                <div onClick={()=>setScreen("wallets")} style={{ display:"flex", alignItems:"center", background:C.accentGlow, border:`1px dashed ${C.accent}40`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
+                <div onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", background:C.accentGlow, border:`1px dashed ${C.accent}40`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
                   <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>+ account</span>
                 </div>
               </div>
             )}
             {(!wallets||wallets.length===0)&&(
-              <div onClick={()=>setScreen("wallets")} style={{ marginTop:10, display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative", zIndex:1 }}>
+              <div onClick={()=>setScreen("accounts")} style={{ marginTop:10, display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative", zIndex:1 }}>
                 <span style={{ fontSize:13 }}>💰</span>
                 <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Add accounts for real balance →</span>
               </div>
@@ -1843,8 +1848,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       {/* ── 4. FINANCIAL SUMMARY ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card glow onClick={()=>setScreen("loans")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
-        <Card glow onClick={()=>setScreen("goals")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
+        <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
+        <Card glow onClick={()=>setScreen("accounts")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
       </div>
 
       {(iOweTotal>0||theyOweTotal>0)&&(
@@ -2425,7 +2430,8 @@ function PaymentSheet({ utang, onSave, onClose }) {
   );
 }
 
-function UtangScreen({ utangs, setUtangs, setScreen }) {
+function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
+  const [utangTab, setUtangTab] = useState("personal"); // "personal" | "loans"
   const fmt = useFmt();
   const [view,     setView]     = useState("all");
   const [sheet,    setSheet]    = useState(null);
@@ -2460,13 +2466,37 @@ function UtangScreen({ utangs, setUtangs, setScreen }) {
       {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)}/>}
       {paySheet&&<PaymentSheet utang={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)}/>}
 
+      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <BackBtn onClick={()=>setScreen("home")}/>
           <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Utang</h2>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Loans & personal IOUs</p>
         </div>
-        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
+        {utangTab === "personal" && (
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
+        )}
       </div>
+
+      {/* Tab switcher */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:14, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
+        {[["personal","🤝 Personal Utang"],["loans","💳 Loans & Installments"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setUtangTab(v)} className="tap-btn"
+            style={{ flex:1, padding:"10px 6px", borderRadius:11, border:"none", cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:800,
+              background: utangTab===v ? C.accent : "none",
+              color: utangTab===v ? "#fff" : C.textSub,
+              transition:"all 0.18s",
+            }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Loans tab — embed LoansScreen content inline */}
+      {utangTab === "loans" && (
+        <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded/>
+      )}
+
+      {/* Personal utang tab */}
+      {utangTab === "personal" && (<>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
@@ -2601,6 +2631,7 @@ function UtangScreen({ utangs, setUtangs, setScreen }) {
           </Card>
         );
       })}
+      </>)}
     </div>
   );
 }
@@ -2653,7 +2684,7 @@ function UtangSheet({ utang, onSave, onClose }) {
 
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
-function LoansScreen({ loans, setLoans, setScreen }) {
+function LoansScreen({ loans, setLoans, setScreen, embedded=false }) {
   const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -2665,13 +2696,18 @@ function LoansScreen({ loans, setLoans, setScreen }) {
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <BackBtn onClick={()=>setScreen("home")}/>
-          <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Loans & Debt</h2>
+      {!embedded && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <BackBtn onClick={()=>setScreen("home")}/>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Loans & Debt</h2>
+          </div>
+          <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
         </div>
-        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
-      </div>
+      )}
+      {embedded && (
+        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add loan</button>
+      )}
 
       {loans.length===0?(
         <div style={{ textAlign:"center", padding:"60px 0 40px", animation:"scaleIn 0.3s ease" }}>
@@ -2723,7 +2759,41 @@ function LoansScreen({ loans, setLoans, setScreen }) {
 
 // ─── GOALS ─────────────────────────────────────────────────────────────────
 
-function GoalsScreen({ goals, setGoals, income, setScreen }) {
+// ─── ACCOUNTS SCREEN (Wallets + Goals combined) ────────────────────────────
+
+function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScreen }) {
+  const [tab, setTab] = useState("wallets"); // "wallets" | "goals"
+  return (
+    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <BackBtn onClick={()=>setScreen("home")}/>
+          <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Wallets & savings goals</p>
+        </div>
+      </div>
+
+      {/* Tab switcher */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:14, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
+        {[["wallets","💰 Wallets"],["goals","🎯 Goals & Savings"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setTab(v)} className="tap-btn"
+            style={{ flex:1, padding:"10px 6px", borderRadius:11, border:"none", cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:800,
+              background: tab===v ? C.accent : "none",
+              color: tab===v ? "#fff" : C.textSub,
+              transition:"all 0.18s",
+            }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Embedded screens — no header, no back btn */}
+      {tab === "wallets" && <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen} embedded/>}
+      {tab === "goals"   && <GoalsScreen   goals={goals}     setGoals={setGoals}     income={income} setScreen={setScreen} embedded/>}
+    </div>
+  );
+}
+
+function GoalsScreen({ goals, setGoals, income, setScreen, embedded=false }) {
   const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -2764,16 +2834,21 @@ function GoalsScreen({ goals, setGoals, income, setScreen }) {
   const activeTier = currentTier===-1?2:currentTier;
 
   return (
-    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet&&<GoalSheet goal={sheet==="add"?null:sheet} onSave={saveGoal} onClose={()=>setSheet(null)}/>}
 
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <BackBtn onClick={()=>setScreen("home")}/>
-          <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Goals</h2>
+      {!embedded && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <BackBtn onClick={()=>setScreen("home")}/>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Goals</h2>
+          </div>
+          {tab==="personal"&&<button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>}
         </div>
-        {tab==="personal"&&<button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>}
-      </div>
+      )}
+      {embedded && tab==="personal" && (
+        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add goal</button>
+      )}
 
       {/* Tab switcher */}
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
@@ -3304,12 +3379,15 @@ export default function Bulsa() {
   const screens = {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
+    // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
-    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
-    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
+    // new combined screens
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
+    accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
+    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
