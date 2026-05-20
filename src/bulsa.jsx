@@ -1241,7 +1241,7 @@ function SubSheet({ sub, onSave, onClose }) {
 
 // ─── SUBSCRIPTIONS SCREEN ──────────────────────────────────────────────────
 
-function SubscriptionsScreen({ subs, setSubs, setScreen }) {
+function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [notifOk, setNotifOk] = useState(typeof Notification !== "undefined" && Notification.permission==="granted");
@@ -1285,21 +1285,31 @@ function SubscriptionsScreen({ subs, setSubs, setScreen }) {
   const urgLabel = days => days<0?`${Math.abs(days)}d overdue`:days===0?"Due today":days===1?"Due tomorrow":`${days}d left`;
 
   return (
-    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+    <div className={embedded?"":"screen-wrap"} style={{ padding:embedded?"0":"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<SubSheet sub={sheet==="add"?null:sheet} onSave={saveSub} onClose={()=>setSheet(null)}/>}
 
-      {/* Header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <BackBtn onClick={()=>setScreen("home")}/>
-          <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>Subscriptions</h2>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Recurring bills tracker</p>
+      {/* Header — full screen mode only */}
+      {!embedded?(
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <BackBtn onClick={()=>setScreen("home")}/>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>Subscriptions</h2>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Recurring bills tracker</p>
+          </div>
+          <button onClick={()=>setSheet("add")} className="tap-btn"
+            style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>
+            + Add
+          </button>
         </div>
-        <button onClick={()=>setSheet("add")} className="tap-btn"
-          style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>
-          + Add
-        </button>
-      </div>
+      ):(
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Recurring subscriptions</p>
+          <button onClick={()=>setSheet("add")} className="tap-btn"
+            style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"7px 14px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+            + Add
+          </button>
+        </div>
+      )}
 
       {/* Notification prompt */}
       {!notifOk&&subs.length>0&&(
@@ -2223,7 +2233,7 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
 
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
+function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs }) {
   const fmt = useFmt();
   const [view,      setView]     = useState("list");
   const [detail,    setDetail]   = useState(null);
@@ -2239,9 +2249,10 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
   const handleAddPhoto = (id, photo) => {
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
-    // Keep detail open but update it
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
+
+  const TABS = [["list","List"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -2255,8 +2266,24 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>all time</p></Card>
         <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>total logged</p></Card>
       </div>
-      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
-        {[["list","Transactions"],["budget","Budget"],["mood","Mood"],["insights","Insights"]].map(([v,lbl])=>(<button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>))}
+
+      {/* Scrollable tab bar */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, overflowX:"auto", gap:2 }}>
+        {TABS.map(([v,lbl])=>(
+          <button key={v} onClick={()=>setView(v)} className="tap-btn" style={{
+            flexShrink:0, padding:"8px 14px", borderRadius:9, border:"none", cursor:"pointer",
+            background:view===v?C.card:"none",
+            color:view===v?C.text:C.textSub,
+            fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif",
+            transition:"all 0.18s",
+            position:"relative",
+          }}>
+            {lbl}
+            {v==="subs"&&subs?.filter(s=>s.active!==false).some(s=>daysUntil(s.dueDate)<=3)&&(
+              <span style={{ position:"absolute", top:5, right:5, width:6, height:6, borderRadius:"50%", background:C.coral }}/>
+            )}
+          </button>
+        ))}
       </div>
 
       {view==="list"&&(
@@ -2287,6 +2314,10 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
             </Card>
           );})}
         </div>
+      )}
+
+      {view==="subs"&&(
+        <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} embedded/>
       )}
 
       {view==="mood"&&(
@@ -3272,7 +3303,7 @@ export default function Bulsa() {
 
   const screens = {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday}/>,
-    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
+    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
