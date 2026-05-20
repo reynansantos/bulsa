@@ -1604,7 +1604,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const stressAmt  = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
   const budgetOver = Object.entries(budgets).filter(([id,lim])=>expenses.filter(e=>e.catId===id).reduce((s,e)=>s+e.amount,0)>lim).length;
-  const photoMems  = expenses.filter(e=>e.photo).slice(0,4);
+
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
   const totalSaved = goals.reduce((s,g)=>s+g.saved,0);
   const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
@@ -1832,22 +1832,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       )}
 
 
-
-      {/* ── 6. PHOTO MEMORIES ── */}
-      {photoMems.length>0&&(
-        <div>
-          <h3 style={{ margin:"0 0 10px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>📸 Spending memories</h3>
-          <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:4 }}>
-            {photoMems.map(e=>(
-              <div key={e.id} style={{ flexShrink:0, width:110, borderRadius:16, overflow:"hidden", position:"relative", border:`1px solid ${C.border}` }}>
-                <img src={e.photo} alt={e.name} style={{ width:"100%", height:100, objectFit:"cover", display:"block" }}/>
-                <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(12,12,12,0.85) 0%,transparent 55%)" }}/>
-                <div style={{ position:"absolute", bottom:7, left:8, right:8 }}><p style={{ margin:0, fontSize:11, fontWeight:700, color:"#fff", fontFamily:"DM Sans,sans-serif", lineHeight:1.2 }}>{e.name}</p><p style={{ margin:0, fontSize:10, color:"rgba(255,255,255,0.6)", fontFamily:"DM Sans,sans-serif" }}>{fmt(e.amount)}</p></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── 7. BOTTOM INSIGHTS: STREAK + MOOD TIP ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:10, paddingTop:6, borderTop:`1px solid ${C.border}` }}>
