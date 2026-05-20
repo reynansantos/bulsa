@@ -872,15 +872,42 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
-  const aiInputRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
+  const aiInputRef  = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
 
-  const parseWithAI = async () => {
-    if (!aiInput.trim()) return;
+  // ── Voice input ──────────────────────────────────────────────────────────
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setAiError("Voice not supported on this browser. Try Chrome."); return; }
+    if (isListening) { recognitionRef.current?.stop(); return; }
+    const rec = new SR();
+    recognitionRef.current = rec;
+    rec.lang = "en-PH";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart  = () => setIsListening(true);
+    rec.onend    = () => setIsListening(false);
+    rec.onerror  = () => { setIsListening(false); setAiError("Mic error — tap again to retry."); };
+    rec.onresult = e => {
+      const transcript = e.results[0][0].transcript;
+      setAiInput(transcript);
+      setAiError("");
+      // Auto-parse after a short delay so the user sees what was captured
+      setTimeout(() => parseWithAIText(transcript), 400);
+    };
+    rec.start();
+  };
+
+  // ── AI parsing (accepts explicit text so voice can call it before state updates) ──
+  const parseWithAIText = async (text) => {
+    const input = (text || aiInput).trim();
+    if (!input) return;
     setAiLoading(true); setAiError("");
     try {
-      const catList = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+      const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
       const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method:"POST",
@@ -888,43 +915,48 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514",
           max_tokens:300,
-          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown or explanation.
+          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON — no markdown, no explanation, no backticks.
 
-Categories available: ${catList}
-Moods available: ${moodList}
+Categories: ${catList}
+Moods: ${moodList}
 
-Return this exact JSON shape:
-{"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
+JSON shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null","note":"string|null"}
 
 Rules:
-- name: the merchant/item name, cleaned up and capitalized
-- amount: numeric only, no currency symbols. If not found, return 0.
-- catId: best matching category from the list
-- moodId: if emotional words present (stressed, sad, happy, motivated, excited), map to mood. Otherwise null.
-- note: any extra context worth saving, or null
+- name: merchant/item, cleaned up and title-cased
+- amount: numeric only. Extract digits even if written as "dalawang daan" (200) or "tatlong daan" (300). If truly not found, return 0.
+- catId: best matching category
+- moodId: map emotional words (stressed/nag-aalala→stressed, masaya/happy→happy, motivated/pumped→motivated) else null
+- note: extra context or null
 
 Examples:
 "mang inasal 235 stressed" → {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
 "grab 150 pabili" → {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
 "7/11 iced coffee 55 masaya" → {"name":"7-Eleven Iced Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
-"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`,
-          messages:[{ role:"user", content:aiInput }]
+"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
+"jollibee chickenjoy dalawang daan" → {"name":"Jollibee Chickenjoy","amount":200,"catId":"food","moodId":null,"note":null}`,
+          messages:[{ role:"user", content:input }]
         })
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+      if (data.error) throw new Error(data.error.message || "API error");
+      const raw    = (data.content || []).map(b=>b.text||"").join("").trim();
+      // Strip any accidental markdown fences
+      const clean  = raw.replace(/^```[a-z]*\n?/,"").replace(/```$/,"").trim();
+      const parsed = JSON.parse(clean);
       if (parsed.amount > 0) setAmount(String(parsed.amount));
       if (parsed.name)   setName(parsed.name);
-      if (parsed.catId && CATS.find(c=>c.id===parsed.catId)) setCatId(parsed.catId);
+      if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))   setCatId(parsed.catId);
       if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) setMoodId(parsed.moodId);
       setAiMode(false);
       setAiInput("");
     } catch(e) {
-      setAiError("Couldn't parse that. Try: 'mang inasal 235' or 'grab 150 stressed'");
+      setAiError(`Couldn't parse that — ${e.message||"try again"}. Tip: "mang inasal 235" or "grab 150 stressed"`);
     }
     setAiLoading(false);
   };
+
+  const parseWithAI = () => parseWithAIText(aiInput);
 
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
   // Auto-focus name field when reaching step 1
@@ -1014,17 +1046,36 @@ Examples:
               {/* AI describe mode */}
               {aiMode&&(
                 <div style={{ marginBottom:16 }}>
-                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
-                    <span style={{ fontSize:18, flexShrink:0 }}>✨</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${isListening?C.rose:C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>{isListening?"🔴":"✨"}</span>
                     <input
                       ref={aiInputRef}
-                      value={aiInput}
-                      onChange={e=>setAiInput(e.target.value)}
-                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
+                      value={isListening ? "Listening…" : aiInput}
+                      onChange={e=>{ if(!isListening) setAiInput(e.target.value); }}
+                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&!isListening&&parseWithAI()}
                       placeholder="mang inasal 235 stressed..."
-                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
+                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:isListening?C.rose:C.text, caretColor:C.accent }}
                     />
-                    {aiInput&&!aiLoading&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
+                    {/* Mic button */}
+                    <button
+                      onClick={startVoice}
+                      title={isListening ? "Stop listening" : "Speak your expense"}
+                      style={{
+                        background: isListening ? C.rose : `${C.accent}20`,
+                        border: `1.5px solid ${isListening ? C.rose : C.accent}60`,
+                        borderRadius: 10, width:34, height:34, cursor:"pointer",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        flexShrink:0, transition:"all 0.18s",
+                        animation: isListening ? "pulse 1s infinite" : "none",
+                      }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isListening?"#fff":C.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="2" width="6" height="12" rx="3"/>
+                        <path d="M5 10a7 7 0 0014 0"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                        <line x1="9" y1="21" x2="15" y2="21"/>
+                      </svg>
+                    </button>
+                    {aiInput&&!aiLoading&&!isListening&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
                   </div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
                     {["mang inasal 235","grab 150","7/11 coffee 55","load 99","sm 500 stressed"].map(s=>(
@@ -1032,7 +1083,7 @@ Examples:
                     ))}
                   </div>
                   {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
-                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading} style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
+                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading||isListening} style={{ opacity:!aiInput.trim()||aiLoading||isListening?0.5:1 }}>
                     {aiLoading?"Parsing...":"Parse →"}
                   </Btn>
                 </div>
