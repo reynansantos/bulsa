@@ -1382,26 +1382,73 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         </div>
       )}
 
+      {/* ── TODAY CARD ── */}
       <div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>Recent</h3>
-          <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all</button>
+          <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>
+            Today · <span style={{ color:C.textSub, fontWeight:500 }}>{new Date().toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})}</span>
+          </h3>
+          <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
         </div>
-        {expenses.length===0?(
-          <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
-        ):(
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {expenses.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-              <Card key={e.id} style={{ padding:"12px 14px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                  {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
-                  <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · {e.groceryItems.length} items</span>}</p></div>
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>{m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}<p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p></div>
+
+        {(() => {
+          const todayStr  = new Date().toDateString();
+          const todayExps = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr)
+                                    .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+          const todayTotal= todayExps.reduce((s,e) => s+e.amount, 0);
+
+          if (expenses.length === 0) return (
+            <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
+          );
+
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {/* Today summary */}
+              <Card style={{ background:"linear-gradient(145deg,#1C1208,#181818)", border:`1px solid ${todayExps.length>0?C.accent+"30":C.border}`, padding:"14px 18px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>Spent today</p>
+                    <p style={{ margin:0, fontSize:32, fontWeight:800, color:todayExps.length>0?C.coral:C.textSub, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{todayExps.length>0?fmt(todayTotal):"₱0"}</p>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <p style={{ margin:"0 0 4px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{todayExps.length} transaction{todayExps.length!==1?"s":""}</p>
+                    {dailyLimit>0&&<Tag color={todayTotal>dailyLimit?C.coral:C.green}>{todayTotal>dailyLimit?"Over limit":"Under limit"}</Tag>}
+                  </div>
                 </div>
+                {dailyLimit>0&&(
+                  <div style={{ marginTop:10 }}>
+                    <Bar pct={Math.min((todayTotal/dailyLimit)*100,100)} color={todayTotal>dailyLimit?C.coral:C.green} h={5}/>
+                    <p style={{ margin:"6px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{fmt(dailyLimit)} daily limit · {fmt(Math.max(dailyLimit-todayTotal,0))} left</p>
+                  </div>
+                )}
               </Card>
-            );})}
-          </div>
-        )}
+
+              {/* Today's transactions */}
+              {todayExps.length===0?(
+                <div style={{ textAlign:"center", padding:"20px 0" }}>
+                  <p style={{ margin:"0 0 4px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet today.</p>
+                  <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add expense</button>
+                </div>
+              ):(
+                todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+                  <Card key={e.id} style={{ padding:"12px 14px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · {e.groceryItems.length} items</span>}</p>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>{m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}<p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p></div>
+                    </div>
+                  </Card>
+                );})
+              )}
+              {todayExps.length>4&&(
+                <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0" }}>+{todayExps.length-4} more today →</button>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1588,6 +1635,128 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   );
 }
 
+// ─── EXPENSE LIST VIEW ─────────────────────────────────────────────────────
+
+function ExpenseListView({ expenses, onDetail, fmt }) {
+  const [period, setPeriod] = useState("day");
+
+  const now       = new Date();
+  const todayStr  = now.toDateString();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
+  const monthStart= new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const filtered = expenses.filter(e => {
+    if (!e.ts) return period === "month"; // no timestamp → only show in month
+    const d = new Date(e.ts);
+    if (period==="day")   return d.toDateString()===todayStr;
+    if (period==="week")  return d>=weekStart;
+    return d>=monthStart;
+  }).sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0));
+
+  const total = filtered.reduce((s,e)=>s+e.amount,0);
+
+  const periodLabel = period==="day"
+    ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})
+    : period==="week"
+    ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}`
+    : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {/* Period tabs */}
+      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>
+        {[["day","Today"],["week","This Week"],["month","This Month"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setPeriod(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:period===v?C.card:"none", color:period===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Summary row */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}>
+        <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodLabel}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{filtered.length} item{filtered.length!==1?"s":""}</span>
+          <span style={{ fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</span>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {filtered.length===0&&(
+        <div style={{ textAlign:"center", padding:"52px 0 36px" }}>
+          <div style={{ width:72, height:72, borderRadius:22, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 14px" }}>👛</div>
+          <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+            {period==="day"?"Nothing logged today":period==="week"?"Nothing this week yet":"Nothing this month yet"}
+          </p>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log an expense.</p>
+        </div>
+      )}
+
+      {/* Grouped by date (for week/month) or flat (for day) */}
+      {filtered.length>0&&(period==="day"?(
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtered.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+            <Card key={e.id} onClick={()=>onDetail(e)} glow>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{catOf(e.catId).label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p>
+                </div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
+                  {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}
+                </div>
+              </div>
+            </Card>
+          );})}
+        </div>
+      ):(()=>{
+        // Group by date
+        const groups = {};
+        filtered.forEach(e=>{
+          const key = e.ts ? new Date(e.ts).toDateString() : "Unknown";
+          if(!groups[key]) groups[key]=[];
+          groups[key].push(e);
+        });
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {Object.entries(groups).map(([dateStr, exps])=>{
+              const d    = dateStr!=="Unknown" ? new Date(dateStr) : null;
+              const isToday = d?.toDateString()===todayStr;
+              const label = isToday ? "Today" : d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"}) || "Unknown";
+              const dayTotal = exps.reduce((s,e)=>s+e.amount,0);
+              return (
+                <div key={dateStr}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}>
+                    <span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{label}</span>
+                    <span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(dayTotal)}</span>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {exps.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+                      <Card key={e.id} onClick={()=>onDetail(e)} glow>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p>
+                            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p>
+                          </div>
+                          <div style={{ textAlign:"right", flexShrink:0 }}>
+                            <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
+                            {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}
+                          </div>
+                        </div>
+                      </Card>
+                    );})}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })())}
+    </div>
+  );
+}
+
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income }) {
@@ -1614,28 +1783,16 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p></Card>
-        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p></Card>
+        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>all time</p></Card>
+        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>total logged</p></Card>
       </div>
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}` }}>
         {[["list","Transactions"],["budget","Budget"],["mood","Mood"],["insights","Insights"]].map(([v,lbl])=>(<button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:view===v?C.card:"none", color:view===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{lbl}</button>))}
       </div>
 
       {view==="list"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {expenses.length===0&&<div style={{ textAlign:"center", padding:"60px 0 40px" }}><div style={{ width:80, height:80, borderRadius:26, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px" }}>👛</div><p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log your first expense.</p></div>}
-          {expenses.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-            <Card key={e.id} onClick={()=>setDetail(e)} glow>
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
-                <div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.date}, {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div>
-                <div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}</div>
-              </div>
-            </Card>
-          );})}
-        </div>
+        <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt}/>
       )}
-
       {view==="budget"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <Card style={{ background:`${C.accent}0A`, border:`1px solid ${C.accent}20`, padding:"12px 14px" }}><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Set monthly limits per category. Tap <strong style={{ color:C.accentSoft }}>Set / Edit</strong> to customize.</p></Card>
