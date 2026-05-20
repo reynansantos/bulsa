@@ -1610,27 +1610,30 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const dailyPct   = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
   const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
 
-  // ── Daily Runway ──
+  // ── Daily Runway + Petsa de Peligro ──
   const runway = (() => {
     const cycle = getPaycycle(payday);
-    const daysLeft = cycle.daysLeft; // days until next payday (excluding today)
+    const daysLeft = cycle.daysLeft;
     if (daysLeft <= 0 || balance <= 0) return null;
-    const daysRemaining = daysLeft + 1; // include today
+    const daysRemaining = daysLeft + 1;
     const allowedPerDay = Math.floor(balance / daysRemaining);
     const pct = allowedPerDay > 0 ? Math.min((todaySpent / allowedPerDay) * 100, 150) : 100;
     const over = todaySpent > allowedPerDay;
     const tight = !over && pct > 80;
-    const status = over ? "overspending" : tight ? "tight" : "on_track";
-    const color = over ? C.coral : tight ? C.gold : C.green;
-    const emoji = over ? "🔴" : tight ? "⚠️" : "🟢";
+    const petsaDePeligro = daysLeft <= 4; // 4 days or fewer to payday = danger zone
+    const status = over ? "overspending" : tight ? "tight" : petsaDePeligro ? "peligro" : "on_track";
+    const color = over ? C.coral : tight ? C.gold : petsaDePeligro ? C.coral : C.green;
+    const emoji = over ? "🔴" : tight ? "⚠️" : petsaDePeligro ? "🚨" : "🟢";
     const msg = over
       ? `Over by ${fmt(todaySpent - allowedPerDay)} today`
       : tight
       ? `${fmt(allowedPerDay - todaySpent)} left for today — cutting it close`
+      : petsaDePeligro
+      ? `Hold it. ${fmt(allowedPerDay - todaySpent)} left for today`
       : todaySpent === 0
       ? `You haven't spent anything today yet`
       : `${fmt(allowedPerDay - todaySpent)} left for today — you're good`;
-    return { allowedPerDay, daysLeft, daysRemaining, pct, status, color, emoji, msg, label: cycle.label };
+    return { allowedPerDay, daysLeft, daysRemaining, pct, status, color, emoji, msg, label: cycle.label, petsaDePeligro };
   })();
 
   // ── Walang Gastos streak ──
@@ -1683,26 +1686,52 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       </div>
 
       {/* ── BALANCE HERO ── */}
-      <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"28px 22px 22px", position:"relative", overflow:"hidden", zIndex:1 }}>
-        <Orb x="40%" y="-30px" color={C.accent} size={220} opacity={0.25}/>
+      {(()=>{
+        const isPeligro = runway?.petsaDePeligro;
+        const heroBg    = isPeligro ? "linear-gradient(145deg,#1E0808,#181818)" : "linear-gradient(145deg,#1E1208,#181818)";
+        const heroBorder= isPeligro ? `1px solid ${C.coral}50` : `1px solid ${C.accent}35`;
+        const orbColor  = isPeligro ? C.coral : C.accent;
+        return (
+      <div style={{ background:heroBg, border:heroBorder, borderRadius:24, padding:"28px 22px 22px", position:"relative", overflow:"hidden", zIndex:1, transition:"border 0.6s, background 0.6s" }}>
+        <Orb x="40%" y="-30px" color={orbColor} size={220} opacity={isPeligro?0.35:0.25}/>
+        {/* Petsa de Peligro banner */}
+        {isPeligro && (
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:`${C.coral}18`, border:`1px solid ${C.coral}40`, borderRadius:10, padding:"7px 12px", marginBottom:14 }}>
+            <span style={{ fontSize:14 }}>🚨</span>
+            <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif", letterSpacing:"0.06em", textTransform:"uppercase" }}>
+              Petsa de Peligro Mode · {runway.daysLeft === 0 ? "Payday tomorrow!" : `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to go`}
+            </p>
+          </div>
+        )}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div>
-            <SLabel>{walletTotal !== null ? "Total Across Accounts" : "Available Balance"}</SLabel>
-            <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, letterSpacing:"-0.035em", lineHeight:1 }}>{hidden?"₱••••••":fmt(balance)}</h2>
+            <SLabel>{walletTotal !== null ? "Total Across Accounts" : income > 0 ? "Est. Available Balance" : "Available Balance"}</SLabel>
+            <h2 style={{ margin:"4px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:isPeligro?C.coral:C.text, letterSpacing:"-0.035em", lineHeight:1, transition:"color 0.4s" }}>{hidden?"₱••••••":fmt(balance)}</h2>
             <p style={{ margin:0, fontSize:12, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{hidden?"Balance hidden":savePct>=20?`↑ Saving ${savePct}% this month`:"↓ Watch your spending"}</p>
+            {/* Zero balance trap warning */}
+            {walletTotal === null && income > 0 && (
+              <p style={{ margin:"6px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                📌 Estimated — <span onClick={()=>setScreen("wallets")} style={{ color:C.accentSoft, fontWeight:700, cursor:"pointer" }}>add your actual wallets</span> for real balance
+              </p>
+            )}
+            {walletTotal === null && income === 0 && (
+              <p style={{ margin:"6px 0 0", fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                ⚠️ <span onClick={()=>setScreen("wallets")} style={{ cursor:"pointer", textDecoration:"underline" }}>Add wallets</span> or set income for real tracking
+              </p>
+            )}
           </div>
-          <Ring pct={hidden?0:savePct} size={62} stroke={5} color={savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{hidden?"••":savePct+"%"}</span></Ring>
+          <Ring pct={hidden?0:savePct} size={62} stroke={5} color={isPeligro?C.coral:savePct>=20?C.green:C.coral}><span style={{ fontSize:11, fontWeight:800, color:isPeligro?C.coral:savePct>=20?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>{hidden?"••":savePct+"%"}</span></Ring>
         </div>
         <div style={{ marginTop:20 }}>
           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSpent)} spent of {fmt(income)}</span>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>EOM est: <strong style={{ color:C.accentSoft }}>{fmt(Math.max(balance*1.25,0))}</strong></span>
           </div>
-          <Bar pct={hidden?0:(totalSpent/income)*100} color={totalSpent/income>0.8?C.coral:C.accent} h={7}/>
+          <Bar pct={hidden?0:(totalSpent/income)*100} color={totalSpent/income>0.8||isPeligro?C.coral:C.accent} h={7}/>
         </div>
         {/* Wallet strip */}
         {wallets && wallets.length > 0 && (
-          <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.accent}20` }}>
+          <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${isPeligro?C.coral+"20":C.accent+"20"}` }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {wallets.map(w => (
                 <div key={w.id} onClick={()=>setScreen("wallets")} style={{ display:"flex", alignItems:"center", gap:6, background:w.color+"15", border:`1px solid ${w.color}30`, borderRadius:99, padding:"5px 12px", cursor:"pointer" }}>
@@ -1724,6 +1753,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           </div>
         )}
       </div>
+        );
+      })()}
 
       {/* ── DAILY RUNWAY CARD ── */}
       {runway && (income > 0 || (wallets && wallets.length > 0)) && (
@@ -1733,7 +1764,10 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
                 <span style={{ fontSize:14 }}>{runway.emoji}</span>
                 <p style={{ margin:0, fontSize:11, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                  {runway.status==="overspending"?"Over budget today":runway.status==="tight"?"Getting tight":"Daily Runway"}
+                  {runway.status==="overspending" ? "Over budget today"
+                    : runway.status==="tight"       ? "Getting tight"
+                    : runway.petsaDePeligro          ? "Petsa de Peligro 🚨"
+                    : "Daily Runway"}
                 </p>
               </div>
               <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:30, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
