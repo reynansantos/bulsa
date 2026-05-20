@@ -687,11 +687,19 @@ function GoalSheet({ goal, onSave, onClose }) {
 function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets, onDeductWallet }) {
   const isEdit = !!editExpense;
 
+  // Read URL prefill from sessionStorage (set by Back Tap / Shortcut handler)
+  const prefillAmount = !isEdit ? (sessionStorage.getItem("bulsa_prefill_amount") || "") : "";
+  const prefillCat    = !isEdit ? (sessionStorage.getItem("bulsa_prefill_cat")    || "food") : "food";
+  if (prefillAmount) {
+    sessionStorage.removeItem("bulsa_prefill_amount");
+    sessionStorage.removeItem("bulsa_prefill_cat");
+  }
+
   // ── State ──
-  const [step,      setStep]      = useState(0); // 0 = amount+category, 1 = name+mood
-  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : "");
+  const [step,      setStep]      = useState(prefillAmount ? 0 : 0); // 0 = amount+category, 1 = name+mood
+  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : prefillAmount);
   const [name,      setName]      = useState(isEdit ? editExpense.name : "");
-  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : "food");
+  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : prefillCat);
   const [moodId,    setMoodId]    = useState(isEdit ? editExpense.moodId : null);
   const [walletId,  setWalletId]  = useState(isEdit ? (editExpense.walletId||null) : (wallets?.length ? wallets[0].id : null));
   const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
@@ -1628,7 +1636,7 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both" }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall }) {
   const fmt = useFmt();
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
@@ -1700,6 +1708,25 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
+
+      {/* ── PWA INSTALL BANNER ── */}
+      {showInstallBanner && (
+        <div style={{ background:"linear-gradient(135deg,#1A1200,#181818)", border:`1px solid ${C.gold}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, zIndex:2 }}>
+          <span style={{ fontSize:24, flexShrink:0 }}>📲</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Add to home screen for Back Tap & offline use</p>
+          </div>
+          <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+            <button onClick={onInstall} className="tap-btn"
+              style={{ background:C.gold, border:"none", borderRadius:9, padding:"7px 13px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
+              Install
+            </button>
+            <button onClick={onDismissInstall} className="tap-btn"
+              style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
@@ -3293,7 +3320,30 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
         )}
       </div>
 
-      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.1 · built for Filipinos 🇵🇭</p>
+      {/* Back Tap / Quick Tap setup guide */}
+      <div style={{ background:`${C.sky}08`, border:`1px solid ${C.sky}25`, borderRadius:16, padding:"16px 18px" }}>
+        <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>⚡ Log expenses in 1 tap</p>
+        <p style={{ margin:"0 0 12px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+          Set up Back Tap (iPhone) or Quick Tap (Android) to open the add expense sheet instantly — no unlocking, no navigating.
+        </p>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {[
+            { icon:"🍎", label:"iPhone — Back Tap", steps:"Settings → Accessibility → Touch → Back Tap → Double Tap → Open URL → " + window.location.origin + "/?action=add" },
+            { icon:"🤖", label:"Android — Quick Tap (Pixel)", steps:"Settings → System → Gestures → Quick Tap → Open app → bulsa." },
+            { icon:"📱", label:"Android — Tap,Tap app", steps:"Install Tap,Tap from GitHub → Double tap action → Open URL → " + window.location.origin + "/?action=add" },
+          ].map((item,i)=>(
+            <div key={i} style={{ background:C.surface, borderRadius:11, padding:"10px 13px" }}>
+              <p style={{ margin:"0 0 3px", fontSize:12, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.icon} {item.label}</p>
+              <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, wordBreak:"break-all" }}>{item.steps}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin:"10px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+          💡 Tip: use <strong style={{ color:C.sky }}>/?action=add&amount=50</strong> to pre-fill ₱50
+        </p>
+      </div>
+
+      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 · built for Filipinos 🇵🇭</p>
     </div>
   );
 }
@@ -3317,6 +3367,116 @@ export default function Bulsa() {
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
   const [subs,      setSubs]      = useLocalStorage("bulsa_subs", []);
   const [hidden,    setHidden]    = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  // Capture the beforeinstallprompt event (Android Chrome)
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setShowInstallBanner(false);
+    setInstallPrompt(null);
+  };
+
+  // ── PWA manifest + meta injection ──────────────────────────────────────
+  useEffect(() => {
+    // Inject manifest link
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const manifest = {
+        name: "bulsa.",
+        short_name: "bulsa.",
+        description: "Personal finance tracker for Filipinos",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#111111",
+        theme_color: "#111111",
+        orientation: "portrait",
+        icons: [
+          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23F59E0B'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23111'%3E💰%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23F59E0B'/%3E%3Ctext x='256' y='340' font-size='300' text-anchor='middle' fill='%23111'%3E💰%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" },
+        ],
+        shortcuts: [
+          { name: "Add Expense", short_name: "Add", description: "Quickly log an expense", url: "/?action=add", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23F59E0B'/%3E%3Ctext x='48' y='65' font-size='55' text-anchor='middle' fill='%23111'%3E+%3C/text%3E%3C/svg%3E", sizes: "96x96" }] },
+          { name: "Add ₱50",  short_name: "₱50",  description: "Log ₱50 expense fast",  url: "/?action=add&amount=50",  icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23F59E0B'/%3E%3Ctext x='48' y='65' font-size='36' text-anchor='middle' fill='%23111'%3E%E2%82%B150%3C/text%3E%3C/svg%3E", sizes: "96x96" }] },
+          { name: "Add ₱100", short_name: "₱100", description: "Log ₱100 expense fast", url: "/?action=add&amount=100", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23F59E0B'/%3E%3Ctext x='48' y='65' font-size='32' text-anchor='middle' fill='%23111'%3E%E2%82%B1100%3C/text%3E%3C/svg%3E", sizes: "96x96" }] },
+        ],
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type:"application/json" });
+      const url  = URL.createObjectURL(blob);
+      const link = Object.assign(document.createElement("link"), { rel:"manifest", href:url });
+      document.head.appendChild(link);
+    }
+    // Theme color
+    if (!document.querySelector('meta[name="theme-color"]')) {
+      const meta = Object.assign(document.createElement("meta"), { name:"theme-color", content:"#111111" });
+      document.head.appendChild(meta);
+    }
+    // Apple PWA meta
+    const appleProps = [
+      ["apple-mobile-web-app-capable",          "yes"],
+      ["apple-mobile-web-app-status-bar-style", "black-translucent"],
+      ["apple-mobile-web-app-title",            "bulsa."],
+      ["mobile-web-app-capable",                "yes"],
+    ];
+    appleProps.forEach(([name, content]) => {
+      if (!document.querySelector(`meta[name="${name}"]`)) {
+        document.head.appendChild(Object.assign(document.createElement("meta"), { name, content }));
+      }
+    });
+    // Register service worker for offline support
+    if ("serviceWorker" in navigator) {
+      const swCode = `
+        const CACHE = "bulsa-v1";
+        const ASSETS = ["/"];
+        self.addEventListener("install", e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+          self.skipWaiting();
+        });
+        self.addEventListener("activate", e => {
+          e.waitUntil(caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+          ));
+          self.clients.claim();
+        });
+        self.addEventListener("fetch", e => {
+          e.respondWith(
+            fetch(e.request).catch(() => caches.match(e.request))
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], { type:"application/javascript" });
+      const swUrl  = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl, { scope:"/" }).catch(()=>{});
+    }
+  }, []);
+
+  // ── URL action handler (Back Tap / Quick Tap / Shortcuts) ───────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    const amount = params.get("amount");
+    const cat    = params.get("cat"); // optional category hint
+
+    if (action === "add" && onboarded) {
+      // Pre-fill amount if provided, then open the sheet
+      if (amount) {
+        // Store in sessionStorage so AddExpenseSheet can read it on open
+        sessionStorage.setItem("bulsa_prefill_amount", amount);
+        if (cat) sessionStorage.setItem("bulsa_prefill_cat", cat);
+      }
+      // Small delay so the app finishes mounting first
+      setTimeout(() => setAddOpen(true), 120);
+      // Clean URL so Back Tap doesn't re-trigger on re-open
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [onboarded]);
 
   // Check for due-soon subs on mount and send notifications
   useEffect(()=>{
@@ -3377,7 +3537,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
