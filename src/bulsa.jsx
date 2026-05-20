@@ -593,7 +593,8 @@ function LoanSheet({ loan, onSave, onClose }) {
   const [paid,          setPaid]          = useState(loan?.paid          ? String(loan.paid)          : "");
   const [rate,          setRate]          = useState(loan?.rate          ? String(loan.rate)          : "");
   const [rateType,      setRateType]      = useState(loan?.rateType      || "monthly");
-  const [due,           setDue]           = useState(loan?.due           || "");
+  const [dueDay,        setDueDay]        = useState(loan?.dueDay        || 0);
+  const [startDate,     setStartDate]     = useState(loan?.startDate     || "");
   const [type,          setType]          = useState(loan?.type          || "Personal");
   const [color,         setColor]         = useState(loan?.color         || C.accent);
   const [monthlyAmount, setMonthlyAmount] = useState(loan?.monthlyAmount ? String(loan.monthlyAmount) : "");
@@ -609,7 +610,9 @@ function LoanSheet({ loan, onSave, onClose }) {
       payments: loan?.payments || [],
       rate: +rate || 0,
       rateType,
-      due: due.trim(),
+      due: dueDay ? `the ${dueDay}${dueDay===1?"st":dueDay===2?"nd":dueDay===3?"rd":"th"}` : "",
+      dueDay,
+      startDate,
       type,
       color,
       monthlyAmount: +monthlyAmount || 0,
@@ -638,7 +641,26 @@ function LoanSheet({ loan, onSave, onClose }) {
               ))}
             </div>
           </div>
-          <div><SLabel>Next Due Date</SLabel><Inp value={due} onChange={setDue} placeholder="Jun 15"/></div>
+          <div>
+            <SLabel>Due Day of Month</SLabel>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:6 }}>
+              {[1,5,10,15,20,25,28].map(d=>(
+                <button key={d} onClick={()=>setDueDay(d)} className="tap-btn"
+                  style={{ padding:"5px 10px", borderRadius:8, border:`1px solid ${dueDay===d?color+"60":C.border}`, background:dueDay===d?color+"1A":C.card, color:dueDay===d?color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+            <Inp value={dueDay||""} onChange={v=>setDueDay(+v.replace(/\D/g,"")||0)} placeholder="or type day…" type="number"/>
+          </div>
+        </div>
+        <div>
+          <SLabel>Start Date</SLabel>
+          <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
+            style={{ width:"100%", background:C.cardAlt, border:`1px solid ${startDate?color+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:14, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box" }}/>
+          <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+            When did you take out this loan? Used to compute next due dates.
+          </p>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <div><SLabel>Monthly Payment</SLabel><Inp value={monthlyAmount} onChange={setMonthlyAmount} placeholder="0" type="number"/></div>
@@ -3127,6 +3149,15 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
     return null;
   };
 
+  // Compute the next due date from startDate + dueDay + payments made
+  const nextDueDate = l => {
+    if (!l.dueDay || !l.startDate) return l.due || null;
+    const paidCount = l.payments?.length || 0;
+    const base = new Date(l.startDate + "T12:00:00");
+    const next = new Date(base.getFullYear(), base.getMonth() + paidCount, l.dueDay);
+    return next.toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
+  };
+
   const saveLoan   = loan => { setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
   const deleteLoan = id   => { setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
   const logPayment = (loanId, payment) => {
@@ -3263,7 +3294,11 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
                       <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
                         <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Monthly</p>
                         <p style={{ margin:0, fontSize:15, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.monthlyAmount)}</p>
-                        {left !== null && <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{left} mo left</p>}
+                        {left !== null && (
+                          <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                            {paidCount} of {loan.termMonths} paid · {left} left
+                          </p>
+                        )}
                       </div>
                     )}
                     {tc && (
@@ -3279,7 +3314,7 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
                 {/* Footer row */}
                 <div style={{ display:"flex", justifyContent:"space-between", marginTop:12, alignItems:"center", flexWrap:"wrap", gap:8 }}>
                   <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                    {loan.due ? `Due ${loan.due}` : "No due date"}
+                    {nextDueDate(loan) ? `Next due: ${nextDueDate(loan)}` : "No due date"}
                   </span>
                   <div style={{ display:"flex", gap:6 }}>
                     {!fullyPaid&&(
