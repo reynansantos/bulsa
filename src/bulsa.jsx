@@ -145,19 +145,9 @@ const WALLET_PRESETS = [
 const WALLET_ICONS  = ["💵","📱","💳","🏦","💰","🪙","💎","🎒","🔐","💼"];
 const WALLET_COLORS = ["#00E096","#0070DC","#7B5CF6","#CC0000","#003087","#00A86B","#EE4D2D","#FFD060","#FF6B2B","#60CFFF"];
 const SEED_LOANS = [
-  { id:1, name:"MacBook Air — SPayLater", isInstallment:true, totalTerms:6, termAmount:8637, paidTerms:3, paid:3*8637, amount:6*8637, rate:0, type:"BNPL", color:C.accent, dueDay:15, dueDate:"", paymentHistory:[
-    { id:"s1", amount:8637, date:"2026-03-15", note:"GCash", ts:"2026-03-15T12:00:00.000Z" },
-    { id:"s2", amount:8637, date:"2026-04-15", note:"GCash", ts:"2026-04-15T12:00:00.000Z" },
-    { id:"s3", amount:8637, date:"2026-05-15", note:"GCash", ts:"2026-05-15T12:00:00.000Z" },
-  ]},
-  { id:2, name:"BPI Personal Loan", isInstallment:false, amount:50000, paid:18000, rate:14.88, dueDate:"2026-06-30", dueDay:0, type:"Personal", color:C.sky, totalTerms:0, termAmount:0, paidTerms:0, paymentHistory:[
-    { id:"b1", amount:9000, date:"2026-04-30", note:"Bank transfer", ts:"2026-04-30T12:00:00.000Z" },
-    { id:"b2", amount:9000, date:"2026-05-30", note:"Bank transfer", ts:"2026-05-30T12:00:00.000Z" },
-  ]},
-  { id:3, name:"SM eCard", isInstallment:true, totalTerms:12, termAmount:1500, paidTerms:2, paid:2*1500, amount:12*1500, rate:3.5, type:"Credit Card", color:C.rose, dueDay:20, dueDate:"", paymentHistory:[
-    { id:"e1", amount:1500, date:"2026-03-20", note:"Online payment", ts:"2026-03-20T12:00:00.000Z" },
-    { id:"e2", amount:1500, date:"2026-04-20", note:"Online payment", ts:"2026-04-20T12:00:00.000Z" },
-  ]},
+  { id:1, name:"Maya Credit",       amount:25000, paid:8000,  rate:3.5,   due:"Jun 15", type:"BNPL",     color:C.accent },
+  { id:2, name:"BPI Personal Loan", amount:50000, paid:18000, rate:14.88, due:"Jun 30", type:"Personal", color:C.sky },
+  { id:3, name:"GCash GLoan",       amount:9000,  paid:5500,  rate:5.9,   due:"Jun 22", type:"Cash Loan",color:C.gold },
 ];
 const SEED_GOALS = [
   { id:1, name:"Japan Trip",     emoji:"✈️", target:80000,  saved:54400, deadline:"Oct 2025", color:C.accent },
@@ -574,212 +564,46 @@ function WalletsScreen({ wallets, setWallets }) {
   );
 }
 
-// ─── LOAN SHEET (installment-aware) ───────────────────────────────────────
-const LOAN_PRESETS = [
-  { name:"SPayLater",    icon:"🛒", type:"BNPL",     color:C.accent  },
-  { name:"SM eCard",     icon:"💳", type:"Credit Card", color:C.sky  },
-  { name:"GCash GLoan",  icon:"📱", type:"Cash Loan",   color:C.gold },
-  { name:"Maya Credit",  icon:"💜", type:"BNPL",        color:"#7B5CF6" },
-  { name:"BPI",          icon:"🏦", type:"Personal",    color:"#CC0000" },
-  { name:"BDO",          icon:"🏦", type:"Personal",    color:"#003087" },
-  { name:"SSS Salary",   icon:"🏛️", type:"Personal",    color:C.mint  },
-  { name:"Pagibig",      icon:"🏠", type:"Personal",    color:C.lime  },
-];
-
 function LoanSheet({ loan, onSave, onClose }) {
-  const editing    = !!loan;
-  const today      = new Date().toISOString().split("T")[0];
-  const [name,     setName]     = useState(loan?.name   || "");
-  const [amount,   setAmount]   = useState(loan?.amount  ? String(loan.amount)  : "");
-  const [rate,     setRate]     = useState(loan?.rate    ? String(loan.rate)    : "");
-  const [type,     setType]     = useState(loan?.type    || "Personal");
-  const [color,    setColor]    = useState(loan?.color   || C.accent);
-  // Installment fields
-  const [isInstallment, setIsInstallment] = useState(loan?.isInstallment ?? false);
-  const [totalTerms,    setTotalTerms]    = useState(loan?.totalTerms   ? String(loan.totalTerms) : "");
-  const [termAmount,    setTermAmount]    = useState(loan?.termAmount   ? String(loan.termAmount) : "");
-  const [paidTerms,     setPaidTerms]     = useState(loan?.paidTerms    ? String(loan.paidTerms)  : "0");
-  const [dueDay,        setDueDay]        = useState(loan?.dueDay       ? String(loan.dueDay)     : "");
-  // Due date (for non-installment)
-  const [dueDate,       setDueDate]       = useState(loan?.dueDate || "");
-
-  // Auto-calc total when installment
-  const calcTotal = isInstallment && +totalTerms>0 && +termAmount>0
-    ? +totalTerms * +termAmount : +amount||0;
-
-  const applyPreset = p => { setName(p.name); setType(p.type); setColor(p.color); };
-
-  const valid = name.trim() && (isInstallment ? (+totalTerms>0 && +termAmount>0) : +amount>0);
-
-  const save = () => {
-    if (!valid) return;
-    const base = {
-      id: loan?.id || uid(), name: name.trim(), type, color, rate: +rate||0,
-      paymentHistory: loan?.paymentHistory || [],
-    };
-    if (isInstallment) {
-      const tt  = +totalTerms;
-      const ta  = +termAmount;
-      const pt  = Math.min(+paidTerms||0, tt);
-      onSave({ ...base,
-        isInstallment: true,
-        totalTerms:  tt,
-        termAmount:  ta,
-        paidTerms:   pt,
-        amount:      tt * ta,       // total loan value
-        paid:        pt * ta,       // total paid so far
-        dueDay:      +dueDay||0,
-        dueDate:     "",
-      });
-    } else {
-      onSave({ ...base,
-        isInstallment: false,
-        amount:    +amount,
-        paid:      loan?.paid || 0,
-        dueDate,
-        dueDay:    0,
-        totalTerms:  0,
-        termAmount:  0,
-        paidTerms:   0,
-      });
-    }
-  };
-
-  const urgClr = dueDate ? (daysUntil(dueDate)<=3?C.coral:daysUntil(dueDate)<=7?C.gold:C.green) : C.textSub;
+  const editing = !!loan;
+  const [name,   setName]   = useState(loan?.name   || "");
+  const [amount, setAmount] = useState(loan?.amount  ? String(loan.amount) : "");
+  const [paid,   setPaid]   = useState(loan?.paid    ? String(loan.paid)   : "");
+  const [rate,   setRate]   = useState(loan?.rate    ? String(loan.rate)   : "");
+  const [due,    setDue]    = useState(loan?.due     || "");
+  const [type,   setType]   = useState(loan?.type    || "Personal");
+  const [color,  setColor]  = useState(loan?.color   || C.accent);
+  const valid = name.trim() && +amount > 0;
+  const save  = () => { if (!valid) return; onSave({ id:loan?.id||uid(), name:name.trim(), amount:+amount, paid:+paid||0, rate:+rate||0, due:due.trim(), type, color }); };
 
   return (
     <BottomSheet onClose={onClose} title={editing?"Edit Loan":"Add Loan"}>
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-        {/* Presets */}
-        {!editing && (
-          <div>
-            <SLabel>Quick select</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-              {LOAN_PRESETS.map(p=>(
-                <button key={p.name} onClick={()=>applyPreset(p)} className="tap-btn"
-                  style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 11px", borderRadius:99,
-                    border:`1px solid ${name===p.name?p.color+"70":C.border}`,
-                    background:name===p.name?`${p.color}18`:C.card, cursor:"pointer" }}>
-                  <span style={{ fontSize:14 }}>{p.icon}</span>
-                  <span style={{ fontSize:12, fontWeight:700, color:name===p.name?p.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Name */}
-        <div><SLabel>Lender / Loan name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. SPayLater, BPI, Friend…" autoFocus={editing}/></div>
-
-        {/* Installment toggle */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:isInstallment?`${C.accent}10`:C.card, border:`1px solid ${isInstallment?C.accent+"40":C.border}`, borderRadius:14, padding:"12px 16px" }}>
-          <div>
-            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>📦 Installment loan</p>
-            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Pay in monthly terms (SPayLater, credit cards, etc.)</p>
-          </div>
-          <Toggle on={isInstallment} setOn={setIsInstallment}/>
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <div><SLabel>Lender / Name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. BPI, Maya, Friend…" autoFocus/></div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div><SLabel>Total Amount</SLabel><Inp value={amount} onChange={setAmount} placeholder="0" type="number"/></div>
+          <div><SLabel>Amount Paid</SLabel><Inp value={paid} onChange={setPaid} placeholder="0" type="number"/></div>
         </div>
-
-        {isInstallment ? (
-          <>
-            {/* Total price */}
-            <div>
-              <SLabel>Total price of item</SLabel>
-              <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
-                <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-                <input type="text" inputMode="decimal" value={amount}
-                  onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="e.g. 51000"
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
-              </div>
-              <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Optional — the original price before installment</p>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div>
-                <SLabel>No. of terms</SLabel>
-                <Inp value={totalTerms} onChange={setTotalTerms} placeholder="e.g. 6" type="number"/>
-              </div>
-              <div>
-                <SLabel>Monthly amount</SLabel>
-                <div style={{ position:"relative" }}>
-                  <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:C.textSub, fontWeight:800, fontFamily:"DM Sans,sans-serif", fontSize:14 }}>₱</span>
-                  <input type="text" inputMode="decimal" value={termAmount}
-                    onChange={e=>setTermAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="e.g. 8637"
-                    style={{ width:"100%", background:C.cardAlt, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px 12px 28px", color:C.text, fontSize:14, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box", caretColor:C.accent }}/>
-                </div>
-              </div>
-            </div>
-            {/* Computed total */}
-            {+totalTerms>0 && +termAmount>0 && (
-              <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:12, padding:"10px 14px" }}>
-                <p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                  Total to pay: <strong style={{ color }}>{`₱${(+totalTerms * +termAmount).toLocaleString()}`}</strong>
-                  {+amount>0 && <span style={{ color:C.textFaint }}> · Interest: ₱{((+totalTerms * +termAmount) - +amount).toLocaleString()}</span>}
-                </p>
-              </div>
-            )}
-            <div>
-              <SLabel>Payments already made</SLabel>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {Array.from({length:+totalTerms||6},(_,i)=>(
-                  <button key={i} onClick={()=>setPaidTerms(String(i))} className="tap-btn"
-                    style={{ width:40, height:40, borderRadius:12, border:`2px solid ${+paidTerms===i?color:C.border}`, background:+paidTerms===i?color+"20":C.card, cursor:"pointer", fontSize:13, fontWeight:800, color:+paidTerms===i?color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                    {i}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <SLabel>Due day of month</SLabel>
-              <Inp value={dueDay} onChange={setDueDay} placeholder="e.g. 15 (for every 15th)" type="number"/>
-              <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>The day your installment is due each month</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <SLabel>Total Amount</SLabel>
-              <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
-                <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-                <input type="text" inputMode="decimal" value={amount}
-                  onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
-              </div>
-            </div>
-            <div>
-              <SLabel>Due Date</SLabel>
-              <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${urgClr+"60"}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
-                <span style={{ fontSize:16 }}>📅</span>
-                <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
-                {dueDate&&<Tag color={urgClr}>{daysUntil(dueDate)<=0?"Overdue":daysUntil(dueDate)===1?"Tomorrow":`${daysUntil(dueDate)}d`}</Tag>}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Rate + Type */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <div><SLabel>Interest Rate %</SLabel><Inp value={rate} onChange={setRate} placeholder="0.0" type="number"/></div>
-          <div>
-            <SLabel>Type</SLabel>
-            <select value={type} onChange={e=>setType(e.target.value)}
-              style={{ width:"100%", background:C.cardAlt, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:14, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif" }}>
-              {LOAN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+          <div><SLabel>Due Date</SLabel><Inp value={due} onChange={setDue} placeholder="Jun 15"/></div>
         </div>
-
-        {/* Color */}
         <div>
-          <SLabel>Color</SLabel>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {LOAN_COLORS.map(cl=>(
-              <div key={cl} onClick={()=>setColor(cl)} style={{ width:28, height:28, borderRadius:"50%", background:cl, border:`3px solid ${color===cl?"#fff":"transparent"}`, boxShadow:color===cl?`0 0 0 1px ${cl}`:"none", cursor:"pointer", transition:"all 0.15s" }}/>
+          <SLabel>Type</SLabel>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {LOAN_TYPES.map(t=>(
+              <button key={t} onClick={()=>setType(t)} style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${type===t?color+"60":C.border}`, background:type===t?color+"1A":C.card, color:type===t?color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>{t}</button>
             ))}
           </div>
         </div>
-
+        <div>
+          <SLabel>Color</SLabel>
+          <div style={{ display:"flex", gap:8 }}>
+            {LOAN_COLORS.map(cl=>(
+              <div key={cl} onClick={()=>setColor(cl)} style={{ width:28, height:28, borderRadius:"50%", background:cl, border:`2px solid ${color===cl?"#fff":C.border}`, cursor:"pointer" }}/>
+            ))}
+          </div>
+        </div>
         <div style={{ display:"flex", gap:10, marginTop:4 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:valid?1:0.4 }}>{editing?"Save changes":"Add loan"}</Btn>
@@ -1765,7 +1589,7 @@ function Onboarding({ onDone }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[] }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both" }) {
   const fmt = useFmt();
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
@@ -1785,6 +1609,29 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   const dailyOver  = dailyLimit>0 && todaySpent>dailyLimit;
   const dailyPct   = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
   const dailyColor = dailyOver?C.coral:dailyLimit>0&&dailyPct>80?C.gold:C.green;
+
+  // ── Daily Runway ──
+  const runway = (() => {
+    const cycle = getPaycycle(payday);
+    const daysLeft = cycle.daysLeft; // days until next payday (excluding today)
+    if (daysLeft <= 0 || balance <= 0) return null;
+    const daysRemaining = daysLeft + 1; // include today
+    const allowedPerDay = Math.floor(balance / daysRemaining);
+    const pct = allowedPerDay > 0 ? Math.min((todaySpent / allowedPerDay) * 100, 150) : 100;
+    const over = todaySpent > allowedPerDay;
+    const tight = !over && pct > 80;
+    const status = over ? "overspending" : tight ? "tight" : "on_track";
+    const color = over ? C.coral : tight ? C.gold : C.green;
+    const emoji = over ? "🔴" : tight ? "⚠️" : "🟢";
+    const msg = over
+      ? `Over by ${fmt(todaySpent - allowedPerDay)} today`
+      : tight
+      ? `${fmt(allowedPerDay - todaySpent)} left for today — cutting it close`
+      : todaySpent === 0
+      ? `You haven't spent anything today yet`
+      : `${fmt(allowedPerDay - todaySpent)} left for today — you're good`;
+    return { allowedPerDay, daysLeft, daysRemaining, pct, status, color, emoji, msg, label: cycle.label };
+  })();
 
   // ── Walang Gastos streak ──
   const walangGastosStreak = (() => {
@@ -1877,6 +1724,59 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           </div>
         )}
       </div>
+
+      {/* ── DAILY RUNWAY CARD ── */}
+      {runway && (income > 0 || (wallets && wallets.length > 0)) && (
+        <Card style={{ background:`linear-gradient(145deg,${runway.color}0A,#181818)`, border:`1.5px solid ${runway.color}35`, padding:"16px 18px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                <span style={{ fontSize:14 }}>{runway.emoji}</span>
+                <p style={{ margin:0, fontSize:11, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                  {runway.status==="overspending"?"Over budget today":runway.status==="tight"?"Getting tight":"Daily Runway"}
+                </p>
+              </div>
+              <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:30, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
+                {fmt(runway.allowedPerDay)}
+                <span style={{ fontSize:14, color:C.textSub, fontWeight:500 }}>/day</span>
+              </p>
+              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                {runway.daysLeft === 0 ? "Payday is tomorrow 🎉" : `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}`}
+              </p>
+            </div>
+            {/* Edit daily limit shortcut */}
+            <button onClick={()=>setScreen("expenses")} className="tap-btn"
+              style={{ background:runway.color+"15", border:`1px solid ${runway.color}30`, borderRadius:10, padding:"6px 12px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, color:runway.color, flexShrink:0, marginLeft:12 }}>
+              ⚙️ Limit
+            </button>
+          </div>
+
+          {/* Progress bar: today's spend vs allowed */}
+          <div style={{ marginBottom:8 }}>
+            <Bar pct={Math.min(runway.pct, 100)} color={runway.color} h={6}/>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <p style={{ margin:0, fontSize:12, color:runway.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{runway.msg}</p>
+            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} spent</span>
+          </div>
+
+          {/* Balance ÷ days breakdown */}
+          <div style={{ marginTop:12, paddingTop:10, borderTop:`1px solid ${runway.color}20`, display:"flex", gap:6, flexWrap:"wrap" }}>
+            <div style={{ background:C.surface, borderRadius:9, padding:"6px 10px" }}>
+              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Balance</p>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
+            </div>
+            <div style={{ background:C.surface, borderRadius:9, padding:"6px 10px" }}>
+              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Days left</p>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{runway.daysRemaining}</p>
+            </div>
+            <div style={{ background:runway.color+"15", border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 10px" }}>
+              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Allowed/day</p>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* ── 1. TODAY'S EXPENSES — core feature, first ── */}
       <div>
@@ -2172,8 +2072,9 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
                   <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} of {fmt(dailyLimit)} limit</p>
                 </div>
                 <div style={{ textAlign:"right" }}>
-                  <p style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:dailyColor, fontFamily:"DM Sans,sans-serif" }}>{Math.round(dailyPct)}%</p>
-                  <button onClick={()=>{ setLimitInput(String(dailyLimit)); setEditLimit(true); }} style={{ background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700, padding:0 }}>Edit limit</button>
+                  <p style={{ margin:"0 0 6px", fontSize:22, fontWeight:800, color:dailyColor, fontFamily:"DM Sans,sans-serif" }}>{Math.round(dailyPct)}%</p>
+                  <button onClick={()=>{ setLimitInput(String(dailyLimit)); setEditLimit(true); }}
+                    style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"5px 12px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✏️ Edit</button>
                 </div>
               </div>
               <Bar pct={dailyPct} color={dailyColor} h={7}/>
@@ -2802,334 +2703,65 @@ function UtangSheet({ utang, onSave, onClose }) {
 
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
-// Helper: get next due date for installment based on dueDay
-function getNextInstallmentDue(dueDay) {
-  if (!dueDay) return null;
-  const now = new Date();
-  let d = new Date(now.getFullYear(), now.getMonth(), dueDay);
-  if (d <= now) d = new Date(now.getFullYear(), now.getMonth()+1, dueDay);
-  return d.toISOString().split("T")[0];
-}
-
-// Loan payment bottom sheet
-function PayInstallmentSheet({ loan, onPay, onClose }) {
-  const today      = new Date().toISOString().split("T")[0];
-  const [payDate,  setPayDate]  = useState(today);
-  const [note,     setNote]     = useState("");
-  const isInstallment = loan.isInstallment;
-  const termsLeft  = isInstallment ? (loan.totalTerms - loan.paidTerms) : 0;
-  const payAmt     = isInstallment ? loan.termAmount : loan.amount - loan.paid;
-
-  const pay = () => {
-    onPay(loan.id, payAmt, payDate, note.trim() || (isInstallment ? `Term ${loan.paidTerms+1} of ${loan.totalTerms}` : "Payment"));
-    onClose();
-  };
-
-  return (
-    <BottomSheet onClose={onClose} title="Record Payment">
-      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        {/* Preview */}
-        <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:16, padding:"16px 18px" }}>
-          <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>{loan.name}</p>
-          {isInstallment ? (
-            <>
-              <p style={{ margin:"0 0 2px", fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>₱{loan.termAmount.toLocaleString()}</p>
-              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                Term <strong style={{ color:loan.color }}>{loan.paidTerms + 1}</strong> of {loan.totalTerms} · {termsLeft - 1} left after this
-              </p>
-            </>
-          ) : (
-            <>
-              <p style={{ margin:"0 0 2px", fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>₱{(loan.amount - loan.paid).toLocaleString()}</p>
-              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining balance</p>
-            </>
-          )}
-        </div>
-
-        {/* Payment date */}
-        <div>
-          <SLabel>Date paid</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:14, padding:"10px 14px", gap:10 }}>
-            <span style={{ fontSize:16 }}>📅</span>
-            <input type="date" value={payDate} max={today} onChange={e=>setPayDate(e.target.value)}
-              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
-          </div>
-        </div>
-
-        {/* Note */}
-        <div>
-          <SLabel>Note (optional)</SLabel>
-          <Inp value={note} onChange={setNote} placeholder={isInstallment ? `e.g. GCash, BDO transfer…` : "How did you pay?"}/>
-        </div>
-
-        <div style={{ display:"flex", gap:10 }}>
-          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={pay} style={{ background:`linear-gradient(135deg,${loan.color},${loan.color}CC)`, boxShadow:`0 6px 20px ${loan.color}30` }}>
-            ✓ Confirm ₱{payAmt.toLocaleString()}
-          </Btn>
-        </div>
-      </div>
-    </BottomSheet>
-  );
-}
-
 function LoansScreen({ loans, setLoans }) {
-  const fmt        = useFmt();
-  const [sheet,    setSheet]    = useState(null);  // "add" | loan obj | null
-  const [paying,   setPaying]   = useState(null);  // loan obj for payment sheet
-  const [expanded, setExpanded] = useState(null);  // loan id for history
-  const [confirm,  setConfirm]  = useState(null);
-
-  const total    = loans.reduce((s,l)=>s+l.amount,0);
-  const paid     = loans.reduce((s,l)=>s+l.paid,0);
-
-  const saveLoan = loan => {
-    setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]);
-    setSheet(null);
-  };
-  const deleteLoan = id => { setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
-
-  // Record a payment
-  const handlePay = (loanId, amount, date, note) => {
-    setLoans(prev=>prev.map(l=>{
-      if (l.id!==loanId) return l;
-      const payment = { id:uid(), amount, date, note, ts: new Date(date+"T12:00:00").toISOString() };
-      const history = [...(l.paymentHistory||[]), payment];
-      if (l.isInstallment) {
-        const newPaidTerms = Math.min(l.paidTerms + 1, l.totalTerms);
-        return { ...l, paidTerms: newPaidTerms, paid: newPaidTerms * l.termAmount, paymentHistory: history };
-      } else {
-        return { ...l, paid: Math.min(l.paid + amount, l.amount), paymentHistory: history };
-      }
-    }));
-  };
-
-  // Due-soon installment loans
-  const dueSoonLoans = loans.filter(l=>{
-    if (l.isInstallment && l.dueDay && l.paidTerms < l.totalTerms) {
-      const next = getNextInstallmentDue(l.dueDay);
-      return next && daysUntil(next) <= 7;
-    }
-    if (!l.isInstallment && l.dueDate) return daysUntil(l.dueDate) <= 7 && l.paid < l.amount;
-    return false;
-  });
+  const fmt = useFmt();
+  const [sheet,   setSheet]   = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const total     = loans.reduce((s,l)=>s+l.amount,0);
+  const paid      = loans.reduce((s,l)=>s+l.paid,0);
+  const saveLoan  = loan=>{ setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
+  const deleteLoan= id=>{ setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      {sheet && <LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
-      {paying && <PayInstallmentSheet loan={paying} onPay={handlePay} onClose={()=>setPaying(null)}/>}
-
-      {/* Header */}
+      {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Loans & Debt</h2>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Installments · Credit cards · Personal loans</p>
-        </div>
-        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }} className="tap-btn">+ Add</button>
+        <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Loans & Debt</h2>
+        <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
 
-      {loans.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
+      {loans.length===0?(
+        <div style={{ textAlign:"center", padding:"60px 0 40px", animation:"scaleIn 0.3s ease" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.green}12`, border:`2px dashed ${C.green}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎉</div>
           <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Debt-free!</p>
-          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>No loans tracked. Add one to stay on top of installments.</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>No loans tracked. Add one if needed.</p>
           <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add a loan</button>
         </div>
-      ) : (
+      ):(
         <>
-          {/* Total debt hero */}
-          <div style={{ background:"linear-gradient(145deg,#1A0C0C,#181818)", border:`1px solid ${C.coral}28`, borderRadius:22, padding:"22px 20px", position:"relative", overflow:"hidden" }}>
-            <Orb x="60%" y="-20px" color={C.coral} size={180} opacity={0.12}/>
+          <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
             <SLabel>Total Remaining Debt</SLabel>
-            <p style={{ margin:"4px 0 14px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:38, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>{fmt(total-paid)}</p>
+            <p style={{ margin:"0 0 14px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text }}>{fmt(total-paid)}</p>
             <Bar pct={total?(paid/total)*100:0} color={C.green} h={7}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
               <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid: {fmt(paid)}</span>
-              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paid/total)*100):0}% overall</span>
+              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paid/total)*100):0}% done</span>
             </div>
-          </div>
+          </Card>
 
-          {/* Due soon alert */}
-          {dueSoonLoans.length > 0 && (
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              <SLabel>⚠️ Due soon</SLabel>
-              {dueSoonLoans.map(l=>{
-                const next = l.isInstallment ? getNextInstallmentDue(l.dueDay) : l.dueDate;
-                const days = next ? daysUntil(next) : 99;
-                const uc = days<=0?C.coral:days<=3?C.coral:C.gold;
-                const label = days<=0?"Overdue":days===0?"Today":days===1?"Tomorrow":`${days}d left`;
-                return (
-                  <div key={l.id} style={{ background:`${uc}0E`, border:`1.5px solid ${uc}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
-                    <div style={{ flex:1 }}>
-                      <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{l.name}</p>
-                      <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{label} · {fmt(l.isInstallment?l.termAmount:l.amount-l.paid)}</p>
-                    </div>
-                    <button onClick={()=>setPaying(l)} className="tap-btn"
-                      style={{ background:`${C.green}15`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:10, padding:"7px 14px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
-                      ✓ Pay
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Loan cards */}
-          {loans.map((loan, idx) => {
-            const pct       = Math.round((loan.paid / loan.amount) * 100);
-            const isInst    = loan.isInstallment;
-            const termsLeft = isInst ? loan.totalTerms - loan.paidTerms : 0;
-            const isDone    = loan.paid >= loan.amount;
-            const nextDue   = isInst && loan.dueDay && !isDone ? getNextInstallmentDue(loan.dueDay) : loan.dueDate || null;
-            const dueDays   = nextDue ? daysUntil(nextDue) : null;
-            const dueColor  = dueDays !== null ? (dueDays<=0?C.coral:dueDays<=3?C.coral:dueDays<=7?C.gold:C.green) : C.textSub;
-            const history   = loan.paymentHistory || [];
-            const isExpanded= expanded === loan.id;
-
-            return (
-              <Card key={loan.id} glow animDelay={idx*40} style={{ border:`1.5px solid ${isDone?C.green+"40":loan.color+"30"}` }}>
-                {/* Header row */}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                      <p style={{ margin:0, fontSize:16, fontWeight:800, color:isDone?C.green:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p>
-                      {isDone && <Tag color={C.green}>✓ Paid off</Tag>}
-                    </div>
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                      <Tag color={loan.color}>{loan.type}</Tag>
-                      {isInst && <Tag color={C.sky}>📦 Installment</Tag>}
-                      {loan.rate > 0 && <Tag color={C.textSub}>{loan.rate}% interest</Tag>}
-                    </div>
-                  </div>
-                  <Ring pct={pct} size={58} stroke={5} color={isDone?C.green:loan.color}>
-                    <span style={{ fontSize:10, fontWeight:800, color:isDone?C.green:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span>
-                  </Ring>
-                </div>
-
-                {/* Installment term bubbles */}
-                {isInst && (
-                  <div style={{ marginBottom:14 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                      <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
-                        {loan.paidTerms} of {loan.totalTerms} terms paid
-                      </p>
-                      <p style={{ margin:0, fontSize:12, fontWeight:800, color:isDone?C.green:loan.color, fontFamily:"DM Sans,sans-serif" }}>
-                        {isDone ? "Done!" : `${termsLeft} left · ${fmt(termsLeft * loan.termAmount)} remaining`}
-                      </p>
-                    </div>
-                    {/* Term bubbles */}
-                    <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                      {Array.from({length:loan.totalTerms},(_,i)=>{
-                        const isPaid    = i < loan.paidTerms;
-                        const isCurrent = i === loan.paidTerms;
-                        return (
-                          <div key={i} style={{
-                            width:28, height:28, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
-                            fontSize:10, fontWeight:800, fontFamily:"DM Sans,sans-serif",
-                            background: isPaid ? loan.color+"30" : isCurrent ? loan.color+"18" : C.border+"60",
-                            border: `2px solid ${isPaid ? loan.color : isCurrent ? loan.color+"80" : "transparent"}`,
-                            color: isPaid ? loan.color : isCurrent ? loan.color+"BB" : C.textFaint,
-                            position:"relative",
-                          }}>
-                            {isPaid ? "✓" : i+1}
-                            {isCurrent && !isDone && (
-                              <div style={{ position:"absolute", top:-3, right:-3, width:7, height:7, borderRadius:"50%", background:C.gold, border:`1.5px solid ${C.bg}` }}/>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Per-term amount */}
-                    <p style={{ margin:"8px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                      {fmt(loan.termAmount)}/month · Total {fmt(loan.amount)}
-                    </p>
-                  </div>
-                )}
-
-                {/* Progress bar */}
-                <Bar pct={pct} color={isDone?C.green:loan.color} h={5}/>
-
-                {/* Stats row */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginTop:12 }}>
-                  {[
-                    ["Paid",  fmt(loan.paid)],
-                    ["Left",  isDone?"₱0":fmt(loan.amount - loan.paid)],
-                    ["Total", fmt(loan.amount)],
-                  ].map(([l,v])=>(
-                    <div key={l}>
-                      <SLabel>{l}</SLabel>
-                      <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Due date */}
-                {nextDue && !isDone && (
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:12, background:`${dueColor}0E`, border:`1px solid ${dueColor}30`, borderRadius:10, padding:"8px 12px" }}>
-                    <span style={{ fontSize:14 }}>📅</span>
-                    <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", flex:1 }}>
-                      {isInst ? "Next due: " : "Due: "}
-                      <strong style={{ color:C.text }}>{new Date(nextDue+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</strong>
-                    </span>
-                    <Tag color={dueColor}>{dueDays===null?"–":dueDays<=0?"Overdue":dueDays===1?"Tomorrow":`${dueDays}d`}</Tag>
-                  </div>
-                )}
-
-                {/* Payment history toggle */}
-                {history.length > 0 && (
-                  <button onClick={()=>setExpanded(isExpanded?null:loan.id)} className="tap-btn"
-                    style={{ width:"100%", background:"none", border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", marginTop:12, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>🕐 {history.length} payment{history.length!==1?"s":""} recorded</span>
-                    <span style={{ fontSize:12, color:C.textFaint }}>{isExpanded?"▲":"▼"}</span>
-                  </button>
-                )}
-
-                {/* Payment history list */}
-                {isExpanded && history.length > 0 && (
-                  <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
-                    {[...history].reverse().map((p,i)=>(
-                      <div key={p.id||i} style={{ display:"flex", alignItems:"center", gap:12, background:C.surface, borderRadius:10, padding:"10px 12px", border:`1px solid ${C.border}` }}>
-                        <div style={{ width:32, height:32, borderRadius:9, background:loan.color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>✓</div>
-                        <div style={{ flex:1 }}>
-                          <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
-                          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                            {new Date(p.ts||p.date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
-                            {p.note && <span style={{ color:C.textFaint }}> · {p.note}</span>}
-                          </p>
-                        </div>
-                        <div style={{ width:8, height:8, borderRadius:"50%", background:loan.color, flexShrink:0 }}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div style={{ display:"flex", gap:8, marginTop:14 }}>
-                  {!isDone && (
-                    <button onClick={()=>setPaying(loan)} className="tap-btn"
-                      style={{ flex:2, background:`linear-gradient(135deg,${loan.color}22,${loan.color}14)`, border:`1.5px solid ${loan.color}50`, color:loan.color, borderRadius:11, padding:"10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                      ✓ {isInst ? `Pay Term ${loan.paidTerms+1}` : "Record payment"}
-                    </button>
-                  )}
-                  <button onClick={()=>setSheet(loan)} className="tap-btn"
-                    style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:11, padding:"10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                    Edit
-                  </button>
-                  {confirm===loan.id ? (
-                    <button onClick={()=>deleteLoan(loan.id)} className="tap-btn"
-                      style={{ background:C.coral, border:"none", borderRadius:11, padding:"10px 14px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
-                  ) : (
-                    <button onClick={()=>setConfirm(loan.id)} className="tap-btn"
-                      style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:11, padding:"10px 12px", cursor:"pointer", fontSize:14 }}>🗑</button>
+          {loans.map(loan=>{ const pct=Math.round((loan.paid/loan.amount)*100); return (
+            <Card key={loan.id} glow>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                <div style={{ flex:1 }}><p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p><Tag color={loan.color}>{loan.type}</Tag></div>
+                <Ring pct={pct} size={56} stroke={5} color={loan.color}><span style={{ fontSize:10, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span></Ring>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                {[["Total",fmt(loan.amount)],["Remaining",fmt(loan.amount-loan.paid)],["Rate",`${loan.rate}%`]].map(([l,v])=>(<div key={l}><SLabel>{l}</SLabel><p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p></div>))}
+              </div>
+              <Bar pct={pct} color={loan.color} h={5}/>
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:10, alignItems:"center" }}>
+                <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{loan.due?`Due ${loan.due}`:"No due date"}</span>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={()=>setSheet(loan)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
+                  {confirm===loan.id?(
+                    <button onClick={()=>deleteLoan(loan.id)} style={{ background:C.coral, border:"none", borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm</button>
+                  ):(
+                    <button onClick={()=>setConfirm(loan.id)} style={{ background:`${C.coral}18`, border:`1px solid ${C.coral}40`, color:C.coral, borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Delete</button>
                   )}
                 </div>
-              </Card>
-            );
-          })}
-
-          <p style={{ textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
-            💡 Tap "Pay Term" to log each installment payment.
-          </p>
+              </div>
+            </Card>
+          );})}
         </>
       )}
     </div>
@@ -3744,7 +3376,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs}/>,
