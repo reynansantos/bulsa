@@ -3450,6 +3450,77 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
 
       <div>
         <SLabel>Data</SLabel>
+
+        {/* Export CSV */}
+        <Card style={{ padding:"14px 16px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${C.green}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📊</div>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Export to CSV</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Open in Excel, Google Sheets, Numbers</p>
+            </div>
+            <button onClick={()=>{
+              if (expenses.length===0) return;
+              const headers = ["Date","Time","Name","Category","Amount","Mood","Wallet","Notes"];
+              const rows = expenses.map(e=>{
+                const d = e.ts ? new Date(e.ts) : null;
+                const cat = CATS.find(c=>c.id===e.catId);
+                const mood = MOODS.find(m=>m.id===e.moodId);
+                return [
+                  d ? d.toLocaleDateString("en-PH") : e.date || "",
+                  d ? d.toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"}) : e.time || "",
+                  `"${(e.name||"").replace(/"/g,'""')}"`,
+                  cat?.label || e.catId || "",
+                  e.amount || 0,
+                  mood?.label || "",
+                  e.walletId || "",
+                  `"${(e.groceryItems?.join(", ")||"").replace(/"/g,'""')}"`
+                ].join(",");
+              });
+              const csv = [headers.join(","), ...rows].join("\n");
+              const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+              const url  = URL.createObjectURL(blob);
+              const a    = Object.assign(document.createElement("a"), { href:url, download:`bulsa-expenses-${new Date().toISOString().slice(0,10)}.csv` });
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }} style={{ background:`${C.green}14`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              Export
+            </button>
+          </div>
+          {expenses.length>0&&<p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{expenses.length} transactions ready to export</p>}
+        </Card>
+
+        {/* Export JSON backup */}
+        <Card style={{ padding:"14px 16px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup (JSON)</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data — expenses, loans, goals, utangs</p>
+            </div>
+            <button onClick={()=>{
+              const backup = {
+                exportedAt: new Date().toISOString(),
+                version: "1.0",
+                name,
+                income,
+                expenses,
+                loans: JSON.parse(localStorage.getItem("bulsa_loans")||"[]"),
+                goals: JSON.parse(localStorage.getItem("bulsa_goals")||"[]"),
+                utangs: JSON.parse(localStorage.getItem("bulsa_utangs")||"[]"),
+                wallets: JSON.parse(localStorage.getItem("bulsa_wallets")||"[]"),
+                budgets: JSON.parse(localStorage.getItem("bulsa_budgets")||"{}"),
+              };
+              const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
+              const url  = URL.createObjectURL(blob);
+              const a    = Object.assign(document.createElement("a"), { href:url, download:`bulsa-backup-${new Date().toISOString().slice(0,10)}.json` });
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }} style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              Backup
+            </button>
+          </div>
+        </Card>
         {!confirmClear?(
           <Card style={{ padding:"14px 16px" }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ width:38, height:38, borderRadius:11, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p></div><button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button></div></Card>
         ):(
