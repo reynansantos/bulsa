@@ -664,242 +664,260 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRate, wallets, onDeductWallet }) {
   const isEdit = !!editExpense;
-  const [step,     setStep]     = useState(0);
-  const [amount,   setAmount]   = useState(isEdit ? String(editExpense.amount) : "");
-  const [name,     setName]     = useState(isEdit ? editExpense.name : "");
-  const [catId,    setCatId]    = useState(isEdit ? editExpense.catId : "food");
-  const [moodId,   setMoodId]   = useState(isEdit ? editExpense.moodId : null);
-  const [photo,    setPhoto]    = useState(isEdit ? editExpense.photo : null);
-  const [walletId, setWalletId] = useState(isEdit ? editExpense.walletId : null);
+
+  // ── State ──
+  const [step,      setStep]      = useState(0); // 0 = amount+category, 1 = name+mood
+  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : "");
+  const [name,      setName]      = useState(isEdit ? editExpense.name : "");
+  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : "food");
+  const [moodId,    setMoodId]    = useState(isEdit ? editExpense.moodId : null);
+  const [walletId,  setWalletId]  = useState(isEdit ? (editExpense.walletId||null) : (wallets?.length ? wallets[0].id : null));
   const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
-  const [gInput, setGInput] = useState("");
-  const [gItems, setGItems] = useState(isEdit ? editExpense.groceryItems||[] : []);
-  const [vis,    setVis]    = useState(false);
-
-  // Backdate
+  const [gInput,    setGInput]    = useState("");
+  const [gItems,    setGItems]    = useState(isEdit ? editExpense.groceryItems||[] : []);
+  const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
-  const [expDate, setExpDate] = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
+  const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
+  const nameRef = useRef(null);
 
-  useState(()=>{ setTimeout(()=>setVis(true),20); });
+  useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
+  // Auto-focus name field when reaching step 1
+  useEffect(()=>{ if (step===1) setTimeout(()=>nameRef.current?.focus(), 80); }, [step]);
 
-  const close = ()=>{ setVis(false); setTimeout(onClose,300); };
-  const save  = ()=>{
-    if (!amount || +amount<=0) return;
-    const d    = new Date(expDate + "T" + new Date().toTimeString().slice(0,8));
-    const h    = d.getHours(), mn = d.getMinutes().toString().padStart(2,"0");
+  const close = () => { setVis(false); setTimeout(onClose, 300); };
+
+  const save = () => {
+    if (!amount || +amount <= 0) return;
+    const d  = new Date(expDate + "T" + new Date().toTimeString().slice(0,8));
+    const h  = d.getHours(), mn = d.getMinutes().toString().padStart(2,"0");
     const isToday = expDate === today;
     onSave({
-      id: isEdit ? editExpense.id : uid(),
-      name: name.trim() || catOf(catId).label,
+      id:    isEdit ? editExpense.id : uid(),
+      name:  name.trim() || catOf(isGrocery ? "grocery" : catId).label,
       amount: +amount,
-      catId: isGrocery ? "grocery" : catId,
-      moodId, photo, groceryItems: gItems, walletId,
-      date: isToday ? "Today" : new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
-      time: `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
-      ts: new Date(expDate + "T" + (isToday ? new Date().toTimeString().slice(0,8) : "12:00:00")).toISOString()
+      catId:  isGrocery ? "grocery" : catId,
+      moodId,
+      photo:  isEdit ? editExpense.photo : null, // photo added post-save from detail
+      groceryItems: gItems,
+      walletId,
+      date:  isToday ? "Today" : new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
+      time:  `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
+      ts:    new Date(expDate + "T" + (isToday ? new Date().toTimeString().slice(0,8) : "12:00:00")).toISOString()
     });
-    // Deduct from selected wallet
-    if (walletId && onDeductWallet && !isEdit) {
-      onDeductWallet(walletId, +amount);
-    }
+    if (walletId && onDeductWallet && !isEdit) onDeductWallet(walletId, +amount);
     close();
   };
 
-  const addGItem = ()=>{ if(!gInput.trim()) return; setGItems(p=>[...p,gInput.trim()]); setGInput(""); };
-  const QUICK=[50,100,150,200,500,1000];
-  const titles = isEdit
-    ? ["Edit amount", "Edit details", "Edit mood", "Edit photo"]
-    : ["How much?", isGrocery?"What did you buy?":"What was it?", "How were you feeling?", "Add a memory?"];
+  const addGItem = () => { if (!gInput.trim()) return; setGItems(p=>[...p,gInput.trim()]); setGInput(""); };
+  const QUICK = [50, 100, 150, 200, 500, 1000];
+  const cat   = catOf(isGrocery ? "grocery" : catId);
+
+  const canProceed = amount && +amount > 0;
+  const selectedWallet = wallets?.find(w=>w.id===walletId);
+  const insufficient   = selectedWallet && +amount > selectedWallet.balance;
 
   return (
     <>
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
-        width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0",
-        border:`1px solid ${C.border}`, borderBottom:"none", zIndex:201,
-        transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)", maxHeight:"92vh", overflowY:"auto" }}>
+      <div style={{
+        position:"fixed", bottom:0, left:"50%",
+        transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
+        width:"100%", maxWidth:420, background:C.surface,
+        borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`,
+        borderBottom:"none", zIndex:201,
+        transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)",
+        maxHeight:"92vh", overflowY:"auto"
+      }}>
+        {/* Handle */}
         <div style={{ display:"flex", justifyContent:"center", paddingTop:14, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
           <div style={{ width:36, height:4, borderRadius:99, background:C.border }}/>
         </div>
-        <div style={{ padding:"16px 22px 40px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
-            <div>
-              <div style={{ display:"flex", gap:5, marginBottom:8 }}>
-                {titles.map((_,i)=>(<div key={i} style={{ width:i===step?20:6, height:6, borderRadius:99, background:i===step?C.accent:i<step?C.green+"80":C.border, transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}/>))}
-              </div>
-              <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text }}>{titles[step]}</h3>
+
+        <div style={{ padding:"12px 22px 40px" }}>
+          {/* Header row */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {/* 2-dot progress */}
+              {[0,1].map(i=>(
+                <div key={i} style={{ width:i===step?20:6, height:6, borderRadius:99, background:i===step?C.accent:i<step?C.green+"90":C.border, transition:"all 0.28s cubic-bezier(0.34,1.56,0.64,1)" }}/>
+              ))}
+              <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:600 }}>
+                {step===0 ? (isEdit?"Edit amount":"How much?") : (isEdit?"Edit details":"What was it?")}
+              </span>
             </div>
             <button onClick={close} style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
           </div>
 
-          {step===0&&(
+          {/* ── STEP 0: Amount + Category ── */}
+          {step === 0 && (
             <div>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, borderBottom:`1px solid ${C.border}`, paddingBottom:14 }}>
+              {/* Big amount input */}
+              <div style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:14 }}>
                 <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
-                <input autoFocus type="text" inputMode="decimal" placeholder="0" value={amount} onChange={e=>{ const v=e.target.value.replace(/[^0-9.]/g,""); setAmount(v); }}
-                  onKeyDown={e=>e.key==="Enter"&&amount&&+amount>0&&setStep(1)}
-                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}/>
+                <input
+                  autoFocus type="text" inputMode="decimal" placeholder="0" value={amount}
+                  onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
+                  onKeyDown={e=>e.key==="Enter" && canProceed && setStep(1)}
+                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}
+                />
               </div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
+
+              {/* Quick amounts */}
+              <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:16 }}>
                 {QUICK.map(q=>(
                   <button key={q} onClick={()=>setAmount(String(q))} style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>
                 ))}
               </div>
 
-              {/* Working hours badge */}
-              {hourlyRate>0&&amount&&+amount>0&&(()=>{
-                const hrs  = +amount / hourlyRate;
-                const hrsRounded = Math.round(hrs * 10) / 10;
-                const label = hrs < 0.25 ? "Less than 15 mins of work"
-                  : hrs < 1   ? `${Math.round(hrs*60)} minutes of work`
-                  : hrs < 1.5 ? "About 1 hour of work"
-                  : `${hrsRounded} hours of hard work`;
-                const intensity = hrs>=8?C.coral:hrs>=4?C.gold:hrs>=1?C.accentSoft:C.textSub;
+              {/* Hourly rate badge */}
+              {hourlyRate>0 && amount && +amount>0 && (()=>{
+                const hrs = +amount / hourlyRate;
+                const label = hrs<0.25 ? "Less than 15 mins of work"
+                  : hrs<1   ? `${Math.round(hrs*60)} minutes of work`
+                  : hrs<1.5 ? "About 1 hour of work"
+                  : `${Math.round(hrs*10)/10} hours of work`;
+                const col = hrs>=8?C.coral:hrs>=4?C.gold:hrs>=1?C.accentSoft:C.textSub;
                 return (
-                  <div style={{ display:"flex", alignItems:"center", gap:10, background:`${intensity}0F`, border:`1px solid ${intensity}30`, borderRadius:13, padding:"10px 14px", marginBottom:14 }}>
-                    <span style={{ fontSize:18 }}>⏱️</span>
-                    <div>
-                      <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:intensity, fontFamily:"DM Sans,sans-serif" }}>{label}</p>
-                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Based on your ₱{Math.round(hourlyRate).toLocaleString()}/hr rate</p>
-                    </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, background:`${col}0F`, border:`1px solid ${col}30`, borderRadius:13, padding:"9px 13px", marginBottom:14 }}>
+                    <span style={{ fontSize:16 }}>⏱️</span>
+                    <p style={{ margin:0, fontSize:12, fontWeight:700, color:col, fontFamily:"DM Sans,sans-serif" }}>{label}</p>
                   </div>
                 );
               })()}
 
-              {/* Backdate */}
-              <div style={{ marginBottom:16 }}>
-                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Date of expense</p>
-                <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${expDate!==today?C.accent+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
-                  <span style={{ fontSize:16 }}>📅</span>
-                  <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)}
-                    style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
-                  {expDate!==today&&<Tag color={C.accent}>Backdated</Tag>}
+              {/* Category grid — inline, no next button needed */}
+              <div style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Category</p>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Grocery mode</span>
+                    <Toggle on={isGrocery} setOn={v=>{ setIsGrocery(v); if(v) setCatId("grocery"); }} color={C.lime}/>
+                  </div>
                 </div>
-              </div>
-
-              <div style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}30`, borderRadius:14, padding:"12px 16px", marginBottom:wallets&&wallets.length>0?12:20, display:"flex", alignItems:"center", gap:12 }}>
-                <span style={{ fontSize:20 }}>🛒</span>
-                <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Grocery mode</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Track individual items</p></div>
-                <Toggle on={isGrocery} setOn={setIsGrocery} color={C.lime}/>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:7 }}>
+                  {CATS.filter(c=>c.id!=="grocery").map(c=>(
+                    <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }}
+                      style={{ background:!isGrocery&&catId===c.id?c.color+"1E":C.card, border:`1.5px solid ${!isGrocery&&catId===c.id?c.color+"70":C.border}`, borderRadius:14, padding:"10px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:5, cursor:"pointer", transition:"all 0.13s" }}>
+                      <span style={{ fontSize:20 }}>{c.icon}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Wallet picker */}
               {wallets && wallets.length > 0 && (
-                <div style={{ marginBottom:20 }}>
+                <div style={{ marginBottom:14 }}>
                   <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Pay from</p>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
                     {wallets.map(w => {
-                      const selected = walletId === w.id;
-                      const insufficient = selected && +amount > w.balance;
+                      const sel = walletId===w.id;
+                      const insuf = sel && +amount > w.balance;
                       return (
-                        <button key={w.id} onClick={()=>setWalletId(selected?null:w.id)} style={{
-                          display:"flex", alignItems:"center", gap:6, padding:"8px 14px",
-                          borderRadius:99,
-                          border:`1.5px solid ${selected?(insufficient?C.coral:w.color)+"80":C.border}`,
-                          background:selected?w.color+"18":C.card,
-                          cursor:"pointer", fontSize:13, fontWeight:700,
-                          fontFamily:"DM Sans,sans-serif",
-                          color:selected?(insufficient?C.coral:w.color):C.textSub,
-                          transition:"all 0.15s",
-                        }}>
-                          <span>{w.icon}</span>
-                          <span>{w.name}</span>
-                          <span style={{ fontSize:11, opacity:0.8 }}>{fmt(w.balance)}</span>
-                          {insufficient && <span style={{ fontSize:11, color:C.coral }}>⚠️</span>}
+                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", color:sel?(insuf?C.coral:w.color):C.textSub }}>
+                          <span>{w.icon}</span><span>{w.name}</span>
+                          <span style={{ fontSize:10, opacity:0.75 }}>{fmt(w.balance)}</span>
+                          {insuf&&<span>⚠️</span>}
                         </button>
                       );
                     })}
                   </div>
-                  {walletId && (() => {
-                    const w = wallets.find(x=>x.id===walletId);
-                    const insufficient = w && +amount > w.balance;
-                    if (insufficient) return (
-                      <p style={{ margin:"8px 0 0", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                        ⚠️ Not enough in {w.name}. Balance: {fmt(w.balance)}
-                      </p>
-                    );
-                    return null;
-                  })()}
+                  {insufficient && <p style={{ margin:"7px 0 0", fontSize:12, color:C.coral, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>⚠️ Not enough in {selectedWallet.name}</p>}
                 </div>
               )}
 
-              <Btn onClick={()=>amount&&+amount>0&&setStep(1)} style={{ opacity:amount&&+amount>0?1:0.4 }}>Continue →</Btn>
+              {/* Backdate — collapsed by default, expand if needed */}
+              {expDate !== today && (
+                <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
+                  <span style={{ fontSize:14 }}>📅</span>
+                  <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)} style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
+                  <Tag color={C.accent}>Backdated</Tag>
+                </div>
+              )}
+              {expDate === today && (
+                <button onClick={()=>setExpDate("")} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11, fontFamily:"DM Sans,sans-serif", cursor:"pointer", padding:"0 0 12px", display:"flex", alignItems:"center", gap:5 }}>
+                  <span>📅</span> Backdate this expense
+                </button>
+              )}
+              {expDate === "" && (
+                <div style={{ marginBottom:14 }}>
+                  <input type="date" autoFocus value={expDate} max={today} onChange={e=>setExpDate(e.target.value||today)} style={{ width:"100%", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box" }}/>
+                </div>
+              )}
+
+              <Btn onClick={()=>canProceed&&setStep(1)} style={{ opacity:canProceed?1:0.4 }}>Next →</Btn>
             </div>
           )}
 
-          {step===1&&(
+          {/* ── STEP 1: Name (optional) + Grocery items + Mood ── */}
+          {step === 1 && (
             <div>
-              <Inp value={name} onChange={setName} placeholder={isGrocery?"e.g. SM Supermarket run…":"e.g. Fishball, Jollibee, Grab…"} autoFocus onKeyDown={e=>e.key==="Enter"&&!isGrocery&&setStep(2)} style={{ marginBottom:16 }}/>
-              {isGrocery?(
-                <div>
-                  <SLabel>Items in this haul</SLabel>
-                  <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                    <Inp value={gInput} onChange={setGInput} placeholder="Add item (press Enter)" onKeyDown={e=>e.key==="Enter"&&addGItem()} style={{ marginBottom:0 }}/>
-                    <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:12, padding:"0 16px", fontSize:18, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
-                  </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:20, minHeight:28 }}>
-                    {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"5px 12px", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
-                    {gItems.length===0&&<p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Type and press Enter or tap +</p>}
-                  </div>
-                </div>
-              ):(
-                <div>
-                  <SLabel>Category</SLabel>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
-                    {CATS.filter(c=>c.id!=="grocery").map(c=>(
-                      <button key={c.id} onClick={()=>setCatId(c.id)} style={{ background:catId===c.id?c.color+"1E":C.card, border:`1px solid ${catId===c.id?c.color+"60":C.border}`, borderRadius:14, padding:"10px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer", transition:"all 0.15s" }}>
-                        <span style={{ fontSize:17 }}>{c.icon}</span>
-                        <span style={{ fontSize:12, fontWeight:700, color:catId===c.id?c.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label.split(" ")[0]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <Btn onClick={()=>setStep(2)}>Next →</Btn>
-            </div>
-          )}
-
-          {step===2&&(
-            <div>
-              {moodLogsCount<5&&(
-                <div style={{ background:`${C.rose}12`, border:`1px solid ${C.rose}28`, borderRadius:14, padding:"10px 14px", marginBottom:16, display:"flex", gap:10, alignItems:"center" }}>
-                  <span style={{ fontSize:18 }}>🔓</span>
-                  <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Log <strong style={{ color:C.rose }}>{5-moodLogsCount} more moods</strong> to unlock your emotional spending profile.</p>
-                </div>
-              )}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
-                {MOODS.map(m=>(
-                  <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} style={{ background:moodId===m.id?m.color+"1E":C.card, border:`2px solid ${moodId===m.id?m.color:C.border}`, borderRadius:16, padding:"14px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:7, cursor:"pointer", transition:"all 0.15s" }}>
-                    <span style={{ fontSize:30 }}>{m.emoji}</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.label}</span>
-                  </button>
-                ))}
+              {/* Preview pill showing amount + category */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, background:cat.color+"14", border:`1px solid ${cat.color}35`, borderRadius:12, padding:"10px 14px", marginBottom:20 }}>
+                <span style={{ fontSize:20 }}>{cat.icon}</span>
+                <span style={{ fontSize:16, fontWeight:800, color:cat.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(+amount)}</span>
+                <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{cat.label}</span>
+                <button onClick={()=>setStep(0)} style={{ marginLeft:"auto", background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>← Edit</button>
               </div>
-              <Btn onClick={()=>setStep(3)}>Next →</Btn>
-              <Btn variant="ghost" onClick={save} style={{ marginTop:8 }}>Skip mood, save anyway</Btn>
-            </div>
-          )}
 
-          {step===3&&(
-            <div>
-              <p style={{ margin:"0 0 18px", fontSize:14, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>Attach a photo — your food, receipt, grocery haul. It's your memory, not a flex.</p>
-              {photo?(
-                <div style={{ position:"relative", borderRadius:18, overflow:"hidden", marginBottom:16 }}>
-                  <img src={photo} alt="preview" style={{ width:"100%", height:200, objectFit:"cover", display:"block" }}/>
-                  <button onClick={()=>setPhoto(null)} style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.7)", border:"none", borderRadius:"50%", width:32, height:32, color:"#fff", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-                  <div style={{ position:"absolute", bottom:10, left:12 }}><Tag color={C.green}>Photo attached ✓</Tag></div>
-                </div>
-              ):(
+              {/* Name — optional */}
+              <div style={{ marginBottom:16 }}>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
+                  Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>— optional</span>
+                </p>
+                <input
+                  ref={nameRef}
+                  value={name} onChange={e=>setName(e.target.value)}
+                  placeholder={isGrocery ? "e.g. SM Supermarket run…" : `e.g. Jollibee, Grab, ${cat.label}…`}
+                  onKeyDown={e=>e.key==="Enter"&&save()}
+                  style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"13px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
+                />
+                <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Leave blank — will save as "{cat.label}"</p>
+              </div>
+
+              {/* Grocery items — only when grocery mode */}
+              {isGrocery && (
                 <div style={{ marginBottom:16 }}>
-                  <PhotoPicker onPhoto={setPhoto}/>
-                  <div style={{ marginTop:10, borderRadius:14, border:`1.5px dashed ${C.border}`, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
-                    <span style={{ fontSize:28 }}>📸</span>
-                    <p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>No photo selected</p>
+                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Items in this haul</p>
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter"
+                      onKeyDown={e=>e.key==="Enter"&&addGItem()}
+                      style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"11px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.lime }}/>
+                    <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
+                    {gItems.map((item,i)=>(
+                      <span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700, cursor:"pointer" }}>{item} ×</span>
+                    ))}
+                    {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Type and press Enter or +</p>}
                   </div>
                 </div>
               )}
-              <Btn onClick={save}>Save to Bulsa ✓</Btn>
-              <Btn variant="ghost" onClick={save} style={{ marginTop:8 }}>Skip photo, save anyway</Btn>
+
+              {/* Mood — inline emoji row */}
+              <div style={{ marginBottom:22 }}>
+                <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
+                  Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>— optional</span>
+                  {moodLogsCount<5 && <span style={{ color:C.rose, fontWeight:700 }}> · {5-moodLogsCount} more to unlock insights</span>}
+                </p>
+                <div style={{ display:"flex", gap:8 }}>
+                  {MOODS.map(m=>(
+                    <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} style={{
+                      flex:1, padding:"12px 4px 10px", borderRadius:14,
+                      border:`2px solid ${moodId===m.id?m.color:C.border}`,
+                      background:moodId===m.id?m.color+"18":C.card,
+                      display:"flex", flexDirection:"column", alignItems:"center", gap:5,
+                      cursor:"pointer", transition:"all 0.13s"
+                    }}>
+                      <span style={{ fontSize:26 }}>{m.emoji}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save */}
+              <Btn onClick={save}>Save ✓</Btn>
             </div>
           )}
         </div>
@@ -910,9 +928,10 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, hourlyRa
 
 // ─── EXPENSE DETAIL ────────────────────────────────────────────────────────
 
-function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
+function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
   const [vis,     setVis]     = useState(true);
   const [confirm, setConfirm] = useState(false);
+  const [addingPhoto, setAddingPhoto] = useState(false);
   const c=catOf(expense.catId), m=moodOf(expense.moodId);
   const close=()=>{ setVis(false); setTimeout(onClose,280); };
 
@@ -921,13 +940,19 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"100%"})`, width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
         <div style={{ display:"flex", justifyContent:"center", paddingTop:14 }}><div style={{ width:36, height:4, borderRadius:99, background:C.border }}/></div>
-        {expense.photo&&(
+
+        {/* Photo — shown at top if exists */}
+        {expense.photo && (
           <div style={{ width:"100%", height:220, overflow:"hidden", position:"relative" }}>
             <img src={expense.photo} alt="memory" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
             <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(20,20,20,0.8) 0%,transparent 60%)" }}/>
-            <div style={{ position:"absolute", bottom:14, left:18 }}><p style={{ margin:0, fontSize:11, color:"rgba(255,255,255,0.6)", fontFamily:"DM Sans,sans-serif" }}>📍 Memory</p></div>
+            <div style={{ position:"absolute", bottom:14, left:18, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:11, color:"rgba(255,255,255,0.6)", fontFamily:"DM Sans,sans-serif" }}>📸 Memory</span>
+              <button onClick={()=>onAddPhoto(expense.id, null)} style={{ background:"rgba(0,0,0,0.5)", border:"none", borderRadius:99, color:"rgba(255,255,255,0.7)", fontSize:10, fontWeight:700, fontFamily:"DM Sans,sans-serif", padding:"3px 10px", cursor:"pointer" }}>Remove</button>
+            </div>
           </div>
         )}
+
         <div style={{ padding:"20px 22px 36px" }}>
           <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:16 }}>
             <div style={{ width:52, height:52, borderRadius:16, background:c.color+"1E", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{c.icon}</div>
@@ -937,7 +962,8 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
             </div>
             <p style={{ margin:0, fontSize:22, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(expense.amount)}</p>
           </div>
-          {m&&(
+
+          {m && (
             <div style={{ background:`${m.color}14`, border:`1px solid ${m.color}30`, borderRadius:14, padding:"12px 16px", marginBottom:14, display:"flex", gap:10, alignItems:"center" }}>
               <span style={{ fontSize:26 }}>{m.emoji}</span>
               <div>
@@ -946,7 +972,8 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
               </div>
             </div>
           )}
-          {expense.groceryItems?.length>0&&(
+
+          {expense.groceryItems?.length>0 && (
             <div style={{ marginBottom:14 }}>
               <SLabel>Grocery items ({expense.groceryItems.length})</SLabel>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:6 }}>
@@ -955,7 +982,22 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete }) {
             </div>
           )}
 
-          {/* Edit / Delete actions */}
+          {/* Add photo post-save — the whole point! */}
+          {!expense.photo && !addingPhoto && (
+            <button onClick={()=>setAddingPhoto(true)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:`${C.accent}08`, border:`1.5px dashed ${C.accent}35`, borderRadius:14, padding:"12px", cursor:"pointer", marginBottom:14 }}>
+              <span style={{ fontSize:16 }}>📸</span>
+              <span style={{ fontSize:13, fontWeight:700, color:C.accentSoft, fontFamily:"DM Sans,sans-serif" }}>Add a memory photo</span>
+            </button>
+          )}
+          {!expense.photo && addingPhoto && (
+            <div style={{ marginBottom:14, background:C.card, borderRadius:14, padding:"14px" }}>
+              <p style={{ margin:"0 0 10px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Attach a photo to this expense</p>
+              <PhotoPicker onPhoto={compressed=>{ onAddPhoto(expense.id, compressed); setAddingPhoto(false); }}/>
+              <button onClick={()=>setAddingPhoto(false)} style={{ marginTop:10, background:"none", border:"none", color:C.textFaint, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%", textAlign:"center" }}>Cancel</button>
+            </div>
+          )}
+
+          {/* Actions */}
           {!confirm ? (
             <div style={{ display:"flex", gap:8, marginTop:8 }}>
               <button onClick={()=>{ close(); setTimeout(()=>onEdit(expense), 300); }} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:12, padding:"11px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✏️ Edit</button>
@@ -2199,13 +2241,18 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const moodLogs = expenses.filter(e=>e.moodId).length;
   const bymood   = MOODS.map(m=>{ const amt=expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0),cnt=expenses.filter(e=>e.moodId===m.id).length; return {...m,amount:amt,count:cnt,pct:total?Math.round((amt/total)*100):0}; }).filter(m=>m.count>0);
 
-  const handleEdit   = exp => setEditExp(exp);
-  const handleDelete = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
+  const handleEdit     = exp => setEditExp(exp);
+  const handleDelete   = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
   const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
+  const handleAddPhoto = (id, photo) => {
+    setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
+    // Keep detail open but update it
+    setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
+  };
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete}/>}
+      {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete} onAddPhoto={handleAddPhoto}/>}
       {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
