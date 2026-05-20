@@ -1955,44 +1955,19 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
                 </div>
               </div>
             )}
-            {/* Balance strip */}
+            {/* Balance strip — available + can spend/day only, no wallet breakdown */}
             <div style={{ display:"flex", gap:8, flexWrap:"wrap", paddingTop:12, borderTop:`1px solid ${C.accent}20`, position:"relative", zIndex:1 }}>
-              <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px", display:"flex", gap:10, alignItems:"center" }}>
-                <div>
-                  <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
-                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
-                </div>
+              <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
+                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
               </div>
-              {income>0&&<div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
-                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Monthly budget</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(income)}</p>
-              </div>}
-              {runway&&<div style={{ background:`${runway.color}15`, border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 12px" }}>
-                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Can spend/day</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
-              </div>}
+              {runway && (
+                <div style={{ background:`${runway.color}15`, border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 12px" }}>
+                  <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Can spend/day</p>
+                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
+                </div>
+              )}
             </div>
-            {/* Wallet chips */}
-            {wallets&&wallets.length>0&&(
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10, position:"relative", zIndex:1 }}>
-                {wallets.map(w=>(
-                  <div key={w.id} onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", gap:5, background:w.color+"15", border:`1px solid ${w.color}30`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
-                    <span style={{ fontSize:12 }}>{w.icon}</span>
-                    <span style={{ fontSize:11, fontWeight:700, color:w.color, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
-                    <span style={{ fontSize:11, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(w.balance)}</span>
-                  </div>
-                ))}
-                <div onClick={()=>setScreen("accounts")} style={{ display:"flex", alignItems:"center", background:C.accentGlow, border:`1px dashed ${C.accent}40`, borderRadius:99, padding:"4px 10px", cursor:"pointer" }}>
-                  <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>+ account</span>
-                </div>
-              </div>
-            )}
-            {(!wallets||wallets.length===0)&&(
-              <div onClick={()=>setScreen("accounts")} style={{ marginTop:10, display:"flex", alignItems:"center", gap:6, cursor:"pointer", position:"relative", zIndex:1 }}>
-                <span style={{ fontSize:13 }}>💰</span>
-                <span style={{ fontSize:11, color:C.accentSoft, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Add accounts for real balance →</span>
-              </div>
-            )}
           </div>
         );
       })()}
