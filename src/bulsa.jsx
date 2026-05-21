@@ -363,8 +363,8 @@ function BottomSheet({ children, onClose, title }) {
   const close = ()=>{ setVis(false); setTimeout(onClose,320); };
   return (
     <>
-      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
+      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
         width:"100%", background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
         transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
