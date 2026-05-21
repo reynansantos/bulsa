@@ -363,8 +363,8 @@ function BottomSheet({ children, onClose, title }) {
   const close = ()=>{ setVis(false); setTimeout(onClose,320); };
   return (
     <>
-      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
+      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
         width:"100%", background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
         transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
@@ -1883,8 +1883,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
   const totalSaved = goals.reduce((s,g)=>s+g.saved,0);
-  const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
-  const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
+  const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe").reduce((s,u)=>s+u.amount,0);
+  const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe").reduce((s,u)=>s+u.amount,0);
 
   const todayStr   = new Date().toDateString();
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
@@ -2922,6 +2922,9 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const [confirm,        setConfirm]        = useState(null);
   const [expanded,       setExpanded]       = useState({});
   const [expandedBorrow, setExpandedBorrow] = useState({});
+  const [toast,          setToast]          = useState(null);
+
+  const showToast = msg => { setToast(msg); setTimeout(()=>setToast(null), 3000); };
 
   // Adjust wallet balance by delta (positive = add, negative = deduct)
   const adjustWallet = (walletId, delta) => {
@@ -2955,7 +2958,15 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   };
 
   const deleteUtang = id => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
-  const markSettled = id => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
+  const markSettled = (id, direction) => {
+    const u = utangs.find(x => x.id === id);
+    if (!u) return;
+    const msg = direction === "iowe"
+      ? `✓ Paid! ${u.person} cleared.`
+      : `✓ Collected from ${u.person}!`;
+    setUtangs(prev => prev.filter(x => x.id !== id));
+    showToast(msg);
+  };
 
   const logPayment = (utangId, payment) => {
     setUtangs(prev=>prev.map(u=>{
@@ -2974,18 +2985,24 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
     return Math.max(totalBorrowed - totalPaid, 0);
   };
 
-  const iOwe      = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
-  const theyOwe   = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
-  const settled   = utangs.filter(u=>u.settled);
+  const iOwe      = utangs.filter(u=>u.direction==="iowe");
+  const theyOwe   = utangs.filter(u=>u.direction==="theyowe");
   const iOweTotal = iOwe.reduce((s,u)=>s+remaining(u),0);
   const theyOweTotal=theyOwe.reduce((s,u)=>s+remaining(u),0);
-  const filtered  = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe,...settled];
+  const filtered  = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)} wallets={wallets}/>}
       {borrowSheet&&<AddBorrowSheet utang={borrowSheet} onSave={b=>addBorrow(borrowSheet.id,b)} onClose={()=>setBorrowSheet(null)} wallets={wallets}/>}
       {paySheet&&<PaymentSheet utang={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets} onAdjustWallet={adjustWallet}/>}
+
+      {/* Toast */}
+      {toast&&(
+        <div style={{ position:"fixed", top:22, left:"50%", transform:"translateX(-50%)", background:C.green, color:"#fff", borderRadius:14, padding:"11px 22px", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif", zIndex:999, whiteSpace:"nowrap", boxShadow:"0 4px 24px #00000050", pointerEvents:"none" }}>
+          {toast}
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3080,6 +3097,12 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                   {u.direction==="iowe"?"I owe them":"They owe me"}
                   {borrows.length===1&&borrows[0].note&&<span style={{ color:C.textFaint }}> · "{borrows[0].note}"</span>}
                 </p>
+                {u.dateBorrowed&&(
+                  <p style={{ margin:"3px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                    📅 {new Date(u.dateBorrowed+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
+                    {u.dueDate&&<span style={{ color: new Date(u.dueDate+"T12:00:00")<new Date()?C.coral:C.textFaint }}> · due {new Date(u.dueDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}{new Date(u.dueDate+"T12:00:00")<new Date()?" ⚠️":""}</span>}
+                  </p>
+                )}
                 {u.walletName&&u.direction==="theyowe"&&<p style={{ margin:"2px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💳 from {u.walletName}</p>}
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -3166,7 +3189,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                     ＋ Add borrow
                   </button>
                 )}
-                <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                <button onClick={()=>markSettled(u.id, u.direction)} className="tap-btn"
                   style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
                   ✓ Settle
                 </button>
@@ -3183,10 +3206,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 )}
               </div>
             )}
-            {u.settled&&(
-              <button onClick={()=>markSettled(u.id)} className="tap-btn"
-                style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
-            )}
+
           </Card>
         );
       })}
@@ -3284,22 +3304,24 @@ function AddBorrowSheet({ utang, onSave, onClose, wallets=[] }) {
 }
 
 function UtangSheet({ utang, onSave, onClose, wallets=[] }) {
-  const [person,    setPerson]    = useState(utang?.person||"");
-  const [amount,    setAmount]    = useState(utang?.amount?String(utang.amount):"");
-  const [direction, setDirection] = useState(utang?.direction||"iowe");
-  const [note,      setNote]      = useState(utang?.note||"");
-  const [walletId,  setWalletId]  = useState(null);
+  const [person,       setPerson]       = useState(utang?.person||"");
+  const [amount,       setAmount]       = useState(utang?.amount?String(utang.amount):"");
+  const [direction,    setDirection]    = useState(utang?.direction||"iowe");
+  const [note,         setNote]         = useState(utang?.note||"");
+  const [walletId,     setWalletId]     = useState(null);
+  const [dateBorrowed, setDateBorrowed] = useState(utang?.dateBorrowed||new Date().toISOString().split("T")[0]);
+  const [dueDate,      setDueDate]      = useState(utang?.dueDate||"");
 
   const save = () => {
     if (!person.trim()||!amount||+amount<=0) return;
     const walletName = wallets.find(w=>w.id===walletId)?.name||null;
-    // Build initial borrows array for the first entry
     const borrows = [{ id:uid(), amount:+amount, note:note.trim(), walletId, walletName, ts:new Date().toISOString() }];
     onSave({
       id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(),
       walletId, walletName,
       settled:utang?.settled||false, payments:utang?.payments||[],
       borrows: utang?.borrows||borrows,
+      dateBorrowed, dueDate: dueDate||null,
       ts:utang?.ts||new Date().toISOString(),
     });
   };
@@ -3329,6 +3351,20 @@ function UtangSheet({ utang, onSave, onClose, wallets=[] }) {
           </div>
         </div>
         <div><SLabel>For what? (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. lunch, GCash load, taxi share..."/></div>
+
+        {/* Date fields */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div>
+            <SLabel>Date borrowed</SLabel>
+            <input type="date" value={dateBorrowed} onChange={e=>setDateBorrowed(e.target.value)}
+              style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box", colorScheme:"dark" }}/>
+          </div>
+          <div>
+            <SLabel>Due date (optional)</SLabel>
+            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}
+              style={{ width:"100%", background:C.card, border:`1px solid ${dueDate?C.accent+"60":C.border}`, borderRadius:12, padding:"10px 12px", color:dueDate?C.text:C.textFaint, fontSize:13, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box", colorScheme:"dark" }}/>
+          </div>
+        </div>
 
         {/* Wallet picker — only on new "they owe me" entries */}
         {!utang && direction==="theyowe" && wallets.length>0&&(
