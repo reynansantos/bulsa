@@ -294,8 +294,8 @@ function BottomSheet({ children, onClose, title }) {
 // ─── PHOTO PICKER ──────────────────────────────────────────────────────────
 
 // Compress image to max ~400px wide and quality 0.7 before storing.
-// A raw phone photo can be 3–5MB as base64 — way over localStorage's 5MB total.
-// After compression it's typically 30–80KB, safe to persist.
+// A raw phone photo can be 3-5MB as base64 -- way over localStorage's 5MB total.
+// After compression it's typically 30-80KB, safe to persist.
 function compressImage(file, maxWidth=400, quality=0.72) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -383,7 +383,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
     <BottomSheet onClose={onClose} title={editing ? "Edit Account" : "Add Account"}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-        {/* Presets — only on new */}
+        {/* Presets -- only on new */}
         {!editing && (
           <div>
             <SLabel>Quick select</SLabel>
@@ -406,7 +406,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
         {/* Name */}
         <div>
           <SLabel>Account Name</SLabel>
-          <Inp value={name} onChange={setName} placeholder="e.g. GCash, BPI Savings, Cash…" autoFocus={editing}/>
+          <Inp value={name} onChange={setName} placeholder="e.g. GCash, BPI Savings, Cash..." autoFocus={editing}/>
         </div>
 
         {/* Balance */}
@@ -530,7 +530,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
           <div style={{ fontSize:52, marginBottom:14 }}>💰</div>
           <p style={{ margin:"0 0 6px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No accounts yet</p>
           <p style={{ margin:"0 0 22px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Add your cash on hand, GCash, Maya, BPI — whatever you have. That's your real balance.
+            Add your cash on hand, GCash, Maya, BPI -- whatever you have. That's your real balance.
           </p>
           <button onClick={()=>setSheet("add")} className="tap-btn" style={{
             background:C.accentGlow, border:`2px dashed ${C.accent}40`,
@@ -601,7 +601,7 @@ function LoanSheet({ loan, onSave, onClose }) {
   return (
     <BottomSheet onClose={onClose} title={editing?"Edit Loan":"Add Loan"}>
       <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-        <div><SLabel>Lender / Name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. BPI, Maya, Friend…" autoFocus/></div>
+        <div><SLabel>Lender / Name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. BPI, Maya, Friend..." autoFocus/></div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <div><SLabel>Total Amount</SLabel><Inp value={amount} onChange={setAmount} placeholder="0" type="number"/></div>
           <div><SLabel>Amount Paid</SLabel><Inp value={paid} onChange={setPaid} placeholder="0" type="number"/></div>
@@ -651,7 +651,7 @@ function GoalSheet({ goal, onSave, onClose }) {
   return (
     <BottomSheet onClose={onClose} title={editing?"Edit Goal":"Add Goal"}>
       <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-        <div><SLabel>Goal Name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. Japan Trip, Emergency Fund…" autoFocus/></div>
+        <div><SLabel>Goal Name</SLabel><Inp value={name} onChange={setName} placeholder="e.g. Japan Trip, Emergency Fund..." autoFocus/></div>
         <div>
           <SLabel>Pick an emoji</SLabel>
           <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
@@ -879,7 +879,7 @@ Examples:
                   </Btn>
                 </div>
               )}
-              {/* Manual amount input — hidden in AI mode */}
+              {/* Manual amount input -- hidden in AI mode */}
               {!aiMode&&(<>
               {/* Big amount input */}
               <div style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:14 }}>
@@ -892,7 +892,7 @@ Examples:
                 />
               </div>
 
-              {/* Quick amounts — fixed set */}
+              {/* Quick amounts -- fixed set */}
               <div style={{ marginBottom:10 }}>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
                   {QUICK.map(q=>(
@@ -904,7 +904,7 @@ Examples:
                 </div>
               </div>
 
-              {/* Additive pills — tap to add on top of current amount */}
+              {/* Additive pills -- tap to add on top of current amount */}
               <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:16 }}>
                 <span style={{ fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>Add</span>
                 {[20, 50, 100, 500].map(q=>(
@@ -921,7 +921,7 @@ Examples:
                 )}
               </div>
 
-              {/* Category grid — inline, no next button needed */}
+              {/* Category grid -- inline, no next button needed */}
               <div style={{ marginBottom:14 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Category</p>
@@ -962,7 +962,7 @@ Examples:
                 </div>
               )}
 
-              {/* Backdate — collapsed by default, expand if needed */}
+              {/* Backdate -- collapsed by default, expand if needed */}
               {expDate !== today && (
                 <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
                   <span style={{ fontSize:14 }}>📅</span>
@@ -997,22 +997,22 @@ Examples:
                 <button onClick={()=>setStep(0)} style={{ marginLeft:"auto", background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>← Edit</button>
               </div>
 
-              {/* Name — optional */}
+              {/* Name -- optional */}
               <div style={{ marginBottom:16 }}>
                 <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
-                  Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>— optional</span>
+                  Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>-- optional</span>
                 </p>
                 <input
                   ref={nameRef}
                   value={name} onChange={e=>setName(e.target.value)}
-                  placeholder={isGrocery ? "e.g. SM Supermarket run…" : `e.g. Jollibee, Grab, ${cat.label}…`}
+                  placeholder={isGrocery ? "e.g. SM Supermarket run..." : `e.g. Jollibee, Grab, ${cat.label}...`}
                   onKeyDown={e=>e.key==="Enter"&&save()}
                   style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"13px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
                 />
-                <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Leave blank — will save as "{cat.label}"</p>
+                <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Leave blank -- will save as "{cat.label}"</p>
               </div>
 
-              {/* Grocery items — only when grocery mode */}
+              {/* Grocery items -- only when grocery mode */}
               {isGrocery && (
                 <div style={{ marginBottom:16 }}>
                   <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Items in this haul</p>
@@ -1031,11 +1031,11 @@ Examples:
                 </div>
               )}
 
-              {/* Mood — inline emoji row */}
+              {/* Mood -- inline emoji row */}
               <div style={{ marginBottom:22 }}>
                 <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
-                  Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>— optional</span>
-                  {moodLogsCount<2 && <span style={{ color:C.rose, fontWeight:700 }}> · {2-moodLogsCount} more to unlock insights</span>}
+                  Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>-- optional</span>
+                  {moodLogsCount<2 && <span style={{ color:C.rose, fontWeight:700 }}> - {2-moodLogsCount} more to unlock insights</span>}
                 </p>
                 <div style={{ display:"flex", gap:8 }}>
                   {MOODS.map(m=>(
@@ -1078,7 +1078,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"100%"})`, width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
         <div style={{ display:"flex", justifyContent:"center", paddingTop:14 }}><div style={{ width:36, height:4, borderRadius:99, background:C.border }}/></div>
 
-        {/* Photo — shown at top if exists */}
+        {/* Photo -- shown at top if exists */}
         {expense.photo && (
           <div style={{ width:"100%", height:220, overflow:"hidden", position:"relative" }}>
             <img src={expense.photo} alt="memory" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
@@ -1095,7 +1095,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
             <div style={{ width:52, height:52, borderRadius:16, background:c.color+"1E", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{c.icon}</div>
             <div style={{ flex:1 }}>
               <h3 style={{ margin:"0 0 4px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expense.name}</h3>
-              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {expense.date}, {expense.time}</p>
+              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {expense.date}, {expense.time}</p>
             </div>
             <p style={{ margin:0, fontSize:22, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(expense.amount)}</p>
           </div>
@@ -1105,7 +1105,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
               <span style={{ fontSize:26 }}>{m.emoji}</span>
               <div>
                 <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:m.color, fontFamily:"DM Sans,sans-serif" }}>Feeling {m.label.toLowerCase()}</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="stressed"?"Heads up — stress spending adds up.":m.id==="happy"?"Happy purchases are the best kind.":m.id==="motivated"?"Smart spending. In the zone.":"Neutral day, neutral spend."}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="stressed"?"Heads up -- stress spending adds up.":m.id==="happy"?"Happy purchases are the best kind.":m.id==="motivated"?"Smart spending. In the zone.":"Neutral day, neutral spend."}</p>
               </div>
             </div>
           )}
@@ -1119,7 +1119,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
             </div>
           )}
 
-          {/* Add photo post-save — the whole point! */}
+          {/* Add photo post-save -- the whole point! */}
           {!expense.photo && !addingPhoto && (
             <button onClick={()=>setAddingPhoto(true)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:`${C.accent}08`, border:`1.5px dashed ${C.accent}35`, borderRadius:14, padding:"12px", cursor:"pointer", marginBottom:14 }}>
               <span style={{ fontSize:16 }}>📸</span>
@@ -1283,7 +1283,7 @@ function SubSheet({ sub, onSave, onClose }) {
         )}
 
         {/* Name */}
-        <div><SLabel>Name</SLabel><Inp autoFocus={editing||presetPicked} value={name} onChange={setName} placeholder="e.g. Netflix, Spotify…"/></div>
+        <div><SLabel>Name</SLabel><Inp autoFocus={editing||presetPicked} value={name} onChange={setName} placeholder="e.g. Netflix, Spotify..."/></div>
 
         {/* Amount */}
         <div>
@@ -1402,7 +1402,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
     <div className={embedded?"":"screen-wrap"} style={{ padding:embedded?"0":"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<SubSheet sub={sheet==="add"?null:sheet} onSave={saveSub} onClose={()=>setSheet(null)}/>}
 
-      {/* Header — full screen mode only */}
+      {/* Header -- full screen mode only */}
       {!embedded?(
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -1450,7 +1450,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
             <span style={{ fontSize:16, color:C.textSub, fontWeight:500 }}>/mo</span>
           </h2>
           <p style={{ margin:"0 0 14px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            ₱{Math.round(yearlyTotal).toLocaleString()}/yr · {activeSubs.length} active subscription{activeSubs.length!==1?"s":""}
+            ₱{Math.round(yearlyTotal).toLocaleString()}/yr - {activeSubs.length} active subscription{activeSubs.length!==1?"s":""}
           </p>
           {/* Category breakdown bar */}
           {(()=>{
@@ -1476,7 +1476,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
               <div style={{ width:38, height:38, borderRadius:12, background:`${s.color||C.accent}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{s.icon||"📦"}</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{s.name}</p>
-                <p style={{ margin:0, fontSize:11, color:urgColor(s.days), fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(s.days)} · {fmt(s.amount)}</p>
+                <p style={{ margin:0, fontSize:11, color:urgColor(s.days), fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(s.days)} - {fmt(s.amount)}</p>
               </div>
               <button onClick={()=>markPaid(s.id)} className="tap-btn"
                 style={{ background:`${C.green}15`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
@@ -1502,7 +1502,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
         <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🔄</div>
           <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No subscriptions yet</p>
-          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track Netflix, Spotify, iCloud — everything that auto-charges you.</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track Netflix, Spotify, iCloud -- everything that auto-charges you.</p>
           <button onClick={()=>setSheet("add")} className="tap-btn"
             style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
             + Add subscription
@@ -1589,7 +1589,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
 
       {subs.length>0&&(
         <p style={{ textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
-          💡 Tap "Mark paid" after you're charged — it auto-advances the next due date.
+          💡 Tap "Mark paid" after you're charged -- it auto-advances the next due date.
         </p>
       )}
     </div>
@@ -1673,8 +1673,8 @@ function Onboarding({ onDone }) {
 
   const slides=[
     { logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
-    { emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment — just memory.", cta:"Love that" },
-    { emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle — or don't. Your call.", cta:"Almost there →" },
+    { emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment -- just memory.", cta:"Love that" },
+    { emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle -- or don't. Your call.", cta:"Almost there →" },
   ];
 
   const handleDone = () => {
@@ -1775,12 +1775,12 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     const msg = over
       ? `Over by ${fmt(todaySpent - allowedPerDay)} today`
       : tight
-      ? `${fmt(allowedPerDay - todaySpent)} left for today — cutting it close`
+      ? `${fmt(allowedPerDay - todaySpent)} left for today -- cutting it close`
       : petsaDePeligro
       ? `Hold it. ${fmt(allowedPerDay - todaySpent)} left for today`
       : todaySpent === 0
       ? `You haven't spent anything today yet`
-      : `${fmt(allowedPerDay - todaySpent)} left for today — you're good`;
+      : `${fmt(allowedPerDay - todaySpent)} left for today -- you're good`;
     return { allowedPerDay, daysLeft, daysRemaining, pct, status, color, emoji, msg, label: cycle.label, petsaDePeligro };
   })();
 
@@ -1811,7 +1811,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     if (dailyLimit <= 0) return null; // needs a daily limit set
     let streak = 0;
     const tod = new Date(); tod.setHours(0,0,0,0);
-    // Check today first — counts if under limit (even if day isn't done)
+    // Check today first -- counts if under limit (even if day isn't done)
     for (let i = 0; i < 365; i++) {
       const d  = new Date(tod); d.setDate(tod.getDate() - i);
       const ds = d.toDateString();
@@ -1866,9 +1866,9 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     if (hour >= 5 && hour < 12) {
       // Morning
       greeting = ydUnder
-        ? `Magandang umaga, ${firstName}! 🌅 Yesterday ₱${ydSpent.toLocaleString()} — under budget.`
+        ? `Magandang umaga, ${firstName}! 🌅 Yesterday ₱${ydSpent.toLocaleString()} -- under budget.`
         : ydOver
-        ? `Umaga na, ${firstName}. Yesterday was ₱${ydSpent.toLocaleString()} — a bit over. Fresh start today.`
+        ? `Umaga na, ${firstName}. Yesterday was ₱${ydSpent.toLocaleString()} -- a bit over. Fresh start today.`
         : `Magandang umaga, ${firstName}! 🌅 Ready to track today?`;
       subtext = runway
         ? `You have ₱${runway.allowedPerDay.toLocaleString()}/day until ${runway.label}.`
@@ -1879,17 +1879,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       greeting = todaySpent === 0
         ? `Walang gastos pa, ${firstName}. 👀 Keep it up or log what you spent.`
         : todaySpent <= (runway?.allowedPerDay||dailyLimit||Infinity)
-        ? `Tanghali na, ${firstName}. ₱${todaySpent.toLocaleString()} spent so far — you're good. 🟢`
-        : `Heads up, ${firstName}. ₱${todaySpent.toLocaleString()} spent today — check your limit. ⚠️`;
+        ? `Tanghali na, ${firstName}. ₱${todaySpent.toLocaleString()} spent so far -- you're good. 🟢`
+        : `Heads up, ${firstName}. ₱${todaySpent.toLocaleString()} spent today -- check your limit. ⚠️`;
       subtext = budgetStreak && budgetStreak > 1
         ? `${budgetStreak}-day streak under budget. Don't break it.`
-        : `Log everything — even the ₱35 taho.`;
+        : `Log everything -- even the ₱35 taho.`;
       color = todaySpent > (runway?.allowedPerDay||dailyLimit||Infinity) ? C.gold : C.green;
     } else if (hour >= 17 && hour < 22) {
       // Evening
       const remaining = runway ? runway.allowedPerDay - todaySpent : dailyLimit - todaySpent;
       greeting = remaining > 0 && dailyLimit > 0
-        ? `Gabi na, ${firstName}. ₱${remaining.toLocaleString()} left for today — close the ring. 🎯`
+        ? `Gabi na, ${firstName}. ₱${remaining.toLocaleString()} left for today -- close the ring. 🎯`
         : todaySpent === 0
         ? `Evening, ${firstName}. No spend logged today. Zero day! 🏆`
         : `Gabi na, ${firstName}. Today: ₱${todaySpent.toLocaleString()}. ${underDays} of last 7 days under budget.`;
@@ -1955,7 +1955,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       <div style={{ background:`linear-gradient(145deg,#151515,#111)`, border:`1px solid ${morningBrief.color}30`, borderRadius:22, padding:"16px 18px", display:"flex", gap:16, alignItems:"center", position:"relative", overflow:"hidden", zIndex:1 }}>
         <Orb x="80%" y="50%" color={morningBrief.color} size={140} opacity={0.1}/>
 
-        {/* Daily ring — the close-the-ring moment */}
+        {/* Daily ring -- the close-the-ring moment */}
         <div style={{ flexShrink:0, position:"relative" }}>
           <Ring
             pct={ringPct}
@@ -2018,7 +2018,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         </div>
       </div>
 
-      {/* ── 1. TODAY HERO — the main event ── */}
+      {/* ── 1. TODAY HERO -- the main event ── */}
       {(()=>{
         const todayExps  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
         const todayTotal = todayExps.reduce((s,e)=>s+e.amount,0);
@@ -2056,7 +2056,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
                 </div>
               </div>
             )}
-            {/* Balance strip — available + can spend/day only */}
+            {/* Balance strip -- available + can spend/day only */}
             <div style={{ display:"flex", gap:8, flexWrap:"wrap", paddingTop:12, borderTop:`1px solid ${C.accent}20`, position:"relative", zIndex:1 }}>
               <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
                 <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
@@ -2098,7 +2098,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
                       {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
                       <div style={{ flex:1 }}>
                         <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
-                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}</p>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}
@@ -2114,7 +2114,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         );
       })()}
 
-      {/* ── 3. ALERTS — only if triggered ── */}
+      {/* ── 3. ALERTS -- only if triggered ── */}
       {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
 
       {/* ── 4. FINANCIAL SUMMARY ── */}
@@ -2168,7 +2168,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
               <div style={{ width:42, height:42, borderRadius:13, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>😰</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Mood Insight</p>
-                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed — {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
+                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed -- {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
                 <Tag color={C.coral}>See mood breakdown →</Tag>
               </div>
             </div>
@@ -2184,10 +2184,10 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           const byDay2=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) byDay2[new Date(e.ts).getDay()]+=e.amount; });
           const fri=byDay2[5],sat=byDay2[6],wkAvg=(byDay2[1]+byDay2[2]+byDay2[3]+byDay2[4])/4||1;
           let tip={ icon:"✅", text:"Your spending looks balanced. Keep logging to see more patterns." };
-          if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use — leave the rest in your account." };
-          else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam. Malaking tipid over a month.` };
+          if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use -- leave the rest in your account." };
+          else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week -- kahit simpleng ulam. Malaking tipid over a month.` };
           else if(shopAmt/totalAll>0.25) tip={ icon:"🛍️", text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
-          else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning — once it's gone, it's gone." };
+          else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning -- once it's gone, it's gone." };
           return (
             <Card style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
               <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
@@ -2251,12 +2251,12 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   if (expenses.length===0) {
     tips.push({ icon:"💡", tip:"Start logging to unlock your personal insights. Kahit 5 entries lang, makikita mo na ang pattern mo." });
   } else {
-    if (income>0 && totalSpent/income>0.8) tips.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Classic one-day-millionaire move. Withdraw only what you plan to spend — leave the rest in your account.` });
-    if (foodPct>0.4) tips.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam lang. Malaking tipid over a month.` });
-    if (shopPct>0.25) tips.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule — wait 2 days before buying anything over ₱500. Madalas, mawawala na yung gusto.` });
-    if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) tips.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning — once it's gone, it's gone." });
-    if (dailyLimit>0&&todaySpent>dailyLimit*0.9) tips.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight — those small orders add up fast.` });
-    if (tips.length===0) tips.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging — mas magiging clear ang pattern mo over time." });
+    if (income>0 && totalSpent/income>0.8) tips.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Classic one-day-millionaire move. Withdraw only what you plan to spend -- leave the rest in your account.` });
+    if (foodPct>0.4) tips.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week -- kahit simpleng ulam lang. Malaking tipid over a month.` });
+    if (shopPct>0.25) tips.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule -- wait 2 days before buying anything over ₱500. Madalas, mawawala na yung gusto.` });
+    if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) tips.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning -- once it's gone, it's gone." });
+    if (dailyLimit>0&&todaySpent>dailyLimit*0.9) tips.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight -- those small orders add up fast.` });
+    if (tips.length===0) tips.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging -- mas magiging clear ang pattern mo over time." });
   }
 
   return (
@@ -2315,7 +2315,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
             <div>
               <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(weekTotal)}</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week · {thisWeek.length} transactions</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week - {thisWeek.length} transactions</p>
             </div>
             {weekTotal>0&&weekPeakIdx>=0&&<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Highest spend</p><Tag color={C.coral}>{DAYS[weekPeakIdx]}</Tag></div>}
           </div>
@@ -2344,7 +2344,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
                 </div>
               );})}
             </div>
-            {byDay[peakDayIdx]>0&&<p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>You spend the most on <strong style={{ color:C.accent }}>{DAYS[peakDayIdx]}</strong> — {fmt(byDay[peakDayIdx])} total. Plan ahead for it.</p>}
+            {byDay[peakDayIdx]>0&&<p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>You spend the most on <strong style={{ color:C.accent }}>{DAYS[peakDayIdx]}</strong> -- {fmt(byDay[peakDayIdx])} total. Plan ahead for it.</p>}
           </Card>
         </div>
       )}
@@ -2358,7 +2358,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
               <div key={c.id} style={{ marginBottom:i<byCat.length-1?14:0 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div>
-                  <div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> · {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div>
+                  <div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> - {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div>
                 </div>
                 <Bar pct={totalSpent?(c.total/totalSpent)*100:0} color={c.color} h={5}/>
               </div>
@@ -2408,7 +2408,7 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
   const periodLabel = period==="day"
     ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})
     : period==="week"
-    ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}`
+    ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} - ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}`
     : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
 
   return (
@@ -2449,11 +2449,11 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
                 {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p>
-                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{catOf(e.catId).label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{catOf(e.catId).label} - {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> - 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> - 📸</span>}</p>
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0 }}>
                   <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
-                  {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}
+                  {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}
                 </div>
               </div>
             </Card>
@@ -2487,11 +2487,11 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
                           {e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}
                           <div style={{ flex:1, minWidth:0 }}>
                             <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p>
-                            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p>
+                            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> - 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> - 📸</span>}</p>
                           </div>
                           <div style={{ textAlign:"right", flexShrink:0 }}>
                             <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
-                            {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>—</span>}
+                            {m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}
                           </div>
                         </div>
                       </Card>
@@ -2581,7 +2581,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
                       <button onClick={()=>{ setBudgets(b=>({...b,[c.id]:+bInput||0})); setEditB(null); }} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Set</button>
                     </div>
                   ):(
-                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(spent)} {limit>0?`of ${fmt(limit)}`:"— no limit set"}{over&&<strong style={{ color:C.coral }}> · OVER!</strong>}</p>
+                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(spent)} {limit>0?`of ${fmt(limit)}`:"-- no limit set"}{over&&<strong style={{ color:C.coral }}> - OVER!</strong>}</p>
                   )}
                 </div>
                 {!isEdit&&<button onClick={()=>{ setEditB(c.id); setBInput(String(limit||"")); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{limit>0?"Edit":"Set"}</button>}
@@ -2608,7 +2608,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
           ):(
             <>
               <Card style={{ background:`${C.rose}0C`, border:`1px solid ${C.rose}28` }}><p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Emotional Finance Profile</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>How you feel shapes how you spend.</p></Card>
-              {bymood.map(m=>(<Card key={m.id}><div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:12 }}><span style={{ fontSize:32 }}>{m.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} · {m.pct}% of spending</p></div><p style={{ margin:0, fontSize:16, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p></div><Bar pct={m.pct} color={m.color} h={6}/></Card>))}
+              {bymood.map(m=>(<Card key={m.id}><div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:12 }}><span style={{ fontSize:32 }}>{m.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} - {m.pct}% of spending</p></div><p style={{ margin:0, fontSize:16, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p></div><Bar pct={m.pct} color={m.color} h={6}/></Card>))}
             </>
           )}
         </div>
@@ -2637,7 +2637,7 @@ function PaymentSheet({ utang, onSave, onClose }) {
   };
 
   return (
-    <BottomSheet onClose={onClose} title={`Log payment · ${utang.person}`}>
+    <BottomSheet onClose={onClose} title={`Log payment - ${utang.person}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
@@ -2689,7 +2689,7 @@ function PaymentSheet({ utang, onSave, onClose }) {
 
         <div>
           <SLabel>Note (optional)</SLabel>
-          <Inp value={note} onChange={setNote} placeholder="e.g. GCash transfer, cash bayad…"/>
+          <Inp value={note} onChange={setNote} placeholder="e.g. GCash transfer, cash bayad..."/>
         </div>
 
         <div style={{ display:"flex", gap:10 }}>
@@ -2761,7 +2761,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
         ))}
       </div>
 
-      {/* Loans tab — embed LoansScreen content inline */}
+      {/* Loans tab -- embed LoansScreen content inline */}
       {utangTab === "loans" && (
         <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded/>
       )}
@@ -2803,7 +2803,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
         <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🤝</div>
           <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang utang!</p>
-          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track who owes who — for lunches, GCash, or basta.</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track who owes who -- for lunches, GCash, or basta.</p>
           <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add utang</button>
         </div>
       )}
@@ -2825,7 +2825,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
                 <p style={{ margin:"0 0 2px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
                 <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
                   {u.direction==="iowe"?"I owe them":"They owe me"}
-                  {u.note&&<span style={{ color:C.textFaint }}> · "{u.note}"</span>}
+                  {u.note&&<span style={{ color:C.textFaint }}> - "{u.note}"</span>}
                 </p>
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -2931,7 +2931,7 @@ function UtangSheet({ utang, onSave, onClose }) {
             </button>
           ))}
         </div>
-        <div><SLabel>Who?</SLabel><Inp autoFocus value={person} onChange={setPerson} placeholder="e.g. Mico, Jessa, Sir JA…"/></div>
+        <div><SLabel>Who?</SLabel><Inp autoFocus value={person} onChange={setPerson} placeholder="e.g. Mico, Jessa, Sir JA..."/></div>
         <div>
           <SLabel>Total amount</SLabel>
           <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${amount?C.accent+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
@@ -2943,7 +2943,7 @@ function UtangSheet({ utang, onSave, onClose }) {
             {[50,100,200,500,1000].map(q=>(<button key={q} onClick={()=>setAmount(String(q))} className="tap-btn" style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q}</button>))}
           </div>
         </div>
-        <div><SLabel>For what? (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. lunch, GCash load, taxi share…"/></div>
+        <div><SLabel>For what? (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. lunch, GCash load, taxi share..."/></div>
         <div style={{ display:"flex", gap:10 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:person.trim()&&+amount>0?1:0.4 }}>Log it</Btn>
@@ -2955,7 +2955,7 @@ function UtangSheet({ utang, onSave, onClose }) {
 
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
-function PaymentSheet({ loan, onSave, onClose, wallets }) {
+function LoanPaymentSheet({ loan, onSave, onClose, wallets }) {
   const [amount,   setAmount]   = useState(loan.monthlyDue ? String(loan.monthlyDue) : "");
   const [walletId, setWalletId] = useState(wallets?.length ? wallets[0].id : null);
   const [note,     setNote]     = useState("");
@@ -2964,7 +2964,7 @@ function PaymentSheet({ loan, onSave, onClose, wallets }) {
   const valid = amount && +amount > 0 && +amount <= remaining;
 
   return (
-    <BottomSheet onClose={onClose} title={`Log Payment — ${loan.name}`}>
+    <BottomSheet onClose={onClose} title={`Log Payment -- ${loan.name}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:14, padding:"12px 16px" }}>
           <div style={{ display:"flex", justifyContent:"space-between" }}>
@@ -2987,7 +2987,7 @@ function PaymentSheet({ loan, onSave, onClose, wallets }) {
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
             {[loan.monthlyDue,Math.round(remaining/2),remaining].filter(v=>v>0).map((q,i)=>(
               <button key={i} onClick={()=>setAmount(String(Math.round(q)))} style={{ background:amount===String(Math.round(q))?loan.color+"20":C.surface, border:`1px solid ${amount===String(Math.round(q))?loan.color+"60":C.border}`, color:amount===String(Math.round(q))?loan.color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
-                {i===0?"Monthly":i===1?"Half":i===2?"Full pay"} {fmt(Math.round(q))}
+                {i===0?"Monthly":i===1?"Half":"Full pay"} {fmt(Math.round(q))}
               </button>
             ))}
           </div>
@@ -3064,7 +3064,7 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
-      {paySheet&&<PaymentSheet loan={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets}/>}
+      {paySheet&&<LoanPaymentSheet loan={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3109,11 +3109,11 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
                   </div>
                 </div>
                 <div style={{ textAlign:"right" }}>
-                  <p style={{ margin:0, fontSize:22, fontWeight:800, color:dtiWarn?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{income>0?dtiPct+"%" : "—"}</p>
+                  <p style={{ margin:0, fontSize:22, fontWeight:800, color:dtiWarn?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{income>0?dtiPct+"%" : "--"}</p>
                 </div>
               </div>
               {income>0&&<Bar pct={Math.min(dtiPct,100)} color={dtiWarn?C.coral:C.green} h={5}/>}
-              {dtiWarn&&<p style={{ margin:"8px 0 0", fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>Your monthly debt payments exceed 30% of income — the international danger zone. Avoid taking new loans.</p>}
+              {dtiWarn&&<p style={{ margin:"8px 0 0", fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>Your monthly debt payments exceed 30% of income -- the international danger zone. Avoid taking new loans.</p>}
               {!income&&<p style={{ margin:"4px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Set your income in Profile to see your DTI ratio.</p>}
             </Card>
           )}
@@ -3145,10 +3145,10 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
                   <div><SLabel>Total</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.amount)}</p></div>
                   <div><SLabel>Remaining</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p></div>
-                  <div><SLabel>Monthly</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.monthlyDue>0?fmt(loan.monthlyDue):"—"}</p></div>
+                  <div><SLabel>Monthly</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.monthlyDue>0?fmt(loan.monthlyDue):"--"}</p></div>
                 </div>
 
-                {trueCost&&<p style={{ margin:"0 0 10px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💡 True cost with interest: <strong style={{ color:C.gold }}>{fmt(trueCost)}</strong> — {fmt(trueCost-loan.amount)} extra</p>}
+                {trueCost&&<p style={{ margin:"0 0 10px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💡 True cost with interest: <strong style={{ color:C.gold }}>{fmt(trueCost)}</strong> -- {fmt(trueCost-loan.amount)} extra</p>}
 
                 <Bar pct={pct} color={loan.color} h={5}/>
 
@@ -3177,7 +3177,7 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
                           <div key={p.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:i<history.length-1?10:0, marginBottom:i<history.length-1?10:0, borderBottom:i<history.length-1?`1px solid ${C.border}`:"none" }}>
                             <div>
                               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
-                              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.date} {w?`· ${w.icon} ${w.name}`:""}  {p.note?`· ${p.note}`:""}</p>
+                              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.date} {w?`- ${w.icon} ${w.name}`:""}  {p.note?`- ${p.note}`:""}</p>
                             </div>
                             <Tag color={loan.color}>Paid</Tag>
                           </div>
@@ -3224,7 +3224,7 @@ function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScree
         ))}
       </div>
 
-      {/* Embedded screens — no header, no back btn */}
+      {/* Embedded screens -- no header, no back btn */}
       {tab === "wallets" && <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen} embedded/>}
       {tab === "goals"   && <GoalsScreen   goals={goals}     setGoals={setGoals}     income={income} setScreen={setScreen} embedded/>}
     </div>
@@ -3249,7 +3249,7 @@ function GoalsScreen({ goals, setGoals, income, setScreen, embedded=false }) {
       level:1, name:"Starter Guard", emoji:"🛡️", color:C.lime,
       target: monthlyEssentials,
       desc:"1 month of essential living expenses",
-      tip:"Start here. This covers one bad month — job loss, hospital visit, broken phone.",
+      tip:"Start here. This covers one bad month -- job loss, hospital visit, broken phone.",
     },
     {
       level:2, name:"Safety Shield", emoji:"⚔️", color:C.sky,
@@ -3316,7 +3316,7 @@ function GoalsScreen({ goals, setGoals, income, setScreen, embedded=false }) {
             <Bar pct={Math.min((efSaved/tiers[activeTier].target)*100,100)} color={tiers[activeTier].color} h={8}/>
             {efSaved<tiers[activeTier].target&&(
               <p style={{ margin:"10px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                {fmt(tiers[activeTier].target-efSaved)} to go · save <strong style={{ color:tiers[activeTier].color }}>{fmt(Math.round((tiers[activeTier].target-efSaved)/6))}/mo</strong> to get there in 6 months
+                {fmt(tiers[activeTier].target-efSaved)} to go - save <strong style={{ color:tiers[activeTier].color }}>{fmt(Math.round((tiers[activeTier].target-efSaved)/6))}/mo</strong> to get there in 6 months
               </p>
             )}
           </div>
@@ -3340,7 +3340,7 @@ function GoalsScreen({ goals, setGoals, income, setScreen, embedded=false }) {
                   </div>
                   <div style={{ flex:1 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:isDone?t.color:isActive?C.text:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Level {t.level} · {t.name}</p>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:isDone?t.color:isActive?C.text:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Level {t.level} - {t.name}</p>
                       {isDone&&<Tag color={t.color}>Complete</Tag>}
                       {isActive&&!isDone&&<Tag color={t.color}>Active</Tag>}
                     </div>
@@ -3496,7 +3496,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
     statusMsg="Nasa gitna ka na. Mag-isip muna bago mag-gastos ng hindi nakaplano.";
   } else {
     status="On track"; statusColor=C.green; statusEmoji="✅";
-    statusMsg="Ayos ka pa. Keep going — huwag lang mag-justify ng unnecessary purchases.";
+    statusMsg="Ayos ka pa. Keep going -- huwag lang mag-justify ng unnecessary purchases.";
   }
 
   const todayStr   = now.toDateString();
@@ -3530,7 +3530,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
       <Card style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${spendPerDay>0?C.accent+"45":C.coral+"45"}`, textAlign:"center", padding:"28px 20px" }}>
         <SLabel>You can spend per day</SLabel>
         <p style={{ margin:"10px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(spendPerDay)}</p>
-        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} day{daysLeft!==1?"s":""} until {cycle.label} · <span style={{ color:C.text, fontWeight:700 }}>{fmt(balance)}</span> left</p>
+        <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} day{daysLeft!==1?"s":""} until {cycle.label} - <span style={{ color:C.text, fontWeight:700 }}>{fmt(balance)}</span> left</p>
       </Card>
 
       {/* Cycle vs spend */}
@@ -3678,7 +3678,7 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {[
-              { val:"both",  label:"15th & 30th",    sub:"Semi-monthly — most common in PH", emoji:"🏆" },
+              { val:"both",  label:"15th & 30th",    sub:"Semi-monthly -- most common in PH", emoji:"🏆" },
               { val:"15",    label:"15th only",       sub:"Monthly, mid-month payday",        emoji:"📆" },
               { val:"30",    label:"End of month",    sub:"Monthly, last day payday",         emoji:"📆" },
             ].map(opt=>(
@@ -3764,7 +3764,7 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
             <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup (JSON)</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data — expenses, loans, goals, utangs</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data -- expenses, loans, goals, utangs</p>
             </div>
             <button onClick={()=>{
               const backup = {
@@ -3806,13 +3806,13 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
       <div style={{ background:`${C.sky}08`, border:`1px solid ${C.sky}25`, borderRadius:16, padding:"16px 18px" }}>
         <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>⚡ Log expenses in 1 tap</p>
         <p style={{ margin:"0 0 12px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-          Set up Back Tap (iPhone) or Quick Tap (Android) to open the add expense sheet instantly — no unlocking, no navigating.
+          Set up Back Tap (iPhone) or Quick Tap (Android) to open the add expense sheet instantly -- no unlocking, no navigating.
         </p>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {[
-            { icon:"🍎", label:"iPhone — Back Tap", steps:"Settings → Accessibility → Touch → Back Tap → Double Tap → Open URL → " + window.location.origin + "/?action=add" },
-            { icon:"🤖", label:"Android — Quick Tap (Pixel)", steps:"Settings → System → Gestures → Quick Tap → Open app → bulsa." },
-            { icon:"📱", label:"Android — Tap,Tap app", steps:"Install Tap,Tap from GitHub → Double tap action → Open URL → " + window.location.origin + "/?action=add" },
+            { icon:"🍎", label:"iPhone -- Back Tap", steps:"Settings → Accessibility → Touch → Back Tap → Double Tap → Open URL → " + window.location.origin + "/?action=add" },
+            { icon:"🤖", label:"Android -- Quick Tap (Pixel)", steps:"Settings → System → Gestures → Quick Tap → Open app → bulsa." },
+            { icon:"📱", label:"Android -- Tap,Tap app", steps:"Install Tap,Tap from GitHub → Double tap action → Open URL → " + window.location.origin + "/?action=add" },
           ].map((item,i)=>(
             <div key={i} style={{ background:C.surface, borderRadius:11, padding:"10px 13px" }}>
               <p style={{ margin:"0 0 3px", fontSize:12, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.icon} {item.label}</p>
@@ -3825,7 +3825,7 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
         </p>
       </div>
 
-      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 · built for Filipinos 🇵🇭</p>
+      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
     </div>
   );
 }
@@ -3967,7 +3967,7 @@ export default function Bulsa() {
     activeSubs.forEach(s=>{
       const days = daysUntil(s.dueDate);
       if (days<=0)  sendNotif(`${s.name} is overdue! 🚨`, `₱${s.amount.toLocaleString()} was due on ${s.dueDate}`);
-      else if (days===1) sendNotif(`${s.name} due tomorrow 🔔`, `₱${s.amount.toLocaleString()} — don't forget!`);
+      else if (days===1) sendNotif(`${s.name} due tomorrow 🔔`, `₱${s.amount.toLocaleString()} -- don't forget!`);
       else if (days===3) sendNotif(`${s.name} due in 3 days`, `₱${s.amount.toLocaleString()} coming up`);
     });
   }, []);
@@ -3993,7 +3993,7 @@ export default function Bulsa() {
       if (s) {
         setScreen(s);
       } else {
-        // No state means we've gone back past our seed — re-push it
+        // No state means we've gone back past our seed -- re-push it
         history.pushState({ screen:"home" }, "");
         setScreen("home");
       }
