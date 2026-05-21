@@ -1680,9 +1680,27 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 function BulsaLogo({ size=48 }) {
   const r = Math.round(size * 0.224);
+  const p = size * 0.18; // padding inside the box
+  const w = size - p * 2;
+  // Pocket shape: rectangle with a rounded U cutout at the top
+  const cx = size / 2;
+  const top = p + w * 0.08;
+  const bot = size - p;
+  const pw  = w * 0.72; // pocket width
+  const ph  = w * 0.58; // pocket height
+  const pr  = pw * 0.38; // corner radius of pocket arc
+  const px  = cx - pw / 2;
+  const py  = top + w * 0.16;
   return (
     <div style={{ width:size, height:size, borderRadius:r, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, flexShrink:0 }}>
-      <span style={{ fontFamily:"Georgia,serif", fontSize:size*0.62, fontWeight:700, color:"#fff", lineHeight:1, marginTop:size*0.06 }}>b</span>
+      <svg width={size*0.62} height={size*0.62} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Outer pocket body */}
+        <rect x="4" y="10" width="32" height="24" rx="5" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
+        {/* Pocket top flap / opening arc */}
+        <path d="M13 10 Q13 4 20 4 Q27 4 27 10" stroke="rgba(255,255,255,0.9)" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+        {/* Coin slot line */}
+        <line x1="14" y1="22" x2="26" y2="22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
     </div>
   );
 }
@@ -1975,7 +1993,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       </div>
 
       {/* ── MORNING BRIEF + RING + STREAK ── */}
-      <div style={{ background:`linear-gradient(145deg,#151515,#111)`, border:`1px solid ${morningBrief.color}30`, borderRadius:22, padding:"16px 18px", display:"flex", gap:16, alignItems:"center", position:"relative", overflow:"hidden", zIndex:1 }}>
+      <div style={{ background:`linear-gradient(145deg,#0E2240,#111E2F)`, border:`1px solid ${morningBrief.color}30`, borderRadius:22, padding:"16px 18px", display:"flex", gap:16, alignItems:"center", position:"relative", overflow:"hidden", zIndex:1 }}>
         <Orb x="80%" y="50%" color={morningBrief.color} size={140} opacity={0.1}/>
 
         {/* Daily ring -- the close-the-ring moment */}
@@ -2093,6 +2111,43 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           </div>
         );
       })()}
+
+      {/* ── WALLET GRID ── visible at a glance, no tapping required */}
+      {wallets && wallets.length > 0 && (
+        <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
+            <button onClick={()=>setScreen("wallets")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(wallets.length,3)},1fr)`, gap:8 }}>
+            {wallets.slice(0,3).map(w => (
+              <button key={w.id} onClick={()=>setScreen("wallets")} className="tap-btn"
+                style={{ background:C.card, border:`1px solid ${hidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
+                <span style={{ fontSize:18 }}>{w.icon}</span>
+                <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:hidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>
+                  {hidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
+                </p>
+              </button>
+            ))}
+            {wallets.length > 3 && (
+              <button onClick={()=>setScreen("wallets")} className="tap-btn"
+                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
+                <span style={{ fontSize:16, color:C.textSub }}>+{wallets.length - 3}</span>
+                <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>more</p>
+              </button>
+            )}
+          </div>
+          {/* Total net worth strip */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
+            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total across all wallets</span>
+            <span style={{ fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+              {hidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── 2. TODAY'S TRANSACTIONS ── */}
       {(()=>{
