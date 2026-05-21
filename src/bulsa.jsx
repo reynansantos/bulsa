@@ -3915,7 +3915,7 @@ export default function Bulsa() {
     // Register service worker for offline support
     if ("serviceWorker" in navigator) {
       const swCode = `
-        const CACHE = "bulsa-v1";
+        const CACHE = "bulsa-v${Date.now()}";
         const ASSETS = ["/"];
         self.addEventListener("install", e => {
           e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
