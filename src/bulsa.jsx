@@ -363,9 +363,9 @@ function BottomSheet({ children, onClose, title }) {
   const close = ()=>{ setVis(false); setTimeout(onClose,320); };
   return (
     <>
-      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
-        width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",
+      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
+        width:"100%", background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
         transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
         {/* Drag handle */}
@@ -922,11 +922,11 @@ load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
 
   return (
     <>
-      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
       <div style={{
-        position:"fixed", bottom:0, left:"50%",
-        transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
-        width:"100%", maxWidth:420, background:C.surface,
+        position:"absolute", bottom:0, left:0, right:0,
+        transform:`translateY(${vis?0:"110%"})`,
+        width:"100%", background:C.surface,
         borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`,
         borderBottom:"none", zIndex:201,
         transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)",
@@ -1190,8 +1190,8 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
 
   return (
     <>
-      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"100%"})`, width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
+      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"100%"})`, width:"100%", background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
         <div style={{ display:"flex", justifyContent:"center", paddingTop:14 }}><div style={{ width:36, height:4, borderRadius:99, background:C.border }}/></div>
 
         {/* Photo -- shown at top if exists */}
@@ -4452,7 +4452,7 @@ export default function Bulsa() {
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)", position:"relative", overflow:"hidden" }}>
         {!onboarded?(
           <Onboarding onDone={handleOnboardDone}/>
         ):(
