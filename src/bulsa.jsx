@@ -556,12 +556,141 @@ function WalletSheet({ wallet, onSave, onClose }) {
   );
 }
 
+// ─── WALLET TOP-UP / ADJUST SHEET ─────────────────────────────────────────
+
+function WalletAdjustSheet({ wallet, onSave, onClose }) {
+  const [mode,    setMode]    = useState("add");   // "add" | "subtract"
+  const [amount,  setAmount]  = useState("");
+  const [label,   setLabel]   = useState("");
+  const color = wallet.color || C.accent;
+
+  const QUICK_ADD = [100, 500, 1000, 3000, 5000, 10000];
+  const QUICK_SUB = [50, 100, 200, 500, 1000];
+
+  const PRESETS = {
+    add:      ["Withdrawal","Salary","Transfer in","Top-up","Cash received","Refund"],
+    subtract: ["Transfer out","Sent to friend","Cash out","Payment","Correction"],
+  };
+
+  const newBalance = mode === "add"
+    ? wallet.balance + (+amount || 0)
+    : Math.max(wallet.balance - (+amount || 0), 0);
+
+  const valid = amount && +amount > 0;
+
+  const save = () => {
+    if (!valid) return;
+    const txn = {
+      id:      uid(),
+      type:    mode,
+      amount:  +amount,
+      label:   label.trim() || (mode === "add" ? "Top-up" : "Deduction"),
+      date:    new Date().toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" }),
+      ts:      new Date().toISOString(),
+    };
+    onSave({
+      ...wallet,
+      balance:  newBalance,
+      txnLog:  [...(wallet.txnLog || []), txn],
+    });
+  };
+
+  return (
+    <BottomSheet onClose={onClose} title={`Adjust · ${wallet.name}`}>
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+        {/* Current balance pill */}
+        <div style={{ background:`${color}12`, border:`1px solid ${color}35`, borderRadius:16, padding:"14px 18px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>Current balance</p>
+            <p style={{ margin:0, fontSize:26, fontWeight:800, color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>₱{wallet.balance.toLocaleString()}</p>
+          </div>
+          <div style={{ fontSize:32 }}>{wallet.icon}</div>
+        </div>
+
+        {/* Add / Subtract toggle */}
+        <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}`, gap:3 }}>
+          {[["add","➕  Add","#00E096"],["subtract","➖  Deduct",C.coral]].map(([v,lbl,clr])=>(
+            <button key={v} onClick={()=>{ setMode(v); setAmount(""); setLabel(""); }} className="tap-btn"
+              style={{ flex:1, padding:"10px 6px", borderRadius:10, border:"none", cursor:"pointer",
+                fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800,
+                background: mode===v ? clr : "none",
+                color:      mode===v ? "#fff" : C.textSub,
+                transition:"all 0.18s",
+              }}>{lbl}</button>
+          ))}
+        </div>
+
+        {/* Amount input */}
+        <div>
+          <SLabel>{mode === "add" ? "Amount to add" : "Amount to deduct"}</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1.5px solid ${valid?(mode==="add"?C.green:C.coral)+"70":C.border}`, borderRadius:14, padding:"12px 16px", gap:8, transition:"border-color 0.18s" }}>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:24, fontWeight:800, color:C.textSub }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amount}
+              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
+              placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text, caretColor:mode==="add"?C.green:C.coral }}/>
+          </div>
+          {/* Quick amounts */}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+            {(mode==="add"?QUICK_ADD:QUICK_SUB).map(q=>(
+              <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
+                style={{ background:amount===String(q)?(mode==="add"?C.green:C.coral)+"22":C.card,
+                  border:`1px solid ${amount===String(q)?(mode==="add"?C.green:C.coral)+"55":C.border}`,
+                  color:amount===String(q)?(mode==="add"?C.green:C.coral):C.textSub,
+                  borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                ₱{q.toLocaleString()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Label */}
+        <div>
+          <SLabel>Label (optional)</SLabel>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+            {PRESETS[mode].map(p=>(
+              <button key={p} onClick={()=>setLabel(p)} className="tap-btn"
+                style={{ background:label===p?`${color}20`:C.card, border:`1px solid ${label===p?color+"55":C.border}`,
+                  color:label===p?color:C.textSub, borderRadius:99, padding:"5px 12px",
+                  cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>{p}</button>
+            ))}
+          </div>
+          <Inp value={label} onChange={setLabel} placeholder={mode==="add"?"e.g. Withdrawal from BDO…":"e.g. Sent to GCash…"}/>
+        </div>
+
+        {/* New balance preview */}
+        {valid && (
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>New balance</p>
+            <p style={{ margin:0, fontSize:20, fontWeight:800, color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>
+              ₱{newBalance.toLocaleString()}
+              <span style={{ fontSize:12, fontWeight:600, color:mode==="add"?C.green:C.coral, marginLeft:6 }}>
+                {mode==="add"?"+":"−"}₱{(+amount).toLocaleString()}
+              </span>
+            </p>
+          </div>
+        )}
+
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?(mode==="add"?"linear-gradient(135deg,#00E096,#00B874)":"linear-gradient(135deg,#FF4455,#FF7080)"):undefined }}>
+            {mode==="add" ? "Add funds" : "Deduct funds"}
+          </Btn>
+        </div>
+
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
 function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
   const fmt = useFmt();
-  const [sheet,   setSheet]   = useState(null);
-  const [confirm, setConfirm] = useState(null);
+  const [sheet,        setSheet]        = useState(null);
+  const [adjustSheet,  setAdjustSheet]  = useState(null);
+  const [confirm,      setConfirm]      = useState(null);
 
   const total = wallets.reduce((s,w) => s + w.balance, 0);
 
@@ -569,11 +698,16 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
     setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]);
     setSheet(null);
   };
+  const saveAdjust = w => {
+    setWallets(prev => prev.map(x=>x.id===w.id ? w : x));
+    setAdjustSheet(null);
+  };
   const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
+      {adjustSheet && <WalletAdjustSheet wallet={adjustSheet} onSave={saveAdjust} onClose={()=>setAdjustSheet(null)}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -642,10 +776,16 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</p>
                 <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
               </div>
-              <div style={{ display:"flex", gap:8 }}>
+              <div style={{ display:"flex", gap:6 }}>
+                {/* Add/Deduct quick button */}
+                <button onClick={()=>setAdjustSheet(w)} className="tap-btn" style={{
+                  background:`${C.green}18`, border:`1px solid ${C.green}45`, color:C.green,
+                  borderRadius:10, padding:"8px 12px", cursor:"pointer",
+                  fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:800,
+                }} title="Add or deduct funds">+/−</button>
                 <button onClick={()=>setSheet(w)} className="tap-btn" style={{
                   background:C.surface, border:`1px solid ${C.border}`, color:C.textSub,
-                  borderRadius:10, padding:"8px 14px", cursor:"pointer",
+                  borderRadius:10, padding:"8px 12px", cursor:"pointer",
                   fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700,
                 }}>Edit</button>
                 {confirm===w.id ? (
@@ -668,6 +808,25 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
             <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
               {total>0?Math.round((w.balance/total)*100):0}% of total
             </p>
+            {/* Mini transaction log */}
+            {w.txnLog && w.txnLog.length > 0 && (
+              <div style={{ marginTop:12, borderTop:`1px solid ${C.border}`, paddingTop:10, display:"flex", flexDirection:"column", gap:5 }}>
+                {[...w.txnLog].reverse().slice(0,3).map(t=>(
+                  <div key={t.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                      <span style={{ fontSize:11 }}>{t.type==="add"?"↑":"↓"}</span>
+                      <p style={{ margin:0, fontSize:11, fontWeight:600, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{t.label}</p>
+                    </div>
+                    <p style={{ margin:0, fontSize:11, fontWeight:800, color:t.type==="add"?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+                      {t.type==="add"?"+":"−"}₱{t.amount.toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+                {w.txnLog.length > 3 && (
+                  <p style={{ margin:"2px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>+{w.txnLog.length-3} more adjustments</p>
+                )}
+              </div>
+            )}
           </Card>
         ))
       )}
