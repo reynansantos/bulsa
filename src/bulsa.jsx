@@ -503,7 +503,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
 
       {/* Total balance hero */}
       {wallets.length > 0 && (
-        <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
+        <div style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
           <Orb x="40%" y="-30px" color={C.accent} size={200} opacity={0.22}/>
           <SLabel>Total Available</SLabel>
           <p style={{ margin:"4px 0 4px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
@@ -1442,7 +1442,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
 
       {/* Monthly total hero */}
       {activeSubs.length>0&&(
-        <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
+        <div style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${C.accent}35`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden" }}>
           <Orb x="60%" y="-20px" color={C.accent} size={200} opacity={0.2}/>
           <SLabel>Monthly subscriptions</SLabel>
           <h2 style={{ margin:"4px 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:40, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1 }}>
@@ -1915,7 +1915,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       {/* ── PWA INSTALL BANNER ── */}
       {showInstallBanner && (
-        <div style={{ background:"linear-gradient(135deg,#1A1200,#181818)", border:`1px solid ${C.gold}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, zIndex:2 }}>
+        <div style={{ background:"linear-gradient(135deg,#0D1F35,#0A1628)", border:`1px solid ${C.gold}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, zIndex:2 }}>
           <span style={{ fontSize:24, flexShrink:0 }}>📲</span>
           <div style={{ flex:1 }}>
             <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
@@ -2027,7 +2027,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         const heroColor  = overLimit?C.coral:nearLimit?C.gold:C.accent;
         const todayPct   = dailyLimit>0?Math.min((todayTotal/dailyLimit)*100,100):0;
         return (
-          <div style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${heroColor}40`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
+          <div style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${heroColor}40`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
             <Orb x="80%" y="-20px" color={heroColor} size={200} opacity={0.2}/>
             {/* Date label */}
             <p style={{ margin:"0 0 12px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif", zIndex:1, position:"relative" }}>
@@ -3299,7 +3299,7 @@ function GoalsScreen({ goals, setGoals, income, setScreen, embedded=false }) {
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
           {/* Hero status */}
-          <div style={{ background:`linear-gradient(145deg,#0E1A10,#181818)`, border:`1px solid ${tiers[activeTier].color}40`, borderRadius:22, padding:"24px 20px", position:"relative", overflow:"hidden" }}>
+          <div style={{ background:`linear-gradient(145deg,#0E2240,#1C2B42)`, border:`1px solid ${tiers[activeTier].color}40`, borderRadius:22, padding:"24px 20px", position:"relative", overflow:"hidden" }}>
             <Orb x="80%" y="-20px" color={tiers[activeTier].color} size={180} opacity={0.15}/>
             <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
               <div style={{ fontSize:42 }}>{tiers[activeTier].emoji}</div>
@@ -3527,7 +3527,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
       </div>
 
       {/* The one number */}
-      <Card style={{ background:"linear-gradient(145deg,#1E1208,#181818)", border:`1px solid ${spendPerDay>0?C.accent+"45":C.coral+"45"}`, textAlign:"center", padding:"28px 20px" }}>
+      <Card style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${spendPerDay>0?C.accent+"45":C.coral+"45"}`, textAlign:"center", padding:"28px 20px" }}>
         <SLabel>You can spend per day</SLabel>
         <p style={{ margin:"10px 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800, color:spendPerDay>0?C.accent:C.coral, letterSpacing:"-0.035em", lineHeight:1 }}>{fmt(spendPerDay)}</p>
         <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{daysLeft} day{daysLeft!==1?"s":""} until {cycle.label} · <span style={{ color:C.text, fontWeight:700 }}>{fmt(balance)}</span> left</p>
@@ -3607,7 +3607,7 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
       </div>
 
       {/* Avatar + Name + Bio card */}
-      <Card style={{ background:"linear-gradient(145deg,#1E1208,#1C1C1C)", border:`1px solid ${C.accent}30` }}>
+      <Card style={{ background:"linear-gradient(145deg,#0F2240,#1C2B42)", border:`1px solid ${C.accent}30` }}>
         <input ref={avatarRef} type="file" accept="image/*" style={{ display:"none" }} onChange={onAvatarFile}/>
         <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:14 }}>
           <div onClick={pickAvatar} style={{ position:"relative", flexShrink:0, cursor:"pointer" }}>
@@ -3877,8 +3877,8 @@ export default function Bulsa() {
         description: "Personal finance tracker for Filipinos",
         start_url: "/",
         display: "standalone",
-        background_color: "#111111",
-        theme_color: "#111111",
+        background_color: "#0A1628",
+        theme_color: "#0A1628",
         orientation: "portrait",
         icons: [
           { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23F59E0B'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23111'%3E💰%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
@@ -3897,7 +3897,7 @@ export default function Bulsa() {
     }
     // Theme color
     if (!document.querySelector('meta[name="theme-color"]')) {
-      const meta = Object.assign(document.createElement("meta"), { name:"theme-color", content:"#111111" });
+      const meta = Object.assign(document.createElement("meta"), { name:"theme-color", content:"#0A1628" });
       document.head.appendChild(meta);
     }
     // Apple PWA meta
