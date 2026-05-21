@@ -132,9 +132,9 @@ const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, h
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
-  { key:"cash",     name:"Cash",     icon:"💵", color:"#00E096" },
+  { key:"cash",     name:"Cash",     icon:"💵", color:"#22C55E" },
   { key:"gcash",    name:"GCash",    icon:"📱", color:"#0070DC" },
-  { key:"maya",     name:"Maya",     icon:"💜", color:"#7B5CF6" },
+  { key:"maya",     name:"Maya",     icon:"💜", color:"#5B2D8E" },
   { key:"bpi",      name:"BPI",      icon:"🏦", color:"#CC0000" },
   { key:"bdo",      name:"BDO",      icon:"🏦", color:"#003087" },
   { key:"maribank", name:"Maribank", icon:"🟢", color:"#00A86B" },
@@ -143,7 +143,100 @@ const WALLET_PRESETS = [
   { key:"other",    name:"Other",    icon:"💰", color:"#FFD060" },
 ];
 const WALLET_ICONS  = ["💵","📱","💳","🏦","💰","🪙","💎","🎒","🔐","💼"];
-const WALLET_COLORS = ["#00E096","#0070DC","#7B5CF6","#CC0000","#003087","#00A86B","#EE4D2D","#FFD060","#FF6B2B","#60CFFF"];
+const WALLET_COLORS = ["#22C55E","#0070DC","#5B2D8E","#CC0000","#003087","#00A86B","#EE4D2D","#FFD060","#FF6B2B","#60CFFF"];
+
+// ─── BRAND WALLET ICONS ────────────────────────────────────────────────────
+// SVG marks for known Philippine wallet/bank brands.
+// Falls back to emoji for unknown wallets.
+function WalletIcon({ wallet, size=22 }) {
+  const key = wallet?.key || "";
+  const s   = size;
+
+  // GCash -- bold blue "G" with the distinctive arc cut
+  if (key === "gcash") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#0070DC"/>
+      <path d="M28.5 19.5H21v4h4.2c-.6 2-2.4 3.4-5.2 3.4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.5 0 2.9.6 4 1.5l3-3C25.2 11.3 22.7 10 20 10c-5.5 0-10 4.5-10 10s4.5 10 10 10c5.5 0 9.5-3.9 9.5-9.5 0-.7-.1-1.3-.2-2h-0.8z" fill="white"/>
+    </svg>
+  );
+
+  // Maya -- stylised "M" with their signature wave-bracket form
+  if (key === "maya") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#5B2D8E"/>
+      {/* Wordmark-style M: two outer strokes meeting at center peak */}
+      <path d="M8 28 L8 14 L20 24 L32 14 L32 28" stroke="white" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Small underline bar -- Maya brand signature */}
+      <rect x="14" y="31" width="12" height="2.2" rx="1.1" fill="#C084FC"/>
+    </svg>
+  );
+
+  // BPI -- red shield with white "BPI" initials
+  if (key === "bpi") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#CC0000"/>
+      {/* Shield outline */}
+      <path d="M20 7 L31 12 L31 22 Q31 30 20 34 Q9 30 9 22 L9 12 Z" fill="#AA0000" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/>
+      {/* BPI text -- three tight uppercase letters */}
+      <text x="20" y="24" textAnchor="middle" fill="white" fontSize="10" fontWeight="800" fontFamily="Arial,sans-serif" letterSpacing="-0.5">BPI</text>
+    </svg>
+  );
+
+  // BDO -- navy with white BDO text and the arc swoosh
+  if (key === "bdo") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#003087"/>
+      {/* Arc swoosh above letters */}
+      <path d="M12 17 Q20 11 28 17" stroke="#FFD700" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+      <text x="20" y="27" textAnchor="middle" fill="white" fontSize="10" fontWeight="800" fontFamily="Arial,sans-serif" letterSpacing="-0.5">BDO</text>
+    </svg>
+  );
+
+  // Maribank -- green M mark (Sea/Maribank brand)
+  if (key === "maribank") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#00A86B"/>
+      <path d="M10 28 L10 16 L20 23 L30 16 L30 28" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+
+  // SeaBank -- orange wave
+  if (key === "seabank") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#EE4D2D"/>
+      <path d="M9 22 Q14 17 20 22 Q26 27 31 22" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M9 27 Q14 22 20 27 Q26 32 31 27" stroke="rgba(255,255,255,0.45)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      <text x="20" y="19" textAnchor="middle" fill="white" fontSize="8" fontWeight="800" fontFamily="Arial,sans-serif">SEA</text>
+    </svg>
+  );
+
+  // UnionBank -- amber U arc
+  if (key === "unionbank") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#E67E22"/>
+      <path d="M13 12 L13 24 Q13 30 20 30 Q27 30 27 24 L27 12" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round"/>
+      <line x1="13" y1="12" x2="27" y2="12" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  );
+
+  // Cash -- simple peso sign on green
+  if (key === "cash") return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#22C55E"/>
+      <text x="20" y="27" textAnchor="middle" fill="white" fontSize="20" fontWeight="800" fontFamily="Arial,sans-serif">₱</text>
+    </svg>
+  );
+
+  // Fallback: colored circle with initial
+  const color = wallet?.color || "#666";
+  const label = (wallet?.name || "?").charAt(0).toUpperCase();
+  return (
+    <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill={color}/>
+      <text x="20" y="27" textAnchor="middle" fill="white" fontSize="20" fontWeight="800" fontFamily="Arial,sans-serif">{label}</text>
+    </svg>
+  );
+}
 const SEED_LOANS = [
   { id:1, name:"Maya Credit",       amount:25000, paid:8000,  rate:3.5,   due:"Jun 15", type:"BNPL",     color:C.accent },
   { id:2, name:"BPI Personal Loan", amount:50000, paid:18000, rate:14.88, due:"Jun 30", type:"Personal", color:C.sky },
@@ -542,8 +635,8 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
         wallets.map((w, idx) => (
           <Card key={w.id} glow animDelay={idx*50}>
             <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
-              <div style={{ width:50, height:50, borderRadius:16, background:w.color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0, border:`1px solid ${w.color}30` }}>
-                {w.icon}
+              <div style={{ width:50, height:50, borderRadius:16, overflow:"hidden", flexShrink:0 }}>
+                <WalletIcon wallet={w} size={50}/>
               </div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</p>
@@ -974,7 +1067,7 @@ load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
                       const insuf = sel && +amount > w.balance;
                       return (
                         <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", color:sel?(insuf?C.coral:w.color):C.textSub }}>
-                          <span>{w.icon}</span><span>{w.name}</span>
+                          <WalletIcon wallet={w} size={18}/><span>{w.name}</span>
                           <span style={{ fontSize:10, opacity:0.75 }}>{fmt(w.balance)}</span>
                           {insuf&&<span>⚠️</span>}
                         </button>
@@ -2124,7 +2217,9 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
               <button key={w.id} onClick={()=>setScreen("wallets")} className="tap-btn"
                 style={{ background:C.card, border:`1px solid ${hidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
                 <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
-                <span style={{ fontSize:18 }}>{w.icon}</span>
+                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}>
+                  <WalletIcon wallet={w} size={28}/>
+                </div>
                 <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
                 <p style={{ margin:0, fontSize:13, fontWeight:800, color:hidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>
                   {hidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
@@ -3083,7 +3178,7 @@ function LoanPaymentSheet({ loan, onSave, onClose, wallets }) {
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {wallets.map(w=>(
                 <button key={w.id} onClick={()=>setWalletId(w.id)} style={{ display:"flex", alignItems:"center", gap:6, background:walletId===w.id?w.color+"18":C.card, border:`1.5px solid ${walletId===w.id?w.color+"60":C.border}`, borderRadius:10, padding:"7px 12px", cursor:"pointer" }}>
-                  <span style={{ fontSize:14 }}>{w.icon}</span>
+                  <span style={{ fontSize:14 }}><WalletIcon wallet={w} size={20}/></span>
                   <span style={{ fontSize:12, fontWeight:700, color:walletId===w.id?w.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
                 </button>
               ))}
@@ -3255,7 +3350,11 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
                           <div key={p.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:i<history.length-1?10:0, marginBottom:i<history.length-1?10:0, borderBottom:i<history.length-1?`1px solid ${C.border}`:"none" }}>
                             <div>
                               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
-                              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.date} {w?`- ${w.icon} ${w.name}`:""}  {p.note?`- ${p.note}`:""}</p>
+                              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", display:"flex", alignItems:"center", gap:4 }}>
+                                {p.date}
+                                {w&&<><WalletIcon wallet={w} size={14}/>{w.name}</>}
+                                {p.note&&`- ${p.note}`}
+                              </p>
                             </div>
                             <Tag color={loan.color}>Paid</Tag>
                           </div>
