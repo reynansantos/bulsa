@@ -93,15 +93,15 @@ function useLocalStorage(key, initialValue) {
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 const C = {
-  bg:"#0C0C0C", surface:"#141414", card:"#1C1C1C", cardAlt:"#222222",
-  border:"#2A2A2A", borderLight:"#383838",
+  bg:"#0A1628", surface:"#111E2F", card:"#1C2B42", cardAlt:"#1F3050",
+  border:"#1E3352", borderLight:"#2A3F5C",
   accent:"#FF6B2B", accentSoft:"#FF9A6B", accentGlow:"rgba(255,107,43,0.18)",
-  lime:"#C8F135", sky:"#60CFFF", rose:"#FF4D8C", gold:"#FFD060", mint:"#00E0A0",
-  text:"#F5F5F0", textSub:"#A0A09A", textFaint:"#606058",
-  green:"#00E096", coral:"#FF4455", overlay:"rgba(12,12,12,0.94)",
+  lime:"#C8F135", sky:"#3D7EF8", rose:"#FF4D8C", gold:"#FFD060", mint:"#00E0A0",
+  text:"#E8EFF8", textSub:"#6B8CAD", textFaint:"#4A6A8A",
+  green:"#00E096", coral:"#FF4455", overlay:"rgba(8,18,36,0.95)",
   gradAccent:"linear-gradient(135deg,#FF6B2B,#FF9A6B)",
   gradLime:"linear-gradient(135deg,#C8F135,#8FB800)",
-  gradSky:"linear-gradient(135deg,#60CFFF,#0099DD)",
+  gradSky:"linear-gradient(135deg,#3D7EF8,#0055CC)",
   gradRose:"linear-gradient(135deg,#FF4D8C,#FF9ABA)",
 };
 
@@ -588,37 +588,15 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
 
 function LoanSheet({ loan, onSave, onClose }) {
   const editing = !!loan;
-  const [name,          setName]          = useState(loan?.name          || "");
-  const [amount,        setAmount]        = useState(loan?.amount        ? String(loan.amount)        : "");
-  const [paid,          setPaid]          = useState(loan?.paid          ? String(loan.paid)          : "");
-  const [rate,          setRate]          = useState(loan?.rate          ? String(loan.rate)          : "");
-  const [rateType,      setRateType]      = useState(loan?.rateType      || "monthly");
-  const [dueDay,        setDueDay]        = useState(loan?.dueDay        || 0);
-  const [startDate,     setStartDate]     = useState(loan?.startDate     || "");
-  const [type,          setType]          = useState(loan?.type          || "Personal");
-  const [color,         setColor]         = useState(loan?.color         || C.accent);
-  const [monthlyAmount, setMonthlyAmount] = useState(loan?.monthlyAmount ? String(loan.monthlyAmount) : "");
-  const [termMonths,    setTermMonths]    = useState(loan?.termMonths    ? String(loan.termMonths)    : "");
+  const [name,   setName]   = useState(loan?.name   || "");
+  const [amount, setAmount] = useState(loan?.amount  ? String(loan.amount) : "");
+  const [paid,   setPaid]   = useState(loan?.paid    ? String(loan.paid)   : "");
+  const [rate,   setRate]   = useState(loan?.rate    ? String(loan.rate)   : "");
+  const [due,    setDue]    = useState(loan?.due     || "");
+  const [type,   setType]   = useState(loan?.type    || "Personal");
+  const [color,  setColor]  = useState(loan?.color   || C.accent);
   const valid = name.trim() && +amount > 0;
-  const save  = () => {
-    if (!valid) return;
-    onSave({
-      id: loan?.id || uid(),
-      name: name.trim(),
-      amount: +amount,
-      paid: +paid || 0,
-      payments: loan?.payments || [],
-      rate: +rate || 0,
-      rateType,
-      due: dueDay ? `the ${dueDay}${dueDay===1?"st":dueDay===2?"nd":dueDay===3?"rd":"th"}` : "",
-      dueDay,
-      startDate,
-      type,
-      color,
-      monthlyAmount: +monthlyAmount || 0,
-      termMonths: +termMonths || 0,
-    });
-  };
+  const save  = () => { if (!valid) return; onSave({ id:loan?.id||uid(), name:name.trim(), amount:+amount, paid:+paid||0, rate:+rate||0, due:due.trim(), type, color }); };
 
   return (
     <BottomSheet onClose={onClose} title={editing?"Edit Loan":"Add Loan"}>
@@ -628,31 +606,9 @@ function LoanSheet({ loan, onSave, onClose }) {
           <div><SLabel>Total Amount</SLabel><Inp value={amount} onChange={setAmount} placeholder="0" type="number"/></div>
           <div><SLabel>Amount Paid</SLabel><Inp value={paid} onChange={setPaid} placeholder="0" type="number"/></div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:10 }}>
-          <div>
-            <SLabel>Due Day of Month</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:6 }}>
-              {[1,5,10,15,20,25,28].map(d=>(
-                <button key={d} onClick={()=>setDueDay(d)} className="tap-btn"
-                  style={{ padding:"5px 10px", borderRadius:8, border:`1px solid ${dueDay===d?color+"60":C.border}`, background:dueDay===d?color+"1A":C.card, color:dueDay===d?color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {d}
-                </button>
-              ))}
-            </div>
-            <Inp value={dueDay||""} onChange={v=>setDueDay(+v.replace(/\D/g,"")||0)} placeholder="or type day…" type="number"/>
-          </div>
-        </div>
-        <div>
-          <SLabel>Start Date</SLabel>
-          <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
-            style={{ width:"100%", background:C.cardAlt, border:`1px solid ${startDate?color+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:14, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box" }}/>
-          <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-            When did you take out this loan? Used to compute next due dates.
-          </p>
-        </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <div><SLabel>Monthly Payment</SLabel><Inp value={monthlyAmount} onChange={setMonthlyAmount} placeholder="0" type="number"/></div>
-          <div><SLabel>Term (months)</SLabel><Inp value={termMonths} onChange={setTermMonths} placeholder="12" type="number"/></div>
+          <div><SLabel>Interest Rate %</SLabel><Inp value={rate} onChange={setRate} placeholder="0.0" type="number"/></div>
+          <div><SLabel>Due Date</SLabel><Inp value={due} onChange={setDue} placeholder="Jun 15"/></div>
         </div>
         <div>
           <SLabel>Type</SLabel>
@@ -673,120 +629,6 @@ function LoanSheet({ loan, onSave, onClose }) {
         <div style={{ display:"flex", gap:10, marginTop:4 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:valid?1:0.4 }}>{editing?"Save changes":"Add loan"}</Btn>
-        </div>
-      </div>
-    </BottomSheet>
-  );
-}
-
-// ─── LOAN PAYMENT SHEET ────────────────────────────────────────────────────
-
-function LoanPaymentSheet({ loan, onSave, onClose, wallets=[] }) {
-  const color     = loan.color || C.accent;
-  const remaining = (() => {
-    if (loan.payments && loan.payments.length > 0)
-      return Math.max(loan.amount - loan.payments.reduce((s,p)=>s+p.amount,0), 0);
-    return Math.max(loan.amount - (loan.paid||0), 0);
-  })();
-  const today     = new Date().toISOString().split("T")[0];
-  const [amt,      setAmt]      = useState(loan.monthlyAmount ? String(loan.monthlyAmount) : "");
-  const [date,     setDate]     = useState(today);
-  const [note,     setNote]     = useState("");
-  const [walletId, setWalletId] = useState(null);
-
-  const save = () => {
-    if (!amt || +amt <= 0) return;
-    const w = wallets.find(w => w.id === walletId);
-    onSave({
-      id: uid(), amount: +amt, date, note: note.trim(),
-      walletId: walletId || null,
-      walletName: w?.name || null,
-      label: new Date(date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}),
-    });
-  };
-
-  const QUICK = [500,1000,2000,5000].filter(q => q < remaining);
-
-  return (
-    <BottomSheet onClose={onClose} title={`Log Payment · ${loan.name}`}>
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-        {/* Remaining summary */}
-        <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div>
-            <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Still remaining</p>
-            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p>
-          </div>
-          <div style={{ textAlign:"right" }}>
-            <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total loan</p>
-            <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.amount)}</p>
-          </div>
-        </div>
-
-        {/* Amount */}
-        <div>
-          <SLabel>Payment amount</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${amt?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
-            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-            <input autoFocus type="text" inputMode="decimal" value={amt}
-              onChange={e=>setAmt(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
-              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
-          </div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
-            {QUICK.map(q=>(
-              <button key={q} onClick={()=>setAmt(String(q))} className="tap-btn"
-                style={{ background:amt===String(q)?`${color}20`:C.card, border:`1px solid ${amt===String(q)?color+"55":C.border}`, color:amt===String(q)?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
-                ₱{q.toLocaleString()}
-              </button>
-            ))}
-            <button onClick={()=>setAmt(String(Math.round(remaining)))} className="tap-btn"
-              style={{ background:amt===String(Math.round(remaining))?`${color}20`:C.card, border:`1px solid ${amt===String(Math.round(remaining))?color+"55":C.border}`, color:amt===String(Math.round(remaining))?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
-              Full ({fmt(remaining)})
-            </button>
-          </div>
-          {+amt>0&&(
-            <p style={{ margin:"8px 0 0", fontSize:11, fontFamily:"DM Sans,sans-serif", color:remaining-+amt<=0?C.green:C.textSub }}>
-              After: <strong style={{ color:remaining-+amt<=0?C.green:C.text }}>{remaining-+amt<=0?"🎉 Fully paid!":fmt(Math.max(remaining-+amt,0))+" remaining"}</strong>
-            </p>
-          )}
-        </div>
-
-        {/* Date */}
-        <div>
-          <SLabel>Date paid</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?color+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
-            <span style={{ fontSize:16 }}>📅</span>
-            <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value)}
-              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
-            {date!==today&&<Tag color={color}>Past date</Tag>}
-          </div>
-        </div>
-
-        {/* Wallet picker */}
-        {wallets.length>0&&(
-          <div>
-            <SLabel>Paid from (optional)</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              <button onClick={()=>setWalletId(null)} className="tap-btn"
-                style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===null?C.accent+"60":C.border}`, background:walletId===null?C.accentGlow:C.card, color:walletId===null?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                —
-              </button>
-              {wallets.map(w=>(
-                <button key={w.id} onClick={()=>setWalletId(w.id)} className="tap-btn"
-                  style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===w.id?w.color+"60":C.border}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {w.icon} {w.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Note */}
-        <div><SLabel>Note (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. GCash transfer, installment #3…"/></div>
-
-        <div style={{ display:"flex", gap:10 }}>
-          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={save} style={{ opacity:+amt>0?1:0.4, background:`linear-gradient(135deg,${color},${color}bb)`, boxShadow:"none" }}>Log payment</Btn>
         </div>
       </div>
     </BottomSheet>
@@ -872,42 +714,15 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const aiInputRef  = useRef(null);
-  const recognitionRef = useRef(null);
+  const aiInputRef = useRef(null);
 
   useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
 
-  // ── Voice input ──────────────────────────────────────────────────────────
-  const startVoice = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setAiError("Voice not supported on this browser. Try Chrome."); return; }
-    if (isListening) { recognitionRef.current?.stop(); return; }
-    const rec = new SR();
-    recognitionRef.current = rec;
-    rec.lang = "en-PH";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onstart  = () => setIsListening(true);
-    rec.onend    = () => setIsListening(false);
-    rec.onerror  = () => { setIsListening(false); setAiError("Mic error — tap again to retry."); };
-    rec.onresult = e => {
-      const transcript = e.results[0][0].transcript;
-      setAiInput(transcript);
-      setAiError("");
-      // Auto-parse after a short delay so the user sees what was captured
-      setTimeout(() => parseWithAIText(transcript), 400);
-    };
-    rec.start();
-  };
-
-  // ── AI parsing (accepts explicit text so voice can call it before state updates) ──
-  const parseWithAIText = async (text) => {
-    const input = (text || aiInput).trim();
-    if (!input) return;
+  const parseWithAI = async () => {
+    if (!aiInput.trim()) return;
     setAiLoading(true); setAiError("");
     try {
-      const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+      const catList = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
       const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method:"POST",
@@ -915,48 +730,43 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514",
           max_tokens:300,
-          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON — no markdown, no explanation, no backticks.
+          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown or explanation.
 
-Categories: ${catList}
-Moods: ${moodList}
+Categories available: ${catList}
+Moods available: ${moodList}
 
-JSON shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null","note":"string|null"}
+Return this exact JSON shape:
+{"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
 
 Rules:
-- name: merchant/item, cleaned up and title-cased
-- amount: numeric only. Extract digits even if written as "dalawang daan" (200) or "tatlong daan" (300). If truly not found, return 0.
-- catId: best matching category
-- moodId: map emotional words (stressed/nag-aalala→stressed, masaya/happy→happy, motivated/pumped→motivated) else null
-- note: extra context or null
+- name: the merchant/item name, cleaned up and capitalized
+- amount: numeric only, no currency symbols. If not found, return 0.
+- catId: best matching category from the list
+- moodId: if emotional words present (stressed, sad, happy, motivated, excited), map to mood. Otherwise null.
+- note: any extra context worth saving, or null
 
 Examples:
 "mang inasal 235 stressed" → {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
 "grab 150 pabili" → {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
 "7/11 iced coffee 55 masaya" → {"name":"7-Eleven Iced Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
-"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
-"jollibee chickenjoy dalawang daan" → {"name":"Jollibee Chickenjoy","amount":200,"catId":"food","moodId":null,"note":null}`,
-          messages:[{ role:"user", content:input }]
+"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`,
+          messages:[{ role:"user", content:aiInput }]
         })
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error.message || "API error");
-      const raw    = (data.content || []).map(b=>b.text||"").join("").trim();
-      // Strip any accidental markdown fences
-      const clean  = raw.replace(/^```[a-z]*\n?/,"").replace(/```$/,"").trim();
-      const parsed = JSON.parse(clean);
+      const text = data.content?.[0]?.text || "";
+      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
       if (parsed.amount > 0) setAmount(String(parsed.amount));
       if (parsed.name)   setName(parsed.name);
-      if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))   setCatId(parsed.catId);
+      if (parsed.catId && CATS.find(c=>c.id===parsed.catId)) setCatId(parsed.catId);
       if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) setMoodId(parsed.moodId);
       setAiMode(false);
       setAiInput("");
     } catch(e) {
-      setAiError(`Couldn't parse that — ${e.message||"try again"}. Tip: "mang inasal 235" or "grab 150 stressed"`);
+      setAiError("Couldn't parse that. Try: 'mang inasal 235' or 'grab 150 stressed'");
     }
     setAiLoading(false);
   };
-
-  const parseWithAI = () => parseWithAIText(aiInput);
 
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
   // Auto-focus name field when reaching step 1
@@ -1046,36 +856,17 @@ Examples:
               {/* AI describe mode */}
               {aiMode&&(
                 <div style={{ marginBottom:16 }}>
-                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${isListening?C.rose:C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
-                    <span style={{ fontSize:18, flexShrink:0 }}>{isListening?"🔴":"✨"}</span>
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>✨</span>
                     <input
                       ref={aiInputRef}
-                      value={isListening ? "Listening…" : aiInput}
-                      onChange={e=>{ if(!isListening) setAiInput(e.target.value); }}
-                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&!isListening&&parseWithAI()}
+                      value={aiInput}
+                      onChange={e=>setAiInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
                       placeholder="mang inasal 235 stressed..."
-                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:isListening?C.rose:C.text, caretColor:C.accent }}
+                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
                     />
-                    {/* Mic button */}
-                    <button
-                      onClick={startVoice}
-                      title={isListening ? "Stop listening" : "Speak your expense"}
-                      style={{
-                        background: isListening ? C.rose : `${C.accent}20`,
-                        border: `1.5px solid ${isListening ? C.rose : C.accent}60`,
-                        borderRadius: 10, width:34, height:34, cursor:"pointer",
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        flexShrink:0, transition:"all 0.18s",
-                        animation: isListening ? "pulse 1s infinite" : "none",
-                      }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isListening?"#fff":C.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="2" width="6" height="12" rx="3"/>
-                        <path d="M5 10a7 7 0 0014 0"/>
-                        <line x1="12" y1="17" x2="12" y2="21"/>
-                        <line x1="9" y1="21" x2="15" y2="21"/>
-                      </svg>
-                    </button>
-                    {aiInput&&!aiLoading&&!isListening&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
+                    {aiInput&&!aiLoading&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
                   </div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
                     {["mang inasal 235","grab 150","7/11 coffee 55","load 99","sm 500 stressed"].map(s=>(
@@ -1083,7 +874,7 @@ Examples:
                     ))}
                   </div>
                   {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
-                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading||isListening} style={{ opacity:!aiInput.trim()||aiLoading||isListening?0.5:1 }}>
+                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading} style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
                     {aiLoading?"Parsing...":"Parse →"}
                   </Btn>
                 </div>
@@ -2910,7 +2701,7 @@ function PaymentSheet({ utang, onSave, onClose }) {
   );
 }
 
-function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, income=0, wallets=[] }) {
+function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
   const [utangTab, setUtangTab] = useState("personal"); // "personal" | "loans"
   const fmt = useFmt();
   const [view,     setView]     = useState("all");
@@ -2972,7 +2763,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, income=0, 
 
       {/* Loans tab — embed LoansScreen content inline */}
       {utangTab === "loans" && (
-        <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded income={income} wallets={wallets}/>
+        <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded/>
       )}
 
       {/* Personal utang tab */}
@@ -3164,68 +2955,116 @@ function UtangSheet({ utang, onSave, onClose }) {
 
 // ─── LOANS ─────────────────────────────────────────────────────────────────
 
-function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wallets=[] }) {
+function PaymentSheet({ loan, onSave, onClose, wallets }) {
+  const [amount,   setAmount]   = useState(loan.monthlyDue ? String(loan.monthlyDue) : "");
+  const [walletId, setWalletId] = useState(wallets?.length ? wallets[0].id : null);
+  const [note,     setNote]     = useState("");
+  const [date,     setDate]     = useState(new Date().toISOString().split("T")[0]);
+  const remaining = loan.amount - loan.paid;
+  const valid = amount && +amount > 0 && +amount <= remaining;
+
+  return (
+    <BottomSheet onClose={onClose} title={`Log Payment — ${loan.name}`}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:14, padding:"12px 16px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between" }}>
+            <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining balance</span>
+            <span style={{ fontSize:14, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</span>
+          </div>
+          {loan.monthlyDue>0&&<div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+            <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Monthly due</span>
+            <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.monthlyDue)}</span>
+          </div>}
+        </div>
+
+        <div>
+          <SLabel>Payment Amount</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1.5px solid ${valid?loan.color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:28, color:amount?C.text:C.textFaint, caretColor:loan.color }}/>
+          </div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+            {[loan.monthlyDue,Math.round(remaining/2),remaining].filter(v=>v>0).map((q,i)=>(
+              <button key={i} onClick={()=>setAmount(String(Math.round(q)))} style={{ background:amount===String(Math.round(q))?loan.color+"20":C.surface, border:`1px solid ${amount===String(Math.round(q))?loan.color+"60":C.border}`, color:amount===String(Math.round(q))?loan.color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                {i===0?"Monthly":i===1?"Half":i===2?"Full pay"} {fmt(Math.round(q))}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <SLabel>Payment Date</SLabel>
+          <input type="date" value={date} max={new Date().toISOString().split("T")[0]} onChange={e=>setDate(e.target.value)}
+            style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, fontWeight:700, outline:"none", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box" }}/>
+        </div>
+
+        {wallets?.length>0&&(
+          <div>
+            <SLabel>Paid from</SLabel>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {wallets.map(w=>(
+                <button key={w.id} onClick={()=>setWalletId(w.id)} style={{ display:"flex", alignItems:"center", gap:6, background:walletId===w.id?w.color+"18":C.card, border:`1.5px solid ${walletId===w.id?w.color+"60":C.border}`, borderRadius:10, padding:"7px 12px", cursor:"pointer" }}>
+                  <span style={{ fontSize:14 }}>{w.icon}</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:walletId===w.id?w.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <SLabel>Note (optional)</SLabel>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. May payment, early payment..."
+            style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:13, outline:"none", fontFamily:"DM Sans,sans-serif", boxSizing:"border-box", caretColor:C.accent }}/>
+        </div>
+
+        <div style={{ display:"flex", gap:8 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={()=>valid&&onSave({ amount:+amount, date, walletId, note:note.trim() })} style={{ opacity:valid?1:0.4, background:valid?loan.color:C.border }}>Log payment</Btn>
+        </div>
+        {+amount>remaining&&<p style={{ margin:0, fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>Can't pay more than the remaining balance.</p>}
+      </div>
+    </BottomSheet>
+  );
+}
+
+function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], income=0 }) {
   const fmt = useFmt();
-  const [sheet,           setSheet]           = useState(null);
-  const [confirm,         setConfirm]         = useState(null);
-  const [paySheet,        setPaySheet]        = useState(null);
-  const [expandedHistory, setExpandedHistory] = useState({});
+  const [sheet,    setSheet]    = useState(null);
+  const [paySheet, setPaySheet] = useState(null);
+  const [confirm,  setConfirm]  = useState(null);
+  const [expanded, setExpanded] = useState(null);
 
-  // Backward-compat: use payments[] if present, else fall back to flat paid field
-  const loanRemaining = l => {
-    if (l.payments && l.payments.length > 0)
-      return Math.max(l.amount - l.payments.reduce((s,p)=>s+p.amount,0), 0);
-    return Math.max(l.amount - (l.paid||0), 0);
-  };
+  const total    = loans.reduce((s,l)=>s+l.amount,0);
+  const paid     = loans.reduce((s,l)=>s+l.paid,0);
+  const monthlyTotal = loans.reduce((s,l)=>s+(l.monthlyDue||0),0);
+  const dtiPct   = income>0 ? Math.round((monthlyTotal/income)*100) : 0;
+  const dtiWarn  = dtiPct>=30;
 
-  // True cost: what you actually pay back in total
-  const trueCost = l => {
-    if (l.monthlyAmount > 0 && l.termMonths > 0) return l.monthlyAmount * l.termMonths;
-    if (l.rate > 0 && l.termMonths > 0) {
-      const mr = l.rateType === "annual" ? l.rate/100/12 : l.rate/100;
-      return Math.round(l.amount * (1 + mr * l.termMonths));
-    }
-    return null;
-  };
+  const saveLoan  = loan=>{ setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
+  const deleteLoan= id=>{ setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
 
-  // Compute the next due date from startDate + dueDay + payments made
-  const nextDueDate = l => {
-    if (!l.dueDay || !l.startDate) return l.due || null;
-    const loggedCount = l.payments?.length || 0;
-    const prePaidCount = (l.monthlyAmount > 0 && l.paid > 0 && loggedCount === 0)
-      ? Math.round(l.paid / l.monthlyAmount)
-      : 0;
-    const paidCount = loggedCount + prePaidCount;
-    const base = new Date(l.startDate + "T12:00:00");
-    const next = new Date(base.getFullYear(), base.getMonth() + paidCount, l.dueDay);
-    return next.toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
-  };
-
-  const saveLoan   = loan => { setLoans(prev=>prev.find(l=>l.id===loan.id)?prev.map(l=>l.id===loan.id?loan:l):[...prev,loan]); setSheet(null); };
-  const deleteLoan = id   => { setLoans(prev=>prev.filter(l=>l.id!==id)); setConfirm(null); };
   const logPayment = (loanId, payment) => {
     setLoans(prev=>prev.map(l=>{
       if (l.id!==loanId) return l;
-      const payments  = [...(l.payments||[]), payment];
-      const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
-      return { ...l, payments, paid:totalPaid };
+      const newPaid  = Math.min(l.paid + payment.amount, l.amount);
+      const history  = [...(l.payments||[]), { ...payment, id:uid() }];
+      // Calculate next due date (add 1 month)
+      let nextDue = l.nextDueDate;
+      if (nextDue) {
+        const d = new Date(nextDue); d.setMonth(d.getMonth()+1);
+        nextDue = d.toISOString().split("T")[0];
+      }
+      return { ...l, paid:newPaid, payments:history, nextDueDate:nextDue };
     }));
     setPaySheet(null);
   };
-  const toggleHistory = id => setExpandedHistory(prev=>({...prev,[id]:!prev[id]}));
-
-  const total        = loans.reduce((s,l)=>s+l.amount,0);
-  const totalRemain  = loans.reduce((s,l)=>s+loanRemaining(l),0);
-  const paidTotal    = total - totalRemain;
-
-  // Debt-to-income ratio (monthly installments / monthly income)
-  const monthlyPayments = loans.filter(l=>loanRemaining(l)>0).reduce((s,l)=>s+(l.monthlyAmount||0),0);
-  const dti = income > 0 && monthlyPayments > 0 ? monthlyPayments/income : 0;
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {sheet&&<LoanSheet loan={sheet==="add"?null:sheet} onSave={saveLoan} onClose={()=>setSheet(null)}/>}
-      {paySheet&&<LoanPaymentSheet loan={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets}/>}
+      {paySheet&&<PaymentSheet loan={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3236,12 +3075,10 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
           <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
         </div>
       )}
-      {embedded && (
-        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add loan</button>
-      )}
+      {embedded&&(<button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add loan</button>)}
 
       {loans.length===0?(
-        <div style={{ textAlign:"center", padding:"60px 0 40px", animation:"scaleIn 0.3s ease" }}>
+        <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.green}12`, border:`2px dashed ${C.green}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🎉</div>
           <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Debt-free!</p>
           <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>No loans tracked. Add one if needed.</p>
@@ -3249,155 +3086,103 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, income=0, wal
         </div>
       ):(
         <>
-          {/* ── Summary card ── */}
+          {/* Summary */}
           <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }}>
             <SLabel>Total Remaining Debt</SLabel>
-            <p style={{ margin:"0 0 14px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text }}>{fmt(totalRemain)}</p>
-            <Bar pct={total?(paidTotal/total)*100:0} color={C.green} h={7}/>
+            <p style={{ margin:"0 0 4px", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text }}>{fmt(total-paid)}</p>
+            <Bar pct={total?(paid/total)*100:0} color={C.green} h={7}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
-              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid: {fmt(paidTotal)}</span>
-              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paidTotal/total)*100):0}% done</span>
+              <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid: {fmt(paid)}</span>
+              <span style={{ fontSize:11, color:C.green, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{total?Math.round((paid/total)*100):0}% done</span>
             </div>
           </Card>
 
-          {/* ── Debt-to-income warning ── */}
-          {dti > 0 && (
-            <Card style={{
-              background: dti>=0.3 ? `${C.coral}0C` : `${C.gold}08`,
-              border: `1px solid ${dti>=0.3 ? C.coral : C.gold}40`,
-              padding:"12px 16px",
-            }}>
-              <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-                <span style={{ fontSize:22 }}>{dti>=0.3?"🚨":"⚠️"}</span>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                    <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-                      Debt-to-income ratio
-                    </p>
-                    <span style={{ fontSize:15, fontWeight:800, color:dti>=0.3?C.coral:C.gold, fontFamily:"DM Sans,sans-serif" }}>
-                      {Math.round(dti*100)}%
-                    </span>
+          {/* DTI Warning */}
+          {monthlyTotal>0&&(
+            <Card style={{ background:dtiWarn?`${C.coral}0C`:`${C.green}08`, border:`1px solid ${dtiWarn?C.coral+"40":C.green+"30"}`, padding:"12px 16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:16 }}>{dtiWarn?"🚨":"✅"}</span>
+                  <div>
+                    <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Debt-to-Income Ratio</p>
+                    <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(monthlyTotal)}/mo in installments</p>
                   </div>
-                  <div style={{ marginBottom:6 }}>
-                    <Bar pct={Math.min(dti*100,100)} color={dti>=0.3?C.coral:C.gold} h={5}/>
-                  </div>
-                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>
-                    {dti>=0.3
-                      ? `₱${monthlyPayments.toLocaleString()}/mo in loan payments is ${Math.round(dti*100)}% of your income. Financial advisors recommend staying under 30%.`
-                      : `₱${monthlyPayments.toLocaleString()}/mo in payments (${Math.round(dti*100)}% of income). You're within a healthy range — keep it under 30%.`}
-                  </p>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:0, fontSize:22, fontWeight:800, color:dtiWarn?C.coral:C.green, fontFamily:"DM Sans,sans-serif" }}>{income>0?dtiPct+"%" : "—"}</p>
                 </div>
               </div>
+              {income>0&&<Bar pct={Math.min(dtiPct,100)} color={dtiWarn?C.coral:C.green} h={5}/>}
+              {dtiWarn&&<p style={{ margin:"8px 0 0", fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>Your monthly debt payments exceed 30% of income — the international danger zone. Avoid taking new loans.</p>}
+              {!income&&<p style={{ margin:"4px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Set your income in Profile to see your DTI ratio.</p>}
             </Card>
           )}
 
-          {/* ── Loan cards ── */}
+          {/* Loan cards */}
           {loans.map(loan=>{
-            const rem        = loanRemaining(loan);
-            const pct        = Math.round(((loan.amount-rem)/loan.amount)*100);
-            const tc         = trueCost(loan);
-            const payments   = loan.payments || [];
-            // paidCount: logged payments + any pre-entered paid amount as installments
-            const loggedCount = payments.length;
-            const prePaidCount = (loan.monthlyAmount > 0 && loan.paid > 0 && loggedCount === 0)
-              ? Math.round((loan.paid) / loan.monthlyAmount)
-              : 0;
-            const paidCount  = loggedCount + prePaidCount;
-            const left       = loan.termMonths > 0 ? Math.max(loan.termMonths - paidCount, 0) : null;
-            const histOpen   = expandedHistory[loan.id];
-            const fullyPaid  = rem <= 0;
-
+            const pct      = Math.round((loan.paid/loan.amount)*100);
+            const remaining= loan.amount-loan.paid;
+            const trueCost = loan.rate>0 ? Math.round(loan.amount * (1 + (loan.rate/100) * (loan.payments?.length||12)/12)) : null;
+            const isExp    = expanded===loan.id;
+            const history  = loan.payments||[];
+            const daysUntilDue = loan.nextDueDate ? Math.ceil((new Date(loan.nextDueDate)-new Date())/(1000*60*60*24)) : null;
             return (
               <Card key={loan.id} glow>
                 {/* Header */}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                      <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p>
-                      {fullyPaid&&<Tag color={C.green}>Paid off ✓</Tag>}
+                    <p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.name}</p>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      <Tag color={loan.color}>{loan.type}</Tag>
+                      {loan.rate>0&&<Tag color={C.textSub}>{loan.rate}% p.a.</Tag>}
+                      {daysUntilDue!==null&&<Tag color={daysUntilDue<=7?C.coral:daysUntilDue<=14?C.gold:C.textSub}>{daysUntilDue<=0?"Due today":daysUntilDue===1?"Due tomorrow":`Due in ${daysUntilDue}d`}</Tag>}
                     </div>
-                    <Tag color={loan.color}>{loan.type}</Tag>
                   </div>
-                  <Ring pct={pct} size={56} stroke={5} color={fullyPaid?C.green:loan.color}>
-                    <span style={{ fontSize:10, fontWeight:800, color:fullyPaid?C.green:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span>
-                  </Ring>
+                  <Ring pct={pct} size={52} stroke={5} color={loan.color}><span style={{ fontSize:9, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{pct}%</span></Ring>
                 </div>
 
-                {/* Stats grid */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-                  {[
-                    ["Total",     fmt(loan.amount)],
-                    ["Remaining", fmt(rem)],
-                  ].map(([l,v])=>(
-                    <div key={l}><SLabel>{l}</SLabel><p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p></div>
-                  ))}
+                {/* Amounts */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                  <div><SLabel>Total</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.amount)}</p></div>
+                  <div><SLabel>Remaining</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p></div>
+                  <div><SLabel>Monthly</SLabel><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{loan.monthlyDue>0?fmt(loan.monthlyDue):"—"}</p></div>
                 </div>
-                <Bar pct={pct} color={fullyPaid?C.green:loan.color} h={5}/>
 
-                {loan.monthlyAmount > 0 && (
-                  <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
-                      <div style={{ background:`${loan.color}12`, border:`1px solid ${loan.color}30`, borderRadius:10, padding:"8px 12px", flex:1, minWidth:100 }}>
-                        <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Monthly</p>
-                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:loan.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(loan.monthlyAmount)}</p>
-                        {left !== null && (
-                          <p style={{ margin:"2px 0 0", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                            {paidCount} of {loan.termMonths} paid · {left} left
-                          </p>
-                        )}
-                      </div>
-                  </div>
-                )}
+                {trueCost&&<p style={{ margin:"0 0 10px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💡 True cost with interest: <strong style={{ color:C.gold }}>{fmt(trueCost)}</strong> — {fmt(trueCost-loan.amount)} extra</p>}
 
-                {/* Footer row */}
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:12, alignItems:"center", flexWrap:"wrap", gap:8 }}>
-                  <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                    {nextDueDate(loan) ? `Next due: ${nextDueDate(loan)}` : "No due date"}
-                  </span>
-                  <div style={{ display:"flex", gap:6 }}>
-                    {!fullyPaid&&(
-                      <button onClick={()=>setPaySheet(loan)} className="tap-btn"
-                        style={{ background:loan.color+"22", border:`1px solid ${loan.color}55`, color:loan.color, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                        💳 Pay
-                      </button>
-                    )}
-                    <button onClick={()=>setSheet(loan)}
-                      style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                      Edit
-                    </button>
-                    {confirm===loan.id?(
-                      <button onClick={()=>deleteLoan(loan.id)}
-                        style={{ background:C.coral, border:"none", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>
-                        Confirm
-                      </button>
-                    ):(
-                      <button onClick={()=>setConfirm(loan.id)}
-                        style={{ background:`${C.coral}18`, border:`1px solid ${C.coral}40`, color:C.coral, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                <Bar pct={pct} color={loan.color} h={5}/>
+
+                {/* Actions */}
+                <div style={{ display:"flex", gap:8, marginTop:12 }}>
+                  <button onClick={()=>setPaySheet(loan)} style={{ flex:2, background:`${loan.color}15`, border:`1px solid ${loan.color}40`, color:loan.color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>💸 Log Payment</button>
+                  <button onClick={()=>setExpanded(isExp?null:loan.id)} style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{isExp?"Hide":"History"}</button>
+                  <button onClick={()=>setSheet(loan)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif" }}>✏️</button>
+                  {confirm===loan.id?(
+                    <button onClick={()=>deleteLoan(loan.id)} style={{ background:C.coral, border:"none", borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
+                  ):(
+                    <button onClick={()=>setConfirm(loan.id)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>🗑</button>
+                  )}
                 </div>
 
                 {/* Payment history */}
-                {payments.length > 0 && (
-                  <div style={{ marginTop:12, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
-                    <button onClick={()=>toggleHistory(loan.id)}
-                      style={{ background:"none", border:"none", color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:0, display:"flex", alignItems:"center", gap:6 }}>
-                      📋 {payments.length} payment{payments.length!==1?"s":""} · {fmt(loan.amount - rem)} paid
-                      <span style={{ fontSize:10, color:C.textFaint }}>{histOpen?"▲":"▼"}</span>
-                    </button>
-                    {histOpen&&(
-                      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
-                        {[...payments].reverse().map(p=>(
-                          <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:10, padding:"8px 12px" }}>
+                {isExp&&(
+                  <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+                    <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Payment history ({history.length})</p>
+                    {history.length===0?(
+                      <p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontStyle:"italic" }}>No payments logged yet.</p>
+                    ):(
+                      [...history].reverse().map((p,i)=>{
+                        const w = wallets.find(w=>w.id===p.walletId);
+                        return (
+                          <div key={p.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:i<history.length-1?10:0, marginBottom:i<history.length-1?10:0, borderBottom:i<history.length-1?`1px solid ${C.border}`:"none" }}>
                             <div>
-                              <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{p.label||p.date}</p>
-                              {(p.walletName||p.note)&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{[p.walletName,p.note].filter(Boolean).join(" · ")}</p>}
+                              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
+                              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.date} {w?`· ${w.icon} ${w.name}`:""}  {p.note?`· ${p.note}`:""}</p>
                             </div>
-                            <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>-{fmt(p.amount)}</p>
+                            <Tag color={loan.color}>Paid</Tag>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -4237,12 +4022,12 @@ export default function Bulsa() {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
-    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} income={income} wallets={wallets}/>,
+    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
     // new combined screens
-    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} income={income} wallets={wallets}/>,
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
