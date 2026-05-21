@@ -722,48 +722,71 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
     if (!aiInput.trim()) return;
     setAiLoading(true); setAiError("");
     try {
-      const catList = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+      const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
       const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:300,
-          system:`You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown or explanation.
+      const systemPrompt = `You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown, no code fences, no explanation -- just the raw JSON object.
 
-Categories available: ${catList}
-Moods available: ${moodList}
+Categories: ${catList}
+Moods: ${moodList}
 
-Return this exact JSON shape:
-{"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
+Return exactly: {"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
 
 Rules:
-- name: the merchant/item name, cleaned up and capitalized
-- amount: numeric only, no currency symbols. If not found, return 0.
-- catId: best matching category from the list
-- moodId: if emotional words present (stressed, sad, happy, motivated, excited), map to mood. Otherwise null.
-- note: any extra context worth saving, or null
+- name: merchant/item, cleaned and capitalized
+- amount: number only, no symbols. 0 if not found.
+- catId: best match from the list above
+- moodId: map emotional words (stressed, sad, happy, motivated, excited, masaya, malungkot, naasar) or null
+- note: extra context or null
 
 Examples:
-"mang inasal 235 stressed" → {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
-"grab 150 pabili" → {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
-"7/11 iced coffee 55 masaya" → {"name":"7-Eleven Iced Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
-"load 99" → {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`,
-          messages:[{ role:"user", content:aiInput }]
+mang inasal 235 stressed -> {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
+grab 150 pabili -> {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
+7/11 coffee 55 masaya -> {"name":"7-Eleven Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
+load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 300,
+          system: systemPrompt,
+          messages: [{ role: "user", content: aiInput.trim() }]
         })
       });
+
       const data = await res.json();
-      const text = data.content?.[0]?.text || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+
+      // Surface API-level errors clearly
+      if (data.type === "error") {
+        setAiError(`API error: ${data.error?.message || "unknown"}`);
+        setAiLoading(false);
+        return;
+      }
+
+      const raw  = data.content?.[0]?.text || "";
+      if (!raw) { setAiError("Empty response -- try again"); setAiLoading(false); return; }
+
+      // Strip any accidental markdown fences
+      const clean = raw.replace(/^```[\w]*\n?/, "").replace(/```$/, "").trim();
+      let parsed;
+      try {
+        parsed = JSON.parse(clean);
+      } catch {
+        setAiError(`Got: "${raw.slice(0,80)}" -- couldn't read it as JSON`);
+        setAiLoading(false);
+        return;
+      }
+
       if (parsed.amount > 0) setAmount(String(parsed.amount));
-      if (parsed.name)   setName(parsed.name);
-      if (parsed.catId && CATS.find(c=>c.id===parsed.catId)) setCatId(parsed.catId);
+      if (parsed.name)       setName(parsed.name);
+      if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))  setCatId(parsed.catId);
       if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) setMoodId(parsed.moodId);
+      if (parsed.note)       setNote?.(parsed.note);
       setAiMode(false);
       setAiInput("");
     } catch(e) {
-      setAiError("Couldn't parse that. Try: 'mang inasal 235' or 'grab 150 stressed'");
+      setAiError(`Network error: ${e.message}`);
     }
     setAiLoading(false);
   };
