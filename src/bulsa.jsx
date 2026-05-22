@@ -3117,6 +3117,60 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
         );
       })()}
 
+      {/* ── BUDGET OVERRUN ALERTS ── */}
+      {(()=>{
+        if (!budgets || !expenses) return null;
+        const cycle    = getPaycycle(payday||"both");
+        const cycleExp = expenses.filter(e=>{
+          if (!e.ts) return false;
+          const d = new Date(e.ts);
+          return d>=cycle.cycleStart && d<=cycle.nextPayday;
+        });
+        const alerts = CATS.map(c=>{
+          const limit = budgets[c.id]||0;
+          if (!limit) return null;
+          const spent = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+          const pct   = spent/limit;
+          if (pct<0.8) return null;
+          return { ...c, spent, limit, pct, over: pct>=1 };
+        }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+
+        if (alerts.length===0) return null;
+
+        const overCount = alerts.filter(a=>a.over).length;
+        const fmt = n => "P"+Math.round(n).toLocaleString();
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:overCount?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
+                {overCount ? "🚨 Budget exceeded" : "⚠️ Budget warnings"}
+              </p>
+              <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+            </div>
+            {alerts.slice(0,3).map(a=>(
+              <button key={a.id} onClick={()=>setScreen("expenses")} className="tap-btn"
+                style={{ display:"flex", alignItems:"center", gap:10, background:a.over?`${C.coral}0A`:`${C.gold}08`, border:`1.5px solid ${a.over?C.coral:C.gold}35`, borderRadius:14, padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
+                <div style={{ width:3, height:32, borderRadius:99, background:a.over?C.coral:C.gold, flexShrink:0 }}/>
+                <span style={{ fontSize:18, flexShrink:0 }}>{a.icon}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>
+                    <Tag color={a.over?C.coral:C.gold}>{a.over?"Over!":Math.round(a.pct*100)+"%"}</Tag>
+                  </div>
+                  <Bar pct={Math.min(a.pct*100,100)} color={a.over?C.coral:C.gold} h={3}/>
+                </div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:a.over?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(a.spent)}</p>
+                  <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>of {fmt(a.limit)}</p>
+                </div>
+                <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* ── 2. TODAY'S TRANSACTIONS ── */}
       {(()=>{
         const todayExps = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
@@ -3617,6 +3671,118 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
   );
 }
 
+// ─── SPENDING DONUT CHART ──────────────────────────────────────────────────
+
+function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
+  const [hovered, setHovered] = useState(null);
+  const data = expenses || [];
+  const total = data.reduce((s,e)=>s+e.amount,0);
+
+  // Build segments from CATS
+  const segments = CATS.map(c=>{
+    const amt = data.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+    return { ...c, amount:amt, pct: total>0 ? amt/total : 0 };
+  }).filter(s=>s.amount>0).sort((a,b)=>b.amount-a.amount);
+
+  if (segments.length===0) return (
+    <div style={{ textAlign:"center", padding:"40px 0" }}>
+      <p style={{ margin:0, fontSize:13, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>No expenses to chart yet.</p>
+    </div>
+  );
+
+  // SVG donut math
+  const SIZE=220, CX=110, CY=110, R=80, INNER=52, GAP=0.018;
+  let cursor = -Math.PI/2; // start at 12 o'clock
+  const arcs = segments.map(seg=>{
+    const sweep = seg.pct * Math.PI * 2 - GAP;
+    const start = cursor + GAP/2;
+    const end   = start + sweep;
+    const x1=CX+R*Math.cos(start), y1=CY+R*Math.sin(start);
+    const x2=CX+R*Math.cos(end),   y2=CY+R*Math.sin(end);
+    const xi1=CX+INNER*Math.cos(start), yi1=CY+INNER*Math.sin(start);
+    const xi2=CX+INNER*Math.cos(end),   yi2=CY+INNER*Math.sin(end);
+    const large = sweep>Math.PI?1:0;
+    const path  = `M${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} L${xi2} ${yi2} A${INNER} ${INNER} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    const midA  = start+sweep/2;
+    cursor = end + GAP/2;
+    return { ...seg, path, midA };
+  });
+
+  const hov = hovered ? arcs.find(a=>a.id===hovered) : null;
+  const fmt = n => "P"+Math.round(n).toLocaleString();
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {/* SVG donut */}
+      <div style={{ display:"flex", justifyContent:"center" }}>
+        <svg width={SIZE} height={SIZE} style={{ overflow:"visible" }}>
+          {arcs.map(a=>{
+            const isHov = hovered===a.id;
+            const scale = isHov ? 1.045 : 1;
+            const tx = CX*(1-scale), ty = CY*(1-scale);
+            return (
+              <path key={a.id} d={a.path}
+                fill={a.color}
+                opacity={hovered && !isHov ? 0.35 : 1}
+                style={{ cursor:"pointer", transformOrigin:`${CX}px ${CY}px`, transform:`scale(${scale})`, transition:"all 0.15s" }}
+                onMouseEnter={()=>setHovered(a.id)}
+                onMouseLeave={()=>setHovered(null)}
+                onClick={()=>setHovered(hovered===a.id?null:a.id)}
+              />
+            );
+          })}
+          {/* Centre label */}
+          {hov ? (
+            <>
+              <text x={CX} y={CY-10} textAnchor="middle" fill={hov.color} fontSize="13" fontWeight="800" fontFamily="DM Sans,sans-serif">{hov.icon} {hov.label}</text>
+              <text x={CX} y={CY+8}  textAnchor="middle" fill={hov.color} fontSize="16" fontWeight="800" fontFamily="DM Sans,sans-serif">{fmt(hov.amount)}</text>
+              <text x={CX} y={CY+24} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="DM Sans,sans-serif">{Math.round(hov.pct*100)}% of spending</text>
+            </>
+          ) : (
+            <>
+              <text x={CX} y={CY-6}  textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="DM Sans,sans-serif">Total spent</text>
+              <text x={CX} y={CY+14} textAnchor="middle" fill={C.text}    fontSize="18" fontWeight="800" fontFamily="DM Sans,sans-serif">{fmt(total)}</text>
+            </>
+          )}
+        </svg>
+      </div>
+
+      {/* Legend rows */}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {arcs.map(a=>{
+          const limit  = budgets[a.id]||0;
+          const over   = limit>0 && a.amount>limit;
+          const warn   = limit>0 && !over && a.amount/limit>=0.8;
+          return (
+            <button key={a.id} className="tap-btn"
+              onClick={()=>setHovered(hovered===a.id?null:a.id)}
+              style={{ display:"flex", alignItems:"center", gap:10, background:hovered===a.id?`${a.color}12`:C.card, border:`1px solid ${over?a.color+"60":hovered===a.id?a.color+"40":C.border}`, borderRadius:12, padding:"10px 12px", cursor:"pointer", textAlign:"left", width:"100%", transition:"all 0.15s" }}>
+              <div style={{ width:10, height:10, borderRadius:3, background:a.color, flexShrink:0 }}/>
+              <span style={{ fontSize:16, flexShrink:0 }}>{a.icon}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>
+                  {over&&<Tag color={C.coral}>Over!</Tag>}
+                  {warn&&<Tag color={C.gold}>Near limit</Tag>}
+                </div>
+                {limit>0&&(
+                  <div style={{ marginTop:4 }}>
+                    <Bar pct={Math.min((a.amount/limit)*100,100)} color={over?C.coral:warn?C.gold:a.color} h={3}/>
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:over?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(a.amount)}</p>
+                <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{Math.round(a.pct*100)}%</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday }) {
@@ -3626,6 +3792,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const [editExp,   setEditExp]  = useState(null);
   const [editB,     setEditB]    = useState(null);
   const [bInput,    setBInput]   = useState("");
+  const [chartScope, setChartScope] = useState("cycle");
   const total    = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs = expenses.filter(e=>e.moodId).length;
   const bymood   = MOODS.map(m=>{ const amt=expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0),cnt=expenses.filter(e=>e.moodId===m.id).length; return {...m,amount:amt,count:cnt,pct:total?Math.round((amt/total)*100):0}; }).filter(m=>m.count>0);
@@ -3638,7 +3805,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
-  const TABS = [["list","List"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
+  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3675,6 +3842,29 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       {view==="list"&&(
         <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt}/>
       )}
+      {view==="chart"&&(()=>{
+        const cycle    = getPaycycle(payday||"both");
+        const cycleExp = expenses.filter(e=>{
+          if (!e.ts) return false;
+          const d = new Date(e.ts);
+          return d>=cycle.cycleStart && d<=cycle.nextPayday;
+        });
+        const scopeData = chartScope==="cycle" ? cycleExp : expenses;
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Scope toggle */}
+            <div style={{ display:"flex", gap:6 }}>
+              {[["cycle","This cycle"],["all","All time"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setChartScope(v)} className="tap-btn"
+                  style={{ flex:1, padding:"8px", borderRadius:10, border:`1px solid ${chartScope===v?C.accent+"60":C.border}`, background:chartScope===v?`${C.accent}12`:C.card, color:chartScope===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <SpendingDonut expenses={scopeData} budgets={budgets}/>
+          </div>
+        );
+      })()}
       {view==="budget"&&(()=>{
         const cycle       = getPaycycle(payday||"both");
         const cycleStart  = cycle.cycleStart;
