@@ -1451,6 +1451,10 @@ const SUB_CATS = [
   { id:"news",      label:"News/Reads", icon:"📰", color:C.gold },
   { id:"fitness",   label:"Fitness",    icon:"💪", color:C.mint },
   { id:"tools",     label:"Tools/Work", icon:"🛠️", color:C.accent },
+  { id:"rent",      label:"Rent",       icon:"🏠", color:"#A78BFA" },
+  { id:"utilities", label:"Utilities",  icon:"💡", color:"#FCD34D" },
+  { id:"internet",  label:"Internet",   icon:"📶", color:"#38BDF8" },
+  { id:"insurance", label:"Insurance",  icon:"🛡️", color:"#34D399" },
   { id:"other",     label:"Other",      icon:"📦", color:C.textSub },
 ];
 
@@ -1462,16 +1466,21 @@ const SUB_CYCLES = [
 ];
 
 const SUB_PRESETS = [
-  { name:"Netflix",      icon:"🎬", cat:"streaming", color:"#E50914", amount:269  },
-  { name:"Spotify",      icon:"🎵", cat:"music",     color:"#1DB954", amount:159  },
-  { name:"Apple Music",  icon:"🍎", cat:"music",     color:"#FC3C44", amount:149  },
-  { name:"YouTube Premium",icon:"▶️",cat:"streaming", color:"#FF0000", amount:219  },
-  { name:"Disney+",      icon:"✨", cat:"streaming", color:"#113CCF", amount:149  },
-  { name:"Crunchyroll",  icon:"🍥", cat:"streaming", color:"#F47521", amount:99   },
-  { name:"iCloud+",      icon:"☁️", cat:"cloud",     color:"#0061FF", amount:49   },
-  { name:"Google One",   icon:"🔵", cat:"cloud",     color:"#4285F4", amount:99   },
-  { name:"Canva Pro",    icon:"🎨", cat:"tools",     color:"#00C4CC", amount:499  },
-  { name:"ChatGPT Plus", icon:"🤖", cat:"tools",     color:"#10A37F", amount:1099 },
+  { name:"Netflix",        icon:"🎬", cat:"streaming", color:"#E50914", amount:269  },
+  { name:"Spotify",        icon:"🎵", cat:"music",     color:"#1DB954", amount:159  },
+  { name:"Apple Music",    icon:"🍎", cat:"music",     color:"#FC3C44", amount:149  },
+  { name:"YouTube Premium",icon:"▶️", cat:"streaming", color:"#FF0000", amount:219  },
+  { name:"Disney+",        icon:"✨", cat:"streaming", color:"#113CCF", amount:149  },
+  { name:"Crunchyroll",    icon:"🍥", cat:"streaming", color:"#F47521", amount:99   },
+  { name:"iCloud+",        icon:"☁️", cat:"cloud",     color:"#0061FF", amount:49   },
+  { name:"Google One",     icon:"🔵", cat:"cloud",     color:"#4285F4", amount:99   },
+  { name:"Canva Pro",      icon:"🎨", cat:"tools",     color:"#00C4CC", amount:499  },
+  { name:"ChatGPT Plus",   icon:"🤖", cat:"tools",     color:"#10A37F", amount:1099 },
+  { name:"Rent",           icon:"🏠", cat:"rent",      color:"#A78BFA", amount:0    },
+  { name:"Meralco",        icon:"💡", cat:"utilities", color:"#FCD34D", amount:0    },
+  { name:"Maynilad",       icon:"💧", cat:"utilities", color:"#38BDF8", amount:0    },
+  { name:"PLDT",           icon:"📶", cat:"internet",  color:"#1D4ED8", amount:0    },
+  { name:"Globe",          icon:"📶", cat:"internet",  color:"#22C55E", amount:0    },
 ];
 
 const subCatOf = id => SUB_CATS.find(c=>c.id===id) || SUB_CATS[SUB_CATS.length-1];
@@ -1641,7 +1650,8 @@ function SubSheet({ sub, onSave, onClose }) {
 
 // ─── SUBSCRIPTIONS SCREEN ──────────────────────────────────────────────────
 
-function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
+function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false, setExpenses, wallets=[] }) {
+  const fmt    = useFmt();
   const [sheet,   setSheet]   = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [notifOk, setNotifOk] = useState(typeof Notification !== "undefined" && Notification.permission==="granted");
@@ -1652,19 +1662,43 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
     setSheet(null);
   };
 
-  const deleteSub  = id => { setSubs(prev=>prev.filter(s=>s.id!==id)); setConfirm(null); };
+  const deleteSub    = id => { setSubs(prev=>prev.filter(s=>s.id!==id)); setConfirm(null); };
   const toggleActive = id => setSubs(prev=>prev.map(s=>s.id===id?{...s,active:!s.active}:s));
 
-  // Mark paid: log payment date and advance next due
-  const markPaid = id => {
+  // Mark paid: advance due date AND auto-log as expense
+  const markPaid = (id, walletId=null) => {
+    const today = new Date().toISOString().split("T")[0];
     setSubs(prev=>prev.map(s=>{
       if (s.id!==id) return s;
-      return { ...s, lastPaid:new Date().toISOString().split("T")[0], dueDate:advanceDue(s.dueDate, s.cycle) };
+      return { ...s, lastPaid:today, dueDate:advanceDue(s.dueDate, s.cycle) };
     }));
+    // Auto-log as expense
+    if (setExpenses) {
+      const s = subs.find(x=>x.id===id);
+      if (s) {
+        // Map sub category to expense category
+        const catMap = { streaming:"subs", music:"subs", gaming:"subs", cloud:"subs", news:"subs", tools:"subs", fitness:"health", rent:"bills", utilities:"bills", internet:"bills", insurance:"bills", other:"other" };
+        const wallet = wallets.find(w=>w.id===walletId);
+        setExpenses(prev=>[{
+          id:      uid(),
+          name:    s.name,
+          amount:  s.amount,
+          catId:   catMap[s.cat] || "bills",
+          date:    today,
+          note:    `Auto-logged from recurring`,
+          walletId: walletId || null,
+          walletName: wallet?.name || null,
+          fromRecurring: true,
+        }, ...prev]);
+        // Deduct from wallet if selected
+        // (wallet deduction handled by caller via wallets prop -- we just log here)
+      }
+    }
   };
 
+  const [payingId, setPayingId] = useState(null); // sub id currently being paid
+
   const enableNotifs = async () => {
-    const ok = await requestNotifPermission();
     setNotifOk(ok);
     if (ok) sendNotif("bulsa. 🔔", "You'll get reminders before subscriptions are due!");
   };
@@ -1758,16 +1792,35 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           <SLabel>⚠️ Due soon</SLabel>
           {dueSoon.map(s=>(
-            <div key={s.id} style={{ background:`${urgColor(s.days)}0E`, border:`1.5px solid ${urgColor(s.days)}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:38, height:38, borderRadius:12, background:`${s.color||C.accent}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{s.icon||"📦"}</div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{s.name}</p>
-                <p style={{ margin:0, fontSize:11, color:urgColor(s.days), fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(s.days)} - {fmt(s.amount)}</p>
+            <div key={s.id} style={{ display:"flex", flexDirection:"column", gap:0 }}>
+              <div style={{ background:`${urgColor(s.days)}0E`, border:`1.5px solid ${urgColor(s.days)}40`, borderRadius:payingId===s.id?"16px 16px 0 0":16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:38, height:38, borderRadius:12, background:`${s.color||C.accent}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{s.icon||"📦"}</div>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{s.name}</p>
+                  <p style={{ margin:0, fontSize:11, color:urgColor(s.days), fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(s.days)} - {fmt(s.amount)}</p>
+                </div>
+                <button onClick={()=>setPayingId(payingId===s.id?null:s.id)} className="tap-btn"
+                  style={{ background:`${C.green}15`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+                  ✓ Paid
+                </button>
               </div>
-              <button onClick={()=>markPaid(s.id)} className="tap-btn"
-                style={{ background:`${C.green}15`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
-                ✓ Paid
-              </button>
+              {payingId===s.id&&(
+                <div style={{ background:C.surface, border:`1.5px solid ${urgColor(s.days)}40`, borderTop:"none", borderRadius:"0 0 16px 16px", padding:"10px 14px" }}>
+                  <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid from which wallet?</p>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    <button onClick={()=>{ markPaid(s.id,null); setPayingId(null); }} className="tap-btn"
+                      style={{ padding:"5px 12px", borderRadius:99, border:`1px solid ${C.border}`, background:C.card, color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      Skip
+                    </button>
+                    {wallets.map(w=>(
+                      <button key={w.id} onClick={()=>{ markPaid(s.id,w.id); setPayingId(null); }} className="tap-btn"
+                        style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:99, border:`1px solid ${w.color}50`, background:`${w.color}14`, color:w.color, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                        <WalletIcon wallet={w} size={14}/> {w.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1848,9 +1901,9 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
             {/* Action buttons */}
             <div style={{ display:"flex", gap:8 }}>
               {!isOff&&(
-                <button onClick={()=>markPaid(s.id)} className="tap-btn"
-                  style={{ flex:2, background:`${C.green}12`, border:`1px solid ${C.green}35`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                  ✓ Mark paid
+                <button onClick={()=>setPayingId(payingId===s.id?null:s.id)} className="tap-btn"
+                  style={{ flex:2, background:payingId===s.id?`${C.green}22`:`${C.green}12`, border:`1px solid ${C.green}${payingId===s.id?"60":"35"}`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                  {payingId===s.id ? "Pick wallet..." : "✓ Mark paid"}
                 </button>
               )}
               <button onClick={()=>setSheet(s)} className="tap-btn"
@@ -1869,13 +1922,35 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false }) {
                   style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🗑</button>
               )}
             </div>
+
+            {/* Wallet picker for mark paid */}
+            {!isOff&&payingId===s.id&&(
+              <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Which wallet did you pay from?</p>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  <button onClick={()=>{ markPaid(s.id,null); setPayingId(null); }} className="tap-btn"
+                    style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${C.border}`, background:C.card, color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                    Skip
+                  </button>
+                  {wallets.map(w=>(
+                    <button key={w.id} onClick={()=>{ markPaid(s.id,w.id); setPayingId(null); }} className="tap-btn"
+                      style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:99, border:`1px solid ${w.color}50`, background:`${w.color}14`, color:w.color, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      <WalletIcon wallet={w} size={14}/> {w.name}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin:"6px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                  This will log {fmt(s.amount)} as an expense and advance the next due date.
+                </p>
+              </div>
+            )}
           </Card>
         );
       })}
 
       {subs.length>0&&(
         <p style={{ textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
-          💡 Tap "Mark paid" after you're charged -- it auto-advances the next due date.
+          💡 "Mark paid" logs the expense automatically and advances the next due date.
         </p>
       )}
     </div>
@@ -2936,7 +3011,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       )}
 
       {view==="subs"&&(
-        <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} embedded/>
+        <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} setExpenses={setExpenses} wallets={[]} embedded/>
       )}
 
       {view==="mood"&&(
@@ -4372,7 +4447,7 @@ export default function Bulsa() {
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
-    subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
+    subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>,
     // new combined screens
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
