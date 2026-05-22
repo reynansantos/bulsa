@@ -2144,71 +2144,215 @@ function BulsaLogo({ size=48 }) {
 }
 
 function Onboarding({ onDone }) {
-  const [step,      setStep]     = useState(0);
-  const [nameInput, setNameInput]= useState("");
-  const [incInput,  setIncInput] = useState("");
+  const [step,       setStep]      = useState(0);
+  const [name,       setName]      = useState("");
+  const [incInput,   setIncInput]  = useState("");
+  const [payday,     setPayday]    = useState("15th30th");
+  const [wallets,    setWallets]   = useState([]);
+  const [wName,      setWName]     = useState("");
+  const [wBal,       setWBal]      = useState("");
+  const [wIcon,      setWIcon]     = useState("💵");
+  const [wColor,     setWColor]    = useState(C.accent);
+  const TOTAL_STEPS = 4;
 
-  const isSetup = step === 3;
-
-  const slides=[
-    { logo:true,    title:"bulsa.", sub:"Pull money out of your pocket. Log it. Know where it goes. That's it.", cta:"Let's go" },
-    { emoji:"📸", title:"Your spend,\nyour story.", sub:"Take a photo of your food, your grocery haul, your splurge. No judgment -- just memory.", cta:"Love that" },
-    { emoji:"🧠", title:"Feel it.\nTrack it.", sub:"Tag your mood when you spend. Spot the patterns. Break the cycle -- or don't. Your call.", cta:"Almost there →" },
+  const walletPresets = [
+    { name:"Cash",  icon:"💵", color:C.green  },
+    { name:"GCash", icon:"📱", color:C.sky    },
+    { name:"Maya",  icon:"💜", color:"#7B2FBE"},
+    { name:"BPI",   icon:"🏦", color:C.accent },
+    { name:"BDO",   icon:"🏦", color:C.gold   },
   ];
 
-  const handleDone = () => {
-    if (!nameInput.trim()) return;
-    onDone({ name: nameInput.trim(), income: +incInput||0 });
+  const addWallet = () => {
+    if (!wName.trim()) return;
+    setWallets(prev => [...prev, { id:Date.now().toString(), name:wName.trim(), icon:wIcon, color:wColor, balance:+wBal||0 }]);
+    setWName(""); setWBal(""); setWIcon("💵"); setWColor(C.accent);
   };
 
-  return (
-    <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"64px 28px calc(52px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
-      <Orb x="-80px" y="60px" color={C.accent} size={320} opacity={0.13}/>
-      <Orb x="100px" y="380px" color={C.lime} size={260} opacity={0.07}/>
-      <div style={{ display:"flex", gap:6, zIndex:1 }}>
-        {[...slides,{}].map((_,i)=>(<div key={i} style={{ width:i===step?24:6, height:6, borderRadius:99, background:i===step?C.accent:C.border, transition:"all 0.3s" }}/>))}
+  const removeWallet = id => setWallets(prev => prev.filter(w => w.id !== id));
+
+  const canNext = () => {
+    if (step === 0) return name.trim().length > 0;
+    if (step === 1) return true; // income optional
+    if (step === 2) return true; // wallets optional
+    return true;
+  };
+
+  const handleNext = () => {
+    if (step === 0 && !name.trim()) return;
+    if (step < TOTAL_STEPS - 1) { setStep(s => s + 1); return; }
+    onDone({ name: name.trim(), income: +incInput||0, wallets, payday });
+  };
+
+  const FF = "DM Sans,sans-serif";
+  const stepContent = [
+
+    // ── Step 0: Welcome + Name ───────────────────────────────────────────
+    <div key="s0" style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:28 }}>
+      <div style={{ textAlign:"center" }}>
+        <BulsaLogo size={80}/>
+        <h1 style={{ fontFamily:FF, fontSize:36, fontWeight:800, color:C.text, margin:"20px 0 8px", letterSpacing:"-0.025em" }}>Welcome to bulsa.</h1>
+        <p style={{ fontFamily:FF, fontSize:15, color:C.textSub, margin:0, lineHeight:1.6 }}>Ang pera mo, your rules.<br/>Let's set you up in 60 seconds.</p>
+      </div>
+      <div>
+        <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>What do we call you?</p>
+        <input autoFocus value={name} onChange={e=>setName(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&name.trim()&&handleNext()}
+          placeholder="e.g. Reyn, Mico, Jessa..."
+          style={{ width:"100%", background:C.card, border:`2px solid ${name.trim()?C.accent+"80":C.border}`, borderRadius:14, padding:"16px 18px", color:C.text, fontSize:18, fontWeight:800, outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.2s" }}/>
+      </div>
+      <div style={{ background:C.card, borderRadius:16, padding:"14px 16px", border:`1px solid ${C.border}` }}>
+        <p style={{ margin:"0 0 6px", fontFamily:FF, fontSize:12, color:C.textSub, lineHeight:1.5 }}>📍 <strong style={{ color:C.text }}>Built for Filipinos.</strong> Supports GCash, Maya, cash, payday cycles, and Filipino spending habits.</p>
+      </div>
+    </div>,
+
+    // ── Step 1: Income + Payday ──────────────────────────────────────────
+    <div key="s1" style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:24 }}>
+      <div>
+        <h2 style={{ fontFamily:FF, fontSize:26, fontWeight:800, color:C.text, margin:"0 0 6px", letterSpacing:"-0.02em" }}>💸 Monthly income</h2>
+        <p style={{ fontFamily:FF, fontSize:14, color:C.textSub, margin:0 }}>Helps bulsa tell you if you're on track. Optional — you can change it anytime.</p>
+      </div>
+      <div>
+        <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 18px", gap:8 }}>
+          <span style={{ fontSize:18, fontWeight:800, color:C.textSub, fontFamily:FF }}>₱</span>
+          <input autoFocus type="text" inputMode="decimal" value={incInput}
+            onChange={e=>setIncInput(e.target.value.replace(/[^0-9]/g,""))}
+            placeholder="Leave blank to skip"
+            style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:18, fontWeight:800, fontFamily:FF, caretColor:C.accent }}/>
+        </div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+          {[10000,15000,20000,25000,30000,40000,50000].map(q=>(
+            <button key={q} onClick={()=>setIncInput(String(q))}
+              style={{ background:incInput===String(q)?C.accent:C.card, border:`1px solid ${incInput===String(q)?C.accent:C.border}`, color:incInput===String(q)?"#fff":C.textSub, borderRadius:99, padding:"6px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:FF, transition:"all 0.15s" }}>
+              ₱{(q/1000).toFixed(0)}k
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>📅 When do you get paid?</p>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {[
+            { value:"15th30th", label:"15th & 30th", sub:"Semi-monthly — most common" },
+            { value:"end",      label:"End of month", sub:"Monthly payroll" },
+            { value:"weekly",   label:"Weekly",       sub:"Every Friday" },
+          ].map(opt=>(
+            <button key={opt.value} onClick={()=>setPayday(opt.value)}
+              style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:payday===opt.value?C.accent+"18":C.card, border:`2px solid ${payday===opt.value?C.accent:C.border}`, borderRadius:12, padding:"12px 16px", cursor:"pointer", transition:"all 0.15s" }}>
+              <span style={{ fontFamily:FF, fontWeight:700, color:payday===opt.value?C.accent:C.text, fontSize:14 }}>{opt.label}</span>
+              <span style={{ fontFamily:FF, fontSize:12, color:C.textSub }}>{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+
+    // ── Step 2: Wallets ──────────────────────────────────────────────────
+    <div key="s2" style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"flex-start", gap:20, paddingTop:8 }}>
+      <div>
+        <h2 style={{ fontFamily:FF, fontSize:26, fontWeight:800, color:C.text, margin:"0 0 6px", letterSpacing:"-0.02em" }}>👛 Your wallets</h2>
+        <p style={{ fontFamily:FF, fontSize:14, color:C.textSub, margin:0 }}>Where does your money live? Add your cash, GCash, bank accounts. Balances update automatically when you log expenses.</p>
       </div>
 
-      {!isSetup ? (()=>{ const s=slides[step]; return (
-        <div style={{ textAlign:"center", zIndex:1, flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:26 }}>
-          {s.logo ? <BulsaLogo size={100}/> : <div style={{ width:100, height:100, borderRadius:30, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:52, boxShadow:`0 20px 60px ${C.accentGlow}` }}>{s.emoji}</div>}
-          <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:44, fontWeight:800, color:C.text, lineHeight:1.1, margin:0, whiteSpace:"pre-line", letterSpacing:"-0.025em" }}>{s.title}</h1>
-          <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:15, color:C.textSub, lineHeight:1.75, maxWidth:272, margin:0 }}>{s.sub}</p>
+      {/* Preset quick-add */}
+      <div>
+        <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Quick add</p>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {walletPresets.map(p=>{
+            const already = wallets.some(w=>w.name===p.name);
+            return (
+              <button key={p.name} onClick={()=>{ if(already){removeWallet(wallets.find(w=>w.name===p.name).id);return;} setWallets(prev=>[...prev,{id:Date.now().toString(),name:p.name,icon:p.icon,color:p.color,balance:0}]); }}
+                style={{ display:"flex", alignItems:"center", gap:6, background:already?p.color+"22":C.card, border:`1.5px solid ${already?p.color:C.border}`, borderRadius:99, padding:"7px 14px", cursor:"pointer", transition:"all 0.15s" }}>
+                <span style={{ fontSize:16 }}>{p.icon}</span>
+                <span style={{ fontFamily:FF, fontWeight:700, fontSize:13, color:already?p.color:C.text }}>{p.name}</span>
+                {already && <span style={{ color:p.color, fontSize:11 }}>✓</span>}
+              </button>
+            );
+          })}
         </div>
-      );})() : (
-        <div style={{ zIndex:1, flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:24, width:"100%" }}>
-          <div style={{ textAlign:"center", marginBottom:8 }}>
-            <div style={{ width:72, height:72, borderRadius:22, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, margin:"0 auto 16px", boxShadow:`0 12px 40px ${C.accentGlow}` }}>👋</div>
-            <h1 style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.text, margin:"0 0 6px", letterSpacing:"-0.025em" }}>Set up your profile</h1>
-            <p style={{ fontFamily:"DM Sans,sans-serif", fontSize:14, color:C.textSub, margin:0 }}>Just two things and you're in.</p>
-          </div>
-          <div>
-            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>What's your name?</p>
-            <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
-              placeholder="e.g. Reyn, Mico, Jessa..."
-              onKeyDown={e=>e.key==="Enter"&&nameInput.trim()&&handleDone()}
-              style={{ width:"100%", background:C.card, border:`1px solid ${nameInput.trim()?C.accent+"60":C.border}`, borderRadius:14, padding:"16px 18px", color:C.text, fontSize:18, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box", transition:"border 0.2s" }}/>
-          </div>
-          <div>
-            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Monthly income? (optional)</p>
-            <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 18px", gap:8 }}>
-              <span style={{ fontSize:18, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-              <input type="text" inputMode="decimal" value={incInput} onChange={e=>setIncInput(e.target.value.replace(/[^0-9]/g,""))}
-                placeholder="You can set this later"
-                style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/>
+      </div>
+
+      {/* Added wallets with balance input */}
+      {wallets.length > 0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {wallets.map(w=>(
+            <div key={w.id} style={{ display:"flex", alignItems:"center", gap:10, background:C.card, borderRadius:12, padding:"10px 14px", border:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:20 }}>{w.icon}</span>
+              <span style={{ fontFamily:FF, fontWeight:700, color:C.text, fontSize:14, flex:1 }}>{w.name}</span>
+              <span style={{ fontFamily:FF, fontSize:14, color:C.textSub, marginRight:4 }}>₱</span>
+              <input type="text" inputMode="decimal"
+                placeholder="0"
+                onChange={e=>setWallets(prev=>prev.map(x=>x.id===w.id?{...x,balance:+e.target.value.replace(/[^0-9]/g,"")||0}:x))}
+                style={{ width:80, background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"4px 8px", color:C.text, fontSize:14, fontWeight:700, fontFamily:FF, outline:"none", textAlign:"right", caretColor:C.accent }}/>
+              <button onClick={()=>removeWallet(w.id)} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:"0 2px" }}>×</button>
             </div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-              {[15000,20000,25000,30000,40000,50000].map(q=>(<button key={q} onClick={()=>setIncInput(String(q))} style={{ background:incInput===String(q)?C.accentGlow:C.surface, border:`1px solid ${incInput===String(q)?C.accent+"55":C.border}`, color:incInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{(q/1000).toFixed(0)}k</button>))}
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
+      {wallets.length === 0 && (
+        <div style={{ background:C.card, borderRadius:12, padding:"16px", border:`1px solid ${C.border}`, textAlign:"center" }}>
+          <p style={{ fontFamily:FF, fontSize:13, color:C.textFaint, margin:0 }}>No wallets yet — tap a quick-add above, or skip and add them later from Accounts.</p>
+        </div>
+      )}
+    </div>,
+
+    // ── Step 3: Ready ────────────────────────────────────────────────────
+    <div key="s3" style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", gap:24, textAlign:"center" }}>
+      <div style={{ width:96, height:96, borderRadius:28, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:48, boxShadow:`0 16px 48px ${C.accentGlow}` }}>🎉</div>
+      <div>
+        <h1 style={{ fontFamily:FF, fontSize:32, fontWeight:800, color:C.text, margin:"0 0 10px", letterSpacing:"-0.025em" }}>
+          {name ? `Handa na, ${name.split(" ")[0]}!` : "Handa na!"}
+        </h1>
+        <p style={{ fontFamily:FF, fontSize:15, color:C.textSub, lineHeight:1.7, margin:0 }}>
+          Your setup is done.{wallets.length > 0 ? ` ${wallets.length} wallet${wallets.length>1?"s":""} ready.` : ""}<br/>
+          Log your first expense to see bulsa in action — just tap the <strong style={{color:C.accent}}>+ button</strong> on the home screen.
+        </p>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%", background:C.card, borderRadius:16, padding:"16px", border:`1px solid ${C.border}` }}>
+        {[
+          { icon:"📸", text:"Take a photo of a receipt — AI reads it for you" },
+          { icon:"🎤", text:'Say "Lunch 89 pesos" — voice logging works too' },
+          { icon:"💸", text:"Log an expense and see your balance update live" },
+        ].map((tip,i)=>(
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:20 }}>{tip.icon}</span>
+            <span style={{ fontFamily:FF, fontSize:13, color:C.textSub, textAlign:"left" }}>{tip.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>,
+  ];
+
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"env(safe-area-inset-top) 24px calc(32px + env(safe-area-inset-bottom))", background:C.bg, position:"relative", overflow:"hidden" }}>
+      <Orb x="-60px" y="80px" color={C.accent} size={280} opacity={0.1}/>
+      <Orb x="120px" y="400px" color={C.lime} size={240} opacity={0.06}/>
+
+      {/* Progress bar */}
+      <div style={{ paddingTop:20, paddingBottom:24, zIndex:1 }}>
+        <div style={{ display:"flex", gap:6 }}>
+          {Array.from({length:TOTAL_STEPS}).map((_,i)=>(
+            <div key={i} style={{ flex:1, height:4, borderRadius:99, background:i<=step?C.accent:C.border, transition:"background 0.3s" }}></div>
+          ))}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
+          <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textFaint }}>Step {step+1} of {TOTAL_STEPS}</span>
+          {step > 0 && <button onClick={()=>setStep(s=>s-1)} style={{ background:"none", border:"none", color:C.textSub, fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:700, cursor:"pointer", padding:0 }}>← Back</button>}
+        </div>
+      </div>
+
+      {/* Step content */}
+      <div style={{ flex:1, overflowY:"auto", zIndex:1 }}>
+        {stepContent[step]}
+      </div>
+
+      {/* CTA button */}
       <button
-        onClick={()=> isSetup ? handleDone() : setStep(p=>p+1)}
-        disabled={isSetup && !nameInput.trim()}
-        style={{ background:isSetup&&!nameInput.trim()?C.border:C.gradAccent, color:"#fff", border:"none", borderRadius:16, padding:"18px 0", fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", cursor:isSetup&&!nameInput.trim()?"not-allowed":"pointer", zIndex:1, width:"100%", boxShadow:isSetup&&!nameInput.trim()?"none":`0 8px 32px ${C.accentGlow}`, transition:"all 0.2s" }}>
-        {isSetup ? (nameInput.trim() ? `Let's go, ${nameInput.split(" ")[0]} →` : "Enter your name first") : slides[step].cta}
+        onClick={handleNext}
+        disabled={step===0 && !name.trim()}
+        style={{ background:step===0&&!name.trim()?C.border:C.gradAccent, color:"#fff", border:"none", borderRadius:16, padding:"18px 0", fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", cursor:step===0&&!name.trim()?"not-allowed":"pointer", zIndex:1, width:"100%", marginTop:16, boxShadow:step===0&&!name.trim()?"none":`0 8px 32px ${C.accentGlow}`, transition:"all 0.2s", flexShrink:0 }}>
+        {step === TOTAL_STEPS - 1 ? "Open bulsa →" : step === 2 && wallets.length === 0 ? "Skip for now →" : "Continue →"}
       </button>
     </div>
   );
@@ -4672,9 +4816,11 @@ export default function Bulsa() {
     ));
   }, []);
 
-  const handleOnboardDone = ({ name:n, income:inc }) => {
+  const handleOnboardDone = ({ name:n, income:inc, wallets:ws=[], payday:pd }) => {
     if (n) setName(n);
     if (inc>0) setIncome(inc);
+    if (ws.length>0) setWallets(ws);
+    if (pd) setPayday(pd);
     setOnboarded(true);
   };
 
@@ -4703,7 +4849,7 @@ export default function Bulsa() {
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}>{screens[screen]}</div>
+            <div style={{ flex:1, overflowY:"auto" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
