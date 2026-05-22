@@ -3249,100 +3249,15 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   );
 }
 
-// ─── DONUT CHART ───────────────────────────────────────────────────────────
-
-function DonutChart({ slices, size=180, thickness=38 }) {
-  const r      = (size / 2) - thickness / 2;
-  const cx     = size / 2;
-  const cy     = size / 2;
-  const circ   = 2 * Math.PI * r;
-  const total  = slices.reduce((s, sl) => s + sl.value, 0);
-  const [hovered, setHovered] = useState(null);
-
-  if (total === 0) return null;
-
-  let cursor = -Math.PI / 2; // start at top
-  const paths = slices.map((sl, i) => {
-    const frac  = sl.value / total;
-    const angle = frac * 2 * Math.PI;
-    const gap   = 0.03; // radians gap between slices
-    const start = cursor + gap / 2;
-    const end   = cursor + angle - gap / 2;
-    cursor += angle;
-
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const large = angle - gap > Math.PI ? 1 : 0;
-
-    const midAngle = start + (end - start) / 2;
-    const mid = { x: cx + r * Math.cos(midAngle), y: cy + r * Math.sin(midAngle) };
-
-    return { ...sl, i, path: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`, mid, pct: Math.round(frac * 100) };
-  });
-
-  const active = hovered !== null ? paths[hovered] : null;
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow:"visible" }}>
-      {paths.map((sl, i) => (
-        <path key={i} d={sl.path}
-          fill="none"
-          stroke={sl.color}
-          strokeWidth={hovered === i ? thickness + 6 : thickness}
-          strokeLinecap="round"
-          style={{ cursor:"pointer", transition:"stroke-width 0.18s ease", filter: hovered === i ? `drop-shadow(0 0 8px ${sl.color}80)` : "none" }}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-          onTouchStart={() => setHovered(i)}
-          onTouchEnd={() => setTimeout(() => setHovered(null), 1200)}
-        />
-      ))}
-      {/* Centre label */}
-      <text x={cx} y={cy - 10} textAnchor="middle" fill={active ? active.color : "var(--c-text, #F0F4FF)"}
-        style={{ fontSize: active ? 13 : 11, fontWeight:800, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>
-        {active ? active.icon + " " + active.label : "Total"}
-      </text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fill={active ? active.color : "var(--c-text, #F0F4FF)"}
-        style={{ fontSize: active ? 20 : 17, fontWeight:800, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>
-        {active ? active.pct + "%" : ""}
-      </text>
-      {!active && (
-        <text x={cx} y={cy + 13} textAnchor="middle" fill="var(--c-text, #F0F4FF)"
-          style={{ fontSize:13, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
-          {slices.length} cats
-        </text>
-      )}
-    </svg>
-  );
-}
-
 // ─── INSIGHTS TAB ──────────────────────────────────────────────────────────
 
 function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   const fmt = useFmt();
-  const [editLimit,   setEditLimit]   = useState(false);
-  const [limitInput,  setLimitInput]  = useState(String(dailyLimit || ""));
-  const [chartPeriod, setChartPeriod] = useState("month"); // month | week | all
+  const [editLimit, setEditLimit] = useState(false);
+  const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
 
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-  // Filter expenses by chart period
-  const now2 = new Date();
-  const chartExpenses = expenses.filter(e => {
-    if (!e.ts) return chartPeriod === "all";
-    const d = new Date(e.ts);
-    if (chartPeriod === "week") {
-      const ws = new Date(now2); ws.setDate(now2.getDate()-now2.getDay()); ws.setHours(0,0,0,0);
-      return d >= ws;
-    }
-    if (chartPeriod === "month") return d.getFullYear()===now2.getFullYear()&&d.getMonth()===now2.getMonth();
-    return true;
-  });
-
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
-  const chartTotal = chartExpenses.reduce((s,e)=>s+e.amount,0);
 
   // Day of week (all time)
   const byDay = Array(7).fill(0);
@@ -3480,74 +3395,23 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
         </div>
       )}
 
-      {/* Spending Breakdown Chart */}
-      <div>
-        <SLabel>Spending Breakdown</SLabel>
-        <Card style={{ border:`1px solid ${C.accent}25` }}>
-          {/* Period toggle */}
-          <div style={{ display:"flex", gap:6, marginBottom:16 }}>
-            {[["month","This Month"],["week","This Week"],["all","All Time"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setChartPeriod(v)} className="tap-btn"
-                style={{ flex:1, padding:"7px 4px", borderRadius:10, border:`1px solid ${chartPeriod===v?C.accent+"60":C.border}`, background:chartPeriod===v?C.accentGlow:C.surface, color:chartPeriod===v?C.accent:C.textSub, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                {l}
-              </button>
+      {/* Spend by Category */}
+      {byCat.length>0&&(
+        <div>
+          <SLabel>Spend by Category (all time)</SLabel>
+          <Card>
+            {byCat.map((c,i)=>( 
+              <div key={c.id} style={{ marginBottom:i<byCat.length-1?14:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div>
+                  <div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> - {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div>
+                </div>
+                <Bar pct={totalSpent?(c.total/totalSpent)*100:0} color={c.color} h={5}/>
+              </div>
             ))}
-          </div>
-
-          {chartTotal === 0 ? (
-            <p style={{ textAlign:"center", color:C.textFaint, fontSize:13, fontFamily:"DM Sans,sans-serif", padding:"20px 0" }}>No expenses logged {chartPeriod==="month"?"this month":chartPeriod==="week"?"this week":"yet"}.</p>
-          ) : (() => {
-            const chartByCat = CATS.map(c=>({ ...c, value:chartExpenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.value>0).sort((a,b)=>b.value-a.value);
-            return (
-              <>
-                {/* Donut + legend side by side */}
-                <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
-                  <div style={{ flexShrink:0 }}>
-                    <DonutChart slices={chartByCat} size={150} thickness={32}/>
-                  </div>
-                  {/* Legend */}
-                  <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
-                    {chartByCat.slice(0,5).map((c,i)=>(
-                      <div key={c.id} style={{ display:"flex", alignItems:"center", gap:7 }}>
-                        <div style={{ width:10, height:10, borderRadius:"50%", background:c.color, flexShrink:0 }}/>
-                        <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.icon} {c.label}</span>
-                        <span style={{ fontSize:12, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>{Math.round((c.value/chartTotal)*100)}%</span>
-                      </div>
-                    ))}
-                    {chartByCat.length>5&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>+{chartByCat.length-5} more categories</p>}
-                  </div>
-                </div>
-
-                {/* Category bars with amounts */}
-                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, display:"flex", flexDirection:"column", gap:10 }}>
-                  {chartByCat.map((c,i)=>(
-                    <div key={c.id}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                          <span style={{ fontSize:14 }}>{c.icon}</span>
-                          <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>
-                          {i===0&&<Tag color={c.color}>Top</Tag>}
-                        </div>
-                        <div style={{ textAlign:"right" }}>
-                          <span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.value)}</span>
-                          <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> · {Math.round((c.value/chartTotal)*100)}%</span>
-                        </div>
-                      </div>
-                      <Bar pct={(c.value/chartTotal)*100} color={c.color} h={5}/>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Total */}
-                <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total {chartPeriod==="month"?"this month":chartPeriod==="week"?"this week":"all time"}</span>
-                  <span style={{ fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(chartTotal)}</span>
-                </div>
-              </>
-            );
-          })()}
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
       {/* Filipino Tips */}
       <div>
@@ -3691,7 +3555,7 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
 
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs }) {
+function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday }) {
   const fmt = useFmt();
   const [view,      setView]     = useState("list");
   const [detail,    setDetail]   = useState(null);
@@ -3747,32 +3611,116 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       {view==="list"&&(
         <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt}/>
       )}
-      {view==="budget"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <Card style={{ background:`${C.accent}0A`, border:`1px solid ${C.accent}20`, padding:"12px 14px" }}><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Set monthly limits per category. Tap <strong style={{ color:C.accentSoft }}>Set / Edit</strong> to customize.</p></Card>
-          {CATS.map(c=>{ const spent=expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0),limit=budgets[c.id]||0,pct=limit?Math.min((spent/limit)*100,100):0,over=spent>limit&&limit>0,isEdit=editB===c.id; return (
-            <Card key={c.id} style={{ border:`1px solid ${over?C.coral+"40":C.border}` }} glow={over} danger={over}>
-              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:limit>0?12:0 }}>
-                <div style={{ width:38, height:38, borderRadius:11, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</p>
-                  {isEdit?(
-                    <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:4 }}>
-                      <span style={{ fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-                      <input autoFocus type="number" value={bInput} onChange={e=>setBInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ setBudgets(b=>({...b,[c.id]:+bInput||0})); setEditB(null); } if(e.key==="Escape") setEditB(null); }} style={{ background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:8, padding:"4px 8px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", width:90 }}/>
-                      <button onClick={()=>{ setBudgets(b=>({...b,[c.id]:+bInput||0})); setEditB(null); }} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Set</button>
-                    </div>
-                  ):(
-                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(spent)} {limit>0?`of ${fmt(limit)}`:"-- no limit set"}{over&&<strong style={{ color:C.coral }}> - OVER!</strong>}</p>
-                  )}
+      {view==="budget"&&(()=>{
+        const cycle       = getPaycycle(payday||"both");
+        const cycleStart  = cycle.cycleStart;
+        const cycleEnd    = cycle.nextPayday;
+        const cycleIncome = Math.round(income * cycle.incomeMultiplier);
+        const cycleLabel  = payday==="both"
+          ? (new Date().getDate()<=15 ? "1st–15th cycle" : "16th–30th cycle")
+          : cycle.label + " cycle";
+
+        // Expenses within current pay cycle only
+        const cycleExp = expenses.filter(e => {
+          if (!e.ts) return false;
+          const d = new Date(e.ts);
+          return d >= cycleStart && d <= cycleEnd;
+        });
+        const cycleTotal = cycleExp.reduce((s,e)=>s+e.amount,0);
+        const overallPct = cycleIncome>0 ? Math.min(Math.round((cycleTotal/cycleIncome)*100),100) : 0;
+        const overallOver = cycleIncome>0 && cycleTotal>cycleIncome;
+        const hasLimits = CATS.some(c=>(budgets[c.id]||0)>0);
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+
+            {/* Cycle header */}
+            <Card style={{ background:`${C.accent}0A`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div>
+                  <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+                    📅 {cycleLabel}
+                  </p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                    {cycleStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – {cycleEnd.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} · {cycle.daysLeft} day{cycle.daysLeft!==1?"s":""} left
+                  </p>
                 </div>
-                {!isEdit&&<button onClick={()=>{ setEditB(c.id); setBInput(String(limit||"")); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{limit>0?"Edit":"Set"}</button>}
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:overallOver?C.coral:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(cycleTotal)}</p>
+                  {cycleIncome>0&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>of {fmt(cycleIncome)} budget</p>}
+                </div>
               </div>
-              {limit>0&&<Bar pct={pct} color={over?C.coral:pct>80?C.gold:c.color} h={5}/>}
+              {cycleIncome>0&&(
+                <>
+                  <Bar pct={overallPct} color={overallOver?C.coral:overallPct>80?C.gold:C.accent} h={7}/>
+                  <p style={{ margin:"6px 0 0", fontSize:11, color:overallOver?C.coral:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                    {overallOver ? `⚠️ Over by ${fmt(cycleTotal-cycleIncome)} this cycle` : `${fmt(cycleIncome-cycleTotal)} remaining this cycle`}
+                  </p>
+                </>
+              )}
+              {!hasLimits&&(
+                <p style={{ margin:"8px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                  💡 Tap <strong style={{ color:C.accentSoft }}>Set</strong> on any category below to add a per-category limit.
+                </p>
+              )}
             </Card>
-          );})}
-        </div>
-      )}
+
+            {/* Per-category cards */}
+            {CATS.map(c=>{
+              const spent  = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+              const limit  = budgets[c.id]||0;
+              const pct    = limit ? Math.min((spent/limit)*100,100) : 0;
+              const over   = spent>limit && limit>0;
+              const warn   = !over && limit>0 && pct>=80;
+              const isEdit = editB===c.id;
+              if (spent===0 && limit===0) return null; // hide empty/unset cats
+              return (
+                <Card key={c.id} style={{ border:`1px solid ${over?C.coral+"50":warn?C.gold+"40":C.border}` }} danger={over}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:limit>0||isEdit?12:0 }}>
+                    <div style={{ width:38, height:38, borderRadius:11, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</p>
+                        {over&&<Tag color={C.coral}>Over!</Tag>}
+                        {warn&&<Tag color={C.gold}>80%</Tag>}
+                      </div>
+                      {isEdit?(
+                        <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:4 }}>
+                          <span style={{ fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+                          <input autoFocus type="number" value={bInput} onChange={e=>setBInput(e.target.value)}
+                            onKeyDown={e=>{ if(e.key==="Enter"){ setBudgets(b=>({...b,[c.id]:+bInput||0})); setEditB(null); } if(e.key==="Escape") setEditB(null); }}
+                            style={{ background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:8, padding:"4px 8px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", width:90 }}/>
+                          <button onClick={()=>{ setBudgets(b=>({...b,[c.id]:+bInput||0})); setEditB(null); }}
+                            style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Set</button>
+                          <button onClick={()=>setEditB(null)}
+                            style={{ background:"none", border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:8, padding:"4px 8px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>✕</button>
+                        </div>
+                      ):(
+                        <p style={{ margin:"2px 0 0", fontSize:11, color:over?C.coral:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                          {fmt(spent)}{limit>0?` of ${fmt(limit)} limit`:" spent this cycle"}
+                        </p>
+                      )}
+                    </div>
+                    {!isEdit&&(
+                      <button onClick={()=>{ setEditB(c.id); setBInput(String(limit||"")); }}
+                        style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, flexShrink:0 }}>
+                        {limit>0?"Edit":"Set"}
+                      </button>
+                    )}
+                  </div>
+                  {limit>0&&!isEdit&&<Bar pct={pct} color={over?C.coral:warn?C.gold:c.color} h={5}/>}
+                  {limit===0&&!isEdit&&spent>0&&<Bar pct={cycleTotal>0?(spent/cycleTotal)*100:0} color={c.color+"80"} h={4}/>}
+                </Card>
+              );
+            })}
+
+            {/* Show all categories button if some are hidden */}
+            {CATS.every(c=>(expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0)===0&&(budgets[c.id]||0)===0))&&(
+              <p style={{ textAlign:"center", fontSize:13, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"20px 0" }}>No expenses this cycle yet. Start logging!</p>
+            )}
+          </div>
+        );
+      })()}
 
       {view==="subs"&&(
         <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} setExpenses={setExpenses} wallets={[]} embedded/>
@@ -4647,7 +4595,7 @@ function getPaycycle(payday) {
   }
 }
 
-function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
+function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budgets={} }) {
   const fmt = useFmt();
   const now        = new Date();
   const cycle      = getPaycycle(payday||"both");
@@ -4753,6 +4701,38 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
           <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent today</p>
         </Card>
       </div>
+
+      {/* Budget status per category */}
+      {Object.keys(budgets).some(k=>(budgets[k]||0)>0)&&(()=>{
+        const overCats = CATS.filter(c=>{
+          const limit = budgets[c.id]||0; if (!limit) return false;
+          const spent = cycleExpenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+          return spent>limit*0.8;
+        });
+        if (overCats.length===0) return null;
+        return (
+          <Card style={{ border:`1px solid ${C.gold}30`, background:`${C.gold}08`, padding:"14px 16px" }}>
+            <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:800, color:C.gold, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.06em" }}>⚠️ Budget Alerts</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {overCats.map(c=>{
+                const limit = budgets[c.id]||0;
+                const spent = cycleExpenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+                const over  = spent>limit;
+                const pct   = Math.min(Math.round((spent/limit)*100),999);
+                return (
+                  <div key={c.id}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.icon} {c.label}</span>
+                      <span style={{ fontSize:12, fontWeight:800, color:over?C.coral:C.gold, fontFamily:"DM Sans,sans-serif" }}>{over?`Over by ${fmt(spent-limit)}`:`${pct}% used`}</span>
+                    </div>
+                    <Bar pct={Math.min(pct,100)} color={over?C.coral:C.gold} h={4}/>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       {totalDebt>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28`, padding:"14px 16px" }}><div style={{ display:"flex", gap:10, alignItems:"center" }}><span style={{ fontSize:22 }}>⊗</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Don't forget your loans</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)} total remaining debt</p></div></div></Card>)}
       {topGoal&&(<Card style={{ background:`${topGoal.color}0C`, border:`1px solid ${topGoal.color}28`, padding:"14px 16px" }}><div style={{ display:"flex", gap:10, alignItems:"center" }}><span style={{ fontSize:22 }}>{topGoal.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{topGoal.name}</p><p style={{ margin:0, fontSize:12, color:topGoal.color, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{fmt(topGoal.target-topGoal.saved)} to go</p></div><Ring pct={Math.round((topGoal.saved/topGoal.target)*100)} size={44} stroke={4} color={topGoal.color}><span style={{ fontSize:9, fontWeight:800, color:topGoal.color, fontFamily:"DM Sans,sans-serif" }}>{Math.round((topGoal.saved/topGoal.target)*100)}%</span></Ring></div></Card>)}
@@ -5208,7 +5188,7 @@ export default function Bulsa() {
 
   const screens = {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)}/>,
-    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs}/>,
+    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -5217,7 +5197,7 @@ export default function Bulsa() {
     // new combined screens
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
-    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
+    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
