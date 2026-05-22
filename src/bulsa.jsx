@@ -2982,131 +2982,130 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       {/* ── PAYMENT URGENCY STRIP ── */}
       {(()=>{
         const today = new Date(); today.setHours(0,0,0,0);
+        const daysFrom = dateStr => {
+          if (!dateStr) return null;
+          const d = new Date(dateStr+"T00:00:00");
+          if (isNaN(d)) return null;
+          return Math.round((d-today)/(1000*60*60*24));
+        };
 
-        // Collect urgent items from subs
+        // ── Subs
         const subItems = (subs||[])
           .filter(s=>s.active!==false)
-          .map(s=>({
-            id:     "sub-"+s.id,
-            name:   s.name,
-            amount: s.amount,
-            days:   daysUntil(s.dueDate),
-            icon:   s.icon||"📦",
-            color:  s.color||C.gold,
-            screen: "subs",
-            type:   "sub",
-          }))
+          .map(s=>({ id:"sub-"+s.id, name:s.name, amount:s.amount, days:daysUntil(s.dueDate), icon:s.icon||"📦", color:s.color||C.gold, screen:"subs", type:"sub" }))
           .filter(s=>s.days<=7);
 
-        // Collect urgent items from loans (use dueDay+payments to compute next due)
+        // ── Loans (dueDay + startDate)
         const loanItems = (loans||[])
-          .filter(l=>{
-            const rem = l.payments?.length
-              ? Math.max(l.amount - l.payments.reduce((s,p)=>s+p.amount,0),0)
-              : Math.max(l.amount-(l.paid||0),0);
-            return rem>0 && (l.dueDay||l.due);
-          })
+          .filter(l=>{ const rem=l.payments?.length?Math.max(l.amount-l.payments.reduce((s,p)=>s+p.amount,0),0):Math.max(l.amount-(l.paid||0),0); return rem>0&&(l.dueDay||l.due); })
           .map(l=>{
-            let nextDue = null;
-            if (l.dueDay && l.startDate) {
-              const paidCount = l.payments?.length||0;
-              const base = new Date(l.startDate+"T12:00:00");
-              nextDue = new Date(base.getFullYear(), base.getMonth()+paidCount, l.dueDay);
-            }
-            const days = nextDue ? Math.round((nextDue-today)/(1000*60*60*24)) : null;
-            if (days===null || days>7) return null;
-            return {
-              id:     "loan-"+l.id,
-              name:   l.name,
-              amount: l.monthlyAmount||0,
-              days,
-              icon:   "🏦",
-              color:  l.color||C.coral,
-              screen: "loans",
-              type:   "loan",
-              nextDue,
-            };
-          })
-          .filter(Boolean);
+            let nextDue=null;
+            if (l.dueDay&&l.startDate){ const paidCount=l.payments?.length||0; const base=new Date(l.startDate+"T12:00:00"); nextDue=new Date(base.getFullYear(),base.getMonth()+paidCount,l.dueDay); }
+            const days=nextDue?Math.round((nextDue-today)/(1000*60*60*24)):null;
+            if (days===null||days>7) return null;
+            return { id:"loan-"+l.id, name:l.name, amount:l.monthlyAmount||0, days, icon:"🏦", color:l.color||C.coral, screen:"loans", type:"loan" };
+          }).filter(Boolean);
 
-        const allItems = [...subItems,...loanItems].sort((a,b)=>a.days-b.days);
-        const overdue  = allItems.filter(x=>x.days<0);
-        const upcoming = allItems.filter(x=>x.days>=0);
+        // ── Utangs I owe (entries with dueDate)
+        const utangItems = (utangs||[])
+          .filter(u=>u.direction==="iowe"&&!u.settled)
+          .flatMap(u=>(u.entries||[])
+            .filter(e=>!e.settled&&e.dueDate)
+            .map(e=>({ id:"utang-"+e.id, name:`${u.person} (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"😬", color:C.coral, screen:"utang", type:"utang" }))
+          )
+          .filter(x=>x.days!==null&&x.days<=7);
+
+        // ── Goals with parseable deadline approaching within 30 days
+        const goalItems = (goals||[])
+          .filter(g=>!g.done&&g.deadline)
+          .map(g=>{
+            // Try ISO date first, then "Mon YYYY" format
+            let d = new Date(g.deadline+"T00:00:00");
+            if (isNaN(d)){ const parts=g.deadline.match(/^(\w+)\s+(\d{4})$/); if(parts){ d=new Date(`${parts[1]} 1 ${parts[2]}`); } }
+            if (isNaN(d)) return null;
+            const days=Math.round((d-today)/(1000*60*60*24));
+            if (days>30||days<0) return null;
+            const pct=g.target>0?Math.round((g.saved/g.target)*100):0;
+            if (pct>=100) return null; // already met
+            return { id:"goal-"+g.id, name:`${g.emoji} ${g.name}`, amount:g.target-g.saved, days, icon:g.emoji||"🎯", color:g.color||C.accent, screen:"goals", type:"goal", pct };
+          }).filter(Boolean);
+
+        // ── People who owe ME, overdue only
+        const theyOweItems = (utangs||[])
+          .filter(u=>u.direction==="theyowe"&&!u.settled)
+          .flatMap(u=>(u.entries||[])
+            .filter(e=>!e.settled&&e.dueDate&&daysFrom(e.dueDate)<0)
+            .map(e=>({ id:"theyowe-"+e.id, name:`${u.person} owes you (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"🤑", color:C.green, screen:"utang", type:"theyowe" }))
+          );
+
+        const allItems  = [...subItems,...loanItems,...utangItems,...goalItems,...theyOweItems].sort((a,b)=>a.days-b.days);
+        const overdue   = allItems.filter(x=>x.days<0);
+        const upcoming  = allItems.filter(x=>x.days>=0);
 
         if (allItems.length===0) return null;
 
         const urgColor = d => d<0?C.coral:d===0?C.coral:d<=3?C.gold:"#6B8CAD";
-        const urgLabel = (d,name) => {
-          if (d<0)  return `${Math.abs(d)}d overdue -- pay ${name} now`;
-          if (d===0) return `${name} is due today`;
-          if (d===1) return `${name} due tomorrow`;
-          if (d<=3)  return `${name} due in ${d} days -- pay soon`;
-          return `${name} due in ${d} days`;
-        };
-        const urgIcon  = d => d<0?"🚨":d===0?"🔴":d<=3?"⚠️":"📅";
+        const urgIcon  = (d,type) => { if(type==="theyowe") return "🤑"; if(type==="goal") return "🎯"; return d<0?"🚨":d===0?"🔴":d<=3?"⚠️":"📅"; };
+        const urgDayLabel = d => d<0?`${Math.abs(d)}d overdue`:d===0?"Due today":d===1?"Due tomorrow":`Due in ${d} days`;
+        const typeLabel = t => ({ sub:"subscription", loan:"installment", utang:"utang", goal:"savings goal", theyowe:"they owe you" })[t]||t;
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:overdue.length?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
-                {overdue.length?"🚨 Overdue payments":"⏰ Upcoming payments"}
+                {overdue.length?"🚨 Needs attention":"⏰ Coming up"}
               </p>
               {allItems.length>3&&(
                 <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
               )}
             </div>
 
-            {/* Overdue banner -- full-width red alert */}
+            {/* Overdue block */}
             {overdue.length>0&&(
-              <div style={{ background:`${C.coral}12`, border:`1.5px solid ${C.coral}50`, borderRadius:16, padding:"12px 16px" }}>
+              <div style={{ background:`${C.coral}0C`, border:`1.5px solid ${C.coral}50`, borderRadius:16, padding:"12px 16px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:overdue.length>1?8:0 }}>
                   <span style={{ fontSize:20 }}>🚨</span>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
-                      {overdue.length===1?"Late payment":"Late payments"}
+                      {overdue.length===1?`${overdue[0].name}`:`${overdue.length} things need attention`}
                     </p>
                     <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                      {overdue.length===1
-                        ? urgLabel(overdue[0].days, overdue[0].name)
-                        : `${overdue.length} payments are past due -- act now`}
+                      {overdue.length===1?`${Math.abs(overdue[0].days)}d overdue -- ${typeLabel(overdue[0].type)}`:"Overdue payments and reminders"}
                     </p>
                   </div>
                   {overdue.length===1&&overdue[0].amount>0&&(
-                    <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(overdue[0].amount)}</p>
+                    <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(overdue[0].amount).toLocaleString()}</p>
                   )}
                 </div>
                 {overdue.length>1&&overdue.map(x=>(
                   <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
-                    style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}18`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer", marginTop:4 }}>
+                    style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}14`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer", marginTop:4 }}>
                     <span style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
                       <span>{x.icon}</span>{x.name}
                       <span style={{ fontSize:10, color:C.coral, fontWeight:800 }}>{Math.abs(x.days)}d late</span>
                     </span>
-                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</span>}
+                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</span>}
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Upcoming items -- compact rows */}
-            {upcoming.slice(0,3).map(x=>{
+            {/* Upcoming rows */}
+            {upcoming.slice(0,4).map(x=>{
               const uc = urgColor(x.days);
               return (
                 <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
                   style={{ display:"flex", alignItems:"center", gap:12, background:C.card, border:`1.5px solid ${uc}35`, borderRadius:14, padding:"11px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
-                  {/* Left color bar */}
                   <div style={{ width:3, height:36, borderRadius:99, background:uc, flexShrink:0 }}/>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{urgIcon(x.days)}</span>
+                  <span style={{ fontSize:18, flexShrink:0 }}>{urgIcon(x.days,x.type)}</span>
                   <div style={{ flex:1, minWidth:0 }}>
                     <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{x.name}</p>
-                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                      {x.days===0?"Due today":x.days===1?"Due tomorrow":`Due in ${x.days} days`}
-                    </p>
+                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgDayLabel(x.days)}</p>
                   </div>
                   {x.amount>0&&(
                     <div style={{ textAlign:"right", flexShrink:0 }}>
-                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</p>
-                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{x.type==="loan"?"installment":"subscription"}</p>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</p>
+                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{typeLabel(x.type)}</p>
                     </div>
                   )}
                   <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
