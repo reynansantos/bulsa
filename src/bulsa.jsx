@@ -3249,15 +3249,100 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   );
 }
 
+// ─── DONUT CHART ───────────────────────────────────────────────────────────
+
+function DonutChart({ slices, size=180, thickness=38 }) {
+  const r      = (size / 2) - thickness / 2;
+  const cx     = size / 2;
+  const cy     = size / 2;
+  const circ   = 2 * Math.PI * r;
+  const total  = slices.reduce((s, sl) => s + sl.value, 0);
+  const [hovered, setHovered] = useState(null);
+
+  if (total === 0) return null;
+
+  let cursor = -Math.PI / 2; // start at top
+  const paths = slices.map((sl, i) => {
+    const frac  = sl.value / total;
+    const angle = frac * 2 * Math.PI;
+    const gap   = 0.03; // radians gap between slices
+    const start = cursor + gap / 2;
+    const end   = cursor + angle - gap / 2;
+    cursor += angle;
+
+    const x1 = cx + r * Math.cos(start);
+    const y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end);
+    const y2 = cy + r * Math.sin(end);
+    const large = angle - gap > Math.PI ? 1 : 0;
+
+    const midAngle = start + (end - start) / 2;
+    const mid = { x: cx + r * Math.cos(midAngle), y: cy + r * Math.sin(midAngle) };
+
+    return { ...sl, i, path: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`, mid, pct: Math.round(frac * 100) };
+  });
+
+  const active = hovered !== null ? paths[hovered] : null;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow:"visible" }}>
+      {paths.map((sl, i) => (
+        <path key={i} d={sl.path}
+          fill="none"
+          stroke={sl.color}
+          strokeWidth={hovered === i ? thickness + 6 : thickness}
+          strokeLinecap="round"
+          style={{ cursor:"pointer", transition:"stroke-width 0.18s ease", filter: hovered === i ? `drop-shadow(0 0 8px ${sl.color}80)` : "none" }}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+          onTouchStart={() => setHovered(i)}
+          onTouchEnd={() => setTimeout(() => setHovered(null), 1200)}
+        />
+      ))}
+      {/* Centre label */}
+      <text x={cx} y={cy - 10} textAnchor="middle" fill={active ? active.color : "var(--c-text, #F0F4FF)"}
+        style={{ fontSize: active ? 13 : 11, fontWeight:800, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>
+        {active ? active.icon + " " + active.label : "Total"}
+      </text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fill={active ? active.color : "var(--c-text, #F0F4FF)"}
+        style={{ fontSize: active ? 20 : 17, fontWeight:800, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>
+        {active ? active.pct + "%" : ""}
+      </text>
+      {!active && (
+        <text x={cx} y={cy + 13} textAnchor="middle" fill="var(--c-text, #F0F4FF)"
+          style={{ fontSize:13, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
+          {slices.length} cats
+        </text>
+      )}
+    </svg>
+  );
+}
+
 // ─── INSIGHTS TAB ──────────────────────────────────────────────────────────
 
 function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   const fmt = useFmt();
-  const [editLimit, setEditLimit] = useState(false);
-  const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
+  const [editLimit,   setEditLimit]   = useState(false);
+  const [limitInput,  setLimitInput]  = useState(String(dailyLimit || ""));
+  const [chartPeriod, setChartPeriod] = useState("month"); // month | week | all
 
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // Filter expenses by chart period
+  const now2 = new Date();
+  const chartExpenses = expenses.filter(e => {
+    if (!e.ts) return chartPeriod === "all";
+    const d = new Date(e.ts);
+    if (chartPeriod === "week") {
+      const ws = new Date(now2); ws.setDate(now2.getDate()-now2.getDay()); ws.setHours(0,0,0,0);
+      return d >= ws;
+    }
+    if (chartPeriod === "month") return d.getFullYear()===now2.getFullYear()&&d.getMonth()===now2.getMonth();
+    return true;
+  });
+
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
+  const chartTotal = chartExpenses.reduce((s,e)=>s+e.amount,0);
 
   // Day of week (all time)
   const byDay = Array(7).fill(0);
@@ -3395,23 +3480,74 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
         </div>
       )}
 
-      {/* Spend by Category */}
-      {byCat.length>0&&(
-        <div>
-          <SLabel>Spend by Category (all time)</SLabel>
-          <Card>
-            {byCat.map((c,i)=>( 
-              <div key={c.id} style={{ marginBottom:i<byCat.length-1?14:0 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div>
-                  <div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> - {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div>
-                </div>
-                <Bar pct={totalSpent?(c.total/totalSpent)*100:0} color={c.color} h={5}/>
-              </div>
+      {/* Spending Breakdown Chart */}
+      <div>
+        <SLabel>Spending Breakdown</SLabel>
+        <Card style={{ border:`1px solid ${C.accent}25` }}>
+          {/* Period toggle */}
+          <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+            {[["month","This Month"],["week","This Week"],["all","All Time"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setChartPeriod(v)} className="tap-btn"
+                style={{ flex:1, padding:"7px 4px", borderRadius:10, border:`1px solid ${chartPeriod===v?C.accent+"60":C.border}`, background:chartPeriod===v?C.accentGlow:C.surface, color:chartPeriod===v?C.accent:C.textSub, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                {l}
+              </button>
             ))}
-          </Card>
-        </div>
-      )}
+          </div>
+
+          {chartTotal === 0 ? (
+            <p style={{ textAlign:"center", color:C.textFaint, fontSize:13, fontFamily:"DM Sans,sans-serif", padding:"20px 0" }}>No expenses logged {chartPeriod==="month"?"this month":chartPeriod==="week"?"this week":"yet"}.</p>
+          ) : (() => {
+            const chartByCat = CATS.map(c=>({ ...c, value:chartExpenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.value>0).sort((a,b)=>b.value-a.value);
+            return (
+              <>
+                {/* Donut + legend side by side */}
+                <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
+                  <div style={{ flexShrink:0 }}>
+                    <DonutChart slices={chartByCat} size={150} thickness={32}/>
+                  </div>
+                  {/* Legend */}
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
+                    {chartByCat.slice(0,5).map((c,i)=>(
+                      <div key={c.id} style={{ display:"flex", alignItems:"center", gap:7 }}>
+                        <div style={{ width:10, height:10, borderRadius:"50%", background:c.color, flexShrink:0 }}/>
+                        <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.icon} {c.label}</span>
+                        <span style={{ fontSize:12, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>{Math.round((c.value/chartTotal)*100)}%</span>
+                      </div>
+                    ))}
+                    {chartByCat.length>5&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>+{chartByCat.length-5} more categories</p>}
+                  </div>
+                </div>
+
+                {/* Category bars with amounts */}
+                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, display:"flex", flexDirection:"column", gap:10 }}>
+                  {chartByCat.map((c,i)=>(
+                    <div key={c.id}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                          <span style={{ fontSize:14 }}>{c.icon}</span>
+                          <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>
+                          {i===0&&<Tag color={c.color}>Top</Tag>}
+                        </div>
+                        <div style={{ textAlign:"right" }}>
+                          <span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.value)}</span>
+                          <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> · {Math.round((c.value/chartTotal)*100)}%</span>
+                        </div>
+                      </div>
+                      <Bar pct={(c.value/chartTotal)*100} color={c.color} h={5}/>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total */}
+                <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total {chartPeriod==="month"?"this month":chartPeriod==="week"?"this week":"all time"}</span>
+                  <span style={{ fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(chartTotal)}</span>
+                </div>
+              </>
+            );
+          })()}
+        </Card>
+      </div>
 
       {/* Filipino Tips */}
       <div>
@@ -4628,54 +4764,14 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, subs, setSubs, budgets, setBudgets, dailyLimit, setDailyLimit }) {
+function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
   const [confirmClear, setCC]       = useState(false);
-  const [restoreStatus, setRestoreStatus] = useState(null); // null | "success" | "error" | "confirm"
-  const [restoreData,   setRestoreData]   = useState(null);
-  const avatarRef  = useRef(null);
-  const restoreRef = useRef(null);
-
-  const handleRestoreFile = e => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (!data.version || !data.exportedAt) throw new Error("Invalid backup file");
-        setRestoreData(data);
-        setRestoreStatus("confirm");
-      } catch {
-        setRestoreStatus("error");
-        setTimeout(() => setRestoreStatus(null), 3000);
-      }
-    };
-    r.readAsText(f);
-    e.target.value = "";
-  };
-
-  const applyRestore = () => {
-    const d = restoreData;
-    if (!d) return;
-    if (d.expenses)    setExpenses(d.expenses);
-    if (d.loans)       setLoans(d.loans);
-    if (d.goals)       setGoals(d.goals);
-    if (d.utangs)      setUtangs(d.utangs);
-    if (d.wallets)     setWallets(d.wallets);
-    if (d.subs)        setSubs(d.subs);
-    if (d.budgets)     setBudgets(d.budgets);
-    if (d.dailyLimit)  setDailyLimit(d.dailyLimit);
-    if (d.income)      setIncome(d.income);
-    if (d.name)        setName(d.name);
-    if (d.payday)      setPayday(d.payday);
-    setRestoreData(null);
-    setRestoreStatus("success");
-    setTimeout(() => setRestoreStatus(null), 3000);
-  };
+  const avatarRef = useRef(null);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
@@ -4854,14 +4950,20 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
             <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup (JSON)</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data — expenses, loans, goals, wallets, utangs, subs</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data -- expenses, loans, goals, utangs</p>
             </div>
             <button onClick={()=>{
               const backup = {
                 exportedAt: new Date().toISOString(),
-                version: "1.1",
-                name, income, payday, dailyLimit,
-                expenses, loans, goals, utangs, wallets, subs, budgets,
+                version: "1.0",
+                name,
+                income,
+                expenses,
+                loans: JSON.parse(localStorage.getItem("bulsa_loans")||"[]"),
+                goals: JSON.parse(localStorage.getItem("bulsa_goals")||"[]"),
+                utangs: JSON.parse(localStorage.getItem("bulsa_utangs")||"[]"),
+                wallets: JSON.parse(localStorage.getItem("bulsa_wallets")||"[]"),
+                budgets: JSON.parse(localStorage.getItem("bulsa_budgets")||"{}"),
               };
               const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
               const url  = URL.createObjectURL(blob);
@@ -4872,47 +4974,7 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
               Backup
             </button>
           </div>
-          <p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-            💡 Save this file to Google Drive or iCloud so you never lose your data
-          </p>
         </Card>
-
-        {/* Restore from backup */}
-        <input ref={restoreRef} type="file" accept=".json,application/json" style={{ display:"none" }} onChange={handleRestoreFile}/>
-        {restoreStatus === "confirm" && restoreData ? (
-          <Card style={{ background:`${C.accent}0D`, border:`1px solid ${C.accent}40`, padding:"16px 18px", marginBottom:10 }}>
-            <p style={{ margin:"0 0 6px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>⚠️ Restore this backup?</p>
-            <p style={{ margin:"0 0 4px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-              Backed up on {new Date(restoreData.exportedAt).toLocaleDateString("en-PH", { month:"long", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" })}
-            </p>
-            <p style={{ margin:"0 0 14px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-              {restoreData.expenses?.length || 0} expenses · {restoreData.loans?.length || 0} loans · {restoreData.utangs?.length || 0} utangs · {restoreData.goals?.length || 0} goals
-            </p>
-            <p style={{ margin:"0 0 14px", fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-              This will replace your current data. This can't be undone.
-            </p>
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn variant="outline" onClick={()=>{ setRestoreStatus(null); setRestoreData(null); }}>Cancel</Btn>
-              <Btn onClick={applyRestore} style={{ background:`linear-gradient(135deg,${C.accent},#0099DD)`, boxShadow:"none" }}>Yes, restore</Btn>
-            </div>
-          </Card>
-        ) : (
-          <Card style={{ padding:"14px 16px", marginBottom:10, opacity: restoreStatus === "error" ? 1 : 1, border: restoreStatus === "error" ? `1px solid ${C.coral}50` : `1px solid ${C.border}` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:38, height:38, borderRadius:11, background:`${C.accent}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📂</div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Restore from backup</p>
-                <p style={{ margin:0, fontSize:11, color: restoreStatus === "error" ? C.coral : restoreStatus === "success" ? C.green : C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                  {restoreStatus === "error" ? "❌ Invalid backup file" : restoreStatus === "success" ? "✓ Restored successfully!" : "Pick a bulsa. .json backup file"}
-                </p>
-              </div>
-              <button onClick={()=>restoreRef.current?.click()}
-                style={{ background:`${C.accent}14`, border:`1px solid ${C.accent}30`, color:C.accent, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                Restore
-              </button>
-            </div>
-          </Card>
-        )}
         {!confirmClear?(
           <Card style={{ padding:"14px 16px" }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ width:38, height:38, borderRadius:11, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p></div><button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button></div></Card>
         ):(
@@ -5156,7 +5218,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} subs={subs} setSubs={setSubs} budgets={budgets} setBudgets={setBudgets} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
   return (
