@@ -363,16 +363,21 @@ function BottomSheet({ children, onClose, title }) {
   const close = ()=>{ setVis(false); setTimeout(onClose,320); };
   return (
     <>
-      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"110%"})`,
-        width:"100%", background:C.surface, borderRadius:"26px 26px 0 0",
+      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{
+        position:"fixed", bottom:0, left:"50%",
+        transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
+        width:"100%", maxWidth:420,
+        background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
-        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
+        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto",
+        paddingBottom:"env(safe-area-inset-bottom)",
+      }}>
         {/* Drag handle */}
         <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
           <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
         </div>
-        <div style={{ padding:"10px 22px 44px" }}>
+        <div style={{ padding:"10px 22px 32px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
             <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{title}</h3>
             <button onClick={close} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -556,12 +561,137 @@ function WalletSheet({ wallet, onSave, onClose }) {
   );
 }
 
+// ─── TOP UP SHEET ──────────────────────────────────────────────────────────
+
+function TopUpSheet({ wallet, onSave, onClose }) {
+  const [amount,  setAmount]  = useState("");
+  const [type,    setType]    = useState("topup"); // topup | deduct | set
+  const [note,    setNote]    = useState("");
+  const [date,    setDate]    = useState(new Date().toISOString().split("T")[0]);
+  const today = new Date().toISOString().split("T")[0];
+  const valid = amount !== "" && !isNaN(+amount) && +amount > 0;
+
+  const QUICK_AMOUNTS = [100, 200, 500, 1000, 2000, 5000];
+
+  const typeConfig = {
+    topup:  { label:"Top Up",       icon:"📥", color:C.green,  verb:"Added" },
+    deduct: { label:"Deduct",       icon:"📤", color:C.coral,  verb:"Deducted" },
+    set:    { label:"Set Balance",  icon:"⚖️",  color:C.accent, verb:"Set to" },
+  };
+  const tc = typeConfig[type];
+
+  const newBalance = type==="set" ? +amount
+    : type==="topup"  ? wallet.balance + +amount
+    : Math.max(wallet.balance - +amount, 0);
+
+  const save = () => {
+    if (!valid) return;
+    const entry = {
+      id: uid(), type, amount:+amount, date, note:note.trim(),
+      balanceBefore: wallet.balance, balanceAfter: newBalance,
+      ts: new Date(date+"T12:00:00").toISOString(),
+    };
+    onSave({ ...wallet, balance: newBalance, history: [...(wallet.history||[]), entry] });
+  };
+
+  return (
+    <BottomSheet onClose={onClose} title={`${wallet.icon} ${wallet.name}`}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Type selector */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+          {Object.entries(typeConfig).map(([k,v])=>(
+            <button key={k} onClick={()=>setType(k)} style={{
+              padding:"10px 6px", borderRadius:12,
+              border:`1.5px solid ${type===k?v.color+"60":C.border}`,
+              background:type===k?`${v.color}12`:C.card,
+              cursor:"pointer", textAlign:"center",
+            }}>
+              <p style={{ margin:"0 0 3px", fontSize:18 }}>{v.icon}</p>
+              <p style={{ margin:0, fontSize:11, fontWeight:800, color:type===k?v.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{v.label}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Amount */}
+        <div>
+          <SLabel>{type==="set"?"New Balance":"Amount"}</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1.5px solid ${valid?tc.color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
+            <span style={{ fontSize:24, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amount}
+              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
+              placeholder="0"
+              onKeyDown={e=>e.key==="Enter"&&valid&&save()}
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:amount?C.text:C.textFaint, caretColor:tc.color }}/>
+          </div>
+          {type!=="set"&&(
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+              {QUICK_AMOUNTS.map(q=>(
+                <button key={q} onClick={()=>setAmount(String(q))} style={{
+                  background:amount===String(q)?tc.color+"18":C.surface,
+                  border:`1px solid ${amount===String(q)?tc.color+"50":C.border}`,
+                  color:amount===String(q)?tc.color:C.textSub,
+                  borderRadius:99, padding:"5px 12px", cursor:"pointer",
+                  fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif",
+                }}>₱{q.toLocaleString()}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Preview */}
+        {valid&&(
+          <div style={{ background:`${tc.color}0C`, border:`1px solid ${tc.color}25`, borderRadius:12, padding:"12px 16px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Current balance</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>₱{wallet.balance.toLocaleString()}</p>
+              </div>
+              <span style={{ fontSize:20, color:tc.color }}>→</span>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>New balance</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:800, color:tc.color, fontFamily:"DM Sans,sans-serif" }}>₱{newBalance.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Date */}
+        <div>
+          <SLabel>Date</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?C.accent+"50":C.border}`, borderRadius:12, padding:"10px 14px", gap:8 }}>
+            <span style={{ fontSize:16 }}>📅</span>
+            <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value)}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
+            {date!==today&&<Tag color={C.accent}>Past date</Tag>}
+          </div>
+        </div>
+
+        {/* Note */}
+        <div>
+          <SLabel>Note (optional)</SLabel>
+          <Inp value={note} onChange={setNote} placeholder="e.g. Salary, GCash cashout, allowance..."/>
+        </div>
+
+        <div style={{ display:"flex", gap:8 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?tc.color:C.border }}>
+            {tc.verb} ₱{amount||"0"}
+          </Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
 function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
   const fmt = useFmt();
   const [sheet,   setSheet]   = useState(null);
+  const [topUp,   setTopUp]   = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [expanded,setExpanded]= useState(null);
 
   const total = wallets.reduce((s,w) => s + w.balance, 0);
 
@@ -569,11 +699,16 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
     setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]);
     setSheet(null);
   };
+  const saveTopUp = w => {
+    setWallets(prev => prev.map(x=>x.id===w.id?w:x));
+    setTopUp(null);
+  };
   const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
+      {topUp && <TopUpSheet wallet={topUp} onSave={saveTopUp} onClose={()=>setTopUp(null)}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -632,9 +767,12 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
           }}>+ Add your first account</button>
         </div>
       ) : (
-        wallets.map((w, idx) => (
+        wallets.map((w, idx) => {
+          const isExp  = expanded===w.id;
+          const history= (w.history||[]).slice().reverse();
+          return (
           <Card key={w.id} glow animDelay={idx*50}>
-            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:12 }}>
               <div style={{ width:50, height:50, borderRadius:16, overflow:"hidden", flexShrink:0 }}>
                 <WalletIcon wallet={w} size={50}/>
               </div>
@@ -642,34 +780,74 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</p>
                 <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
               </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={()=>setSheet(w)} className="tap-btn" style={{
-                  background:C.surface, border:`1px solid ${C.border}`, color:C.textSub,
-                  borderRadius:10, padding:"8px 14px", cursor:"pointer",
-                  fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700,
-                }}>Edit</button>
-                {confirm===w.id ? (
-                  <button onClick={()=>deleteWallet(w.id)} className="tap-btn" style={{
-                    background:C.coral, border:"none", borderRadius:10, padding:"8px 12px",
-                    cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif",
-                    fontWeight:800, color:"#fff",
-                  }}>Confirm</button>
-                ) : (
-                  <button onClick={()=>setConfirm(w.id)} className="tap-btn" style={{
-                    background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral,
-                    borderRadius:10, padding:"8px 12px", cursor:"pointer",
-                    fontSize:14, fontFamily:"DM Sans,sans-serif",
-                  }}>🗑</button>
-                )}
-              </div>
             </div>
+
             {/* Share of total bar */}
             <Bar pct={total>0?(w.balance/total)*100:0} color={w.color} h={4}/>
-            <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            <p style={{ margin:"6px 0 12px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
               {total>0?Math.round((w.balance/total)*100):0}% of total
             </p>
+
+            {/* Actions */}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>setTopUp(w)} className="tap-btn" style={{
+                flex:2, background:`${w.color}15`, border:`1px solid ${w.color}40`,
+                color:w.color, borderRadius:10, padding:"9px",
+                cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:800,
+              }}>📥 Top Up / Adjust</button>
+              <button onClick={()=>setExpanded(isExp?null:w.id)} style={{
+                flex:1, background:C.surface, border:`1px solid ${C.border}`,
+                color:C.textSub, borderRadius:10, padding:"9px",
+                cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700,
+              }}>{isExp?"Hide":"History"}</button>
+              <button onClick={()=>setSheet(w)} className="tap-btn" style={{
+                background:C.surface, border:`1px solid ${C.border}`, color:C.textSub,
+                borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13,
+              }}>✏️</button>
+              {confirm===w.id ? (
+                <button onClick={()=>deleteWallet(w.id)} className="tap-btn" style={{
+                  background:C.coral, border:"none", borderRadius:10, padding:"9px 10px",
+                  cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff",
+                }}>✓</button>
+              ) : (
+                <button onClick={()=>setConfirm(w.id)} className="tap-btn" style={{
+                  background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral,
+                  borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:14,
+                }}>🗑</button>
+              )}
+            </div>
+
+            {/* History */}
+            {isExp&&(
+              <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+                <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Transaction history</p>
+                {history.length===0?(
+                  <p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontStyle:"italic" }}>No history yet. Top up to start tracking.</p>
+                ):(
+                  history.slice(0,8).map((h,i)=>{
+                    const typeMap = { topup:{ icon:"📥", color:C.green, sign:"+" }, deduct:{ icon:"📤", color:C.coral, sign:"-" }, set:{ icon:"⚖️", color:C.accent, sign:"→" } };
+                    const t = typeMap[h.type]||typeMap.topup;
+                    return (
+                      <div key={h.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:i<history.slice(0,8).length-1?10:0, marginBottom:i<history.slice(0,8).length-1?10:0, borderBottom:i<history.slice(0,8).length-1?`1px solid ${C.border}`:"none" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:16 }}>{t.icon}</span>
+                          <div>
+                            <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{h.note||( h.type==="topup"?"Top up":h.type==="deduct"?"Deducted":"Balance set")}</p>
+                            <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{h.date}</p>
+                          </div>
+                        </div>
+                        <div style={{ textAlign:"right" }}>
+                          <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:t.color, fontFamily:"DM Sans,sans-serif" }}>{t.sign}₱{h.amount.toLocaleString()}</p>
+                          <p style={{ margin:0, fontSize:9, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>→ ₱{h.balanceAfter?.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </Card>
-        ))
+        );})
       )}
 
       <p style={{ textAlign:"center", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
