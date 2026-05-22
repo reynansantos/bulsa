@@ -4628,14 +4628,54 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen }) {
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
+function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, subs, setSubs, budgets, setBudgets, dailyLimit, setDailyLimit }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
   const [confirmClear, setCC]       = useState(false);
-  const avatarRef = useRef(null);
+  const [restoreStatus, setRestoreStatus] = useState(null); // null | "success" | "error" | "confirm"
+  const [restoreData,   setRestoreData]   = useState(null);
+  const avatarRef  = useRef(null);
+  const restoreRef = useRef(null);
+
+  const handleRestoreFile = e => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.version || !data.exportedAt) throw new Error("Invalid backup file");
+        setRestoreData(data);
+        setRestoreStatus("confirm");
+      } catch {
+        setRestoreStatus("error");
+        setTimeout(() => setRestoreStatus(null), 3000);
+      }
+    };
+    r.readAsText(f);
+    e.target.value = "";
+  };
+
+  const applyRestore = () => {
+    const d = restoreData;
+    if (!d) return;
+    if (d.expenses)    setExpenses(d.expenses);
+    if (d.loans)       setLoans(d.loans);
+    if (d.goals)       setGoals(d.goals);
+    if (d.utangs)      setUtangs(d.utangs);
+    if (d.wallets)     setWallets(d.wallets);
+    if (d.subs)        setSubs(d.subs);
+    if (d.budgets)     setBudgets(d.budgets);
+    if (d.dailyLimit)  setDailyLimit(d.dailyLimit);
+    if (d.income)      setIncome(d.income);
+    if (d.name)        setName(d.name);
+    if (d.payday)      setPayday(d.payday);
+    setRestoreData(null);
+    setRestoreStatus("success");
+    setTimeout(() => setRestoreStatus(null), 3000);
+  };
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
@@ -4814,20 +4854,14 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
             <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup (JSON)</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data -- expenses, loans, goals, utangs</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data — expenses, loans, goals, wallets, utangs, subs</p>
             </div>
             <button onClick={()=>{
               const backup = {
                 exportedAt: new Date().toISOString(),
-                version: "1.0",
-                name,
-                income,
-                expenses,
-                loans: JSON.parse(localStorage.getItem("bulsa_loans")||"[]"),
-                goals: JSON.parse(localStorage.getItem("bulsa_goals")||"[]"),
-                utangs: JSON.parse(localStorage.getItem("bulsa_utangs")||"[]"),
-                wallets: JSON.parse(localStorage.getItem("bulsa_wallets")||"[]"),
-                budgets: JSON.parse(localStorage.getItem("bulsa_budgets")||"{}"),
+                version: "1.1",
+                name, income, payday, dailyLimit,
+                expenses, loans, goals, utangs, wallets, subs, budgets,
               };
               const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
               const url  = URL.createObjectURL(blob);
@@ -4838,7 +4872,47 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
               Backup
             </button>
           </div>
+          <p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+            💡 Save this file to Google Drive or iCloud so you never lose your data
+          </p>
         </Card>
+
+        {/* Restore from backup */}
+        <input ref={restoreRef} type="file" accept=".json,application/json" style={{ display:"none" }} onChange={handleRestoreFile}/>
+        {restoreStatus === "confirm" && restoreData ? (
+          <Card style={{ background:`${C.accent}0D`, border:`1px solid ${C.accent}40`, padding:"16px 18px", marginBottom:10 }}>
+            <p style={{ margin:"0 0 6px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>⚠️ Restore this backup?</p>
+            <p style={{ margin:"0 0 4px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              Backed up on {new Date(restoreData.exportedAt).toLocaleDateString("en-PH", { month:"long", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" })}
+            </p>
+            <p style={{ margin:"0 0 14px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              {restoreData.expenses?.length || 0} expenses · {restoreData.loans?.length || 0} loans · {restoreData.utangs?.length || 0} utangs · {restoreData.goals?.length || 0} goals
+            </p>
+            <p style={{ margin:"0 0 14px", fontSize:11, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+              This will replace your current data. This can't be undone.
+            </p>
+            <div style={{ display:"flex", gap:8 }}>
+              <Btn variant="outline" onClick={()=>{ setRestoreStatus(null); setRestoreData(null); }}>Cancel</Btn>
+              <Btn onClick={applyRestore} style={{ background:`linear-gradient(135deg,${C.accent},#0099DD)`, boxShadow:"none" }}>Yes, restore</Btn>
+            </div>
+          </Card>
+        ) : (
+          <Card style={{ padding:"14px 16px", marginBottom:10, opacity: restoreStatus === "error" ? 1 : 1, border: restoreStatus === "error" ? `1px solid ${C.coral}50` : `1px solid ${C.border}` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:11, background:`${C.accent}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📂</div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Restore from backup</p>
+                <p style={{ margin:0, fontSize:11, color: restoreStatus === "error" ? C.coral : restoreStatus === "success" ? C.green : C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  {restoreStatus === "error" ? "❌ Invalid backup file" : restoreStatus === "success" ? "✓ Restored successfully!" : "Pick a bulsa. .json backup file"}
+                </p>
+              </div>
+              <button onClick={()=>restoreRef.current?.click()}
+                style={{ background:`${C.accent}14`, border:`1px solid ${C.accent}30`, color:C.accent, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                Restore
+              </button>
+            </div>
+          </Card>
+        )}
         {!confirmClear?(
           <Card style={{ padding:"14px 16px" }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ width:38, height:38, borderRadius:11, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p></div><button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button></div></Card>
         ):(
@@ -5082,7 +5156,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} subs={subs} setSubs={setSubs} budgets={budgets} setBudgets={setBudgets} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>,
   };
 
   return (
