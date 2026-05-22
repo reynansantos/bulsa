@@ -2532,8 +2532,76 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
     return { greeting, subtext, color };
   })();
 
+  // ── Hero status computation ──────────────────────────────────────────────
+  const heroStatus = (() => {
+    const noIncome   = income <= 0;
+    const noWallets  = !wallets || wallets.length === 0;
+    const todayExps  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr);
+    const todayTotal = todayExps.reduce((s,e)=>s+e.amount,0);
+    const overLimit  = dailyLimit > 0 && todayTotal > dailyLimit;
+    const nearLimit  = dailyLimit > 0 && !overLimit && (todayTotal/dailyLimit) > 0.8;
+    const overRunway = runway && todaySpent > runway.allowedPerDay;
+    const nearRunway = runway && !overRunway && runway.pct > 80;
+    const petsaDePeligro = runway?.petsaDePeligro;
+
+    // The single status label + color
+    let status, headline, subline, color, emoji;
+
+    if (overLimit || overRunway) {
+      status   = "over";
+      color    = C.coral;
+      emoji    = "🔴";
+      headline = overLimit
+        ? `Over by ${fmt(todayTotal - dailyLimit)} today`
+        : `₱${fmt(todaySpent - runway.allowedPerDay)} over today's runway`;
+      subline  = runway
+        ? `You had ₱${fmt(runway.allowedPerDay)}/day — ${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}`
+        : "Adjust your limit or log what you missed.";
+    } else if (nearLimit || nearRunway) {
+      status   = "tight";
+      color    = C.gold;
+      emoji    = "⚠️";
+      headline = nearLimit
+        ? `${fmt(dailyLimit - todaySpent)} left today — cutting it close`
+        : `${fmt(runway.allowedPerDay - todaySpent)} left — almost at today's limit`;
+      subline  = `${runway?.daysLeft ?? "?"} days to payday. Mag-ingat.`;
+    } else if (petsaDePeligro) {
+      status   = "peligro";
+      color    = C.coral;
+      emoji    = "🚨";
+      headline = `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to payday — hold tight`;
+      subline  = `₱${fmt(runway.allowedPerDay)}/day left. ${fmt(balance)} total remaining.`;
+    } else if (todaySpent === 0 && expenses.length === 0) {
+      status   = "empty";
+      color    = C.accent;
+      emoji    = "👋";
+      headline = `Welcome! Log your first expense`;
+      subline  = "Tap + to start tracking your money.";
+    } else if (todaySpent === 0) {
+      status   = "zero";
+      color    = C.green;
+      emoji    = "🌅";
+      headline = "Clean slate today";
+      subline  = runway ? `You can spend up to ${fmt(runway.allowedPerDay)} today.` : "Nothing logged yet today.";
+    } else {
+      status   = "ok";
+      color    = C.green;
+      emoji    = "🟢";
+      headline = runway
+        ? `${fmt(runway.allowedPerDay - todaySpent)} left for today — you're good`
+        : `₱${todaySpent.toLocaleString()} spent — on track`;
+      subline  = runway
+        ? `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}. ${fmt(balance)} available.`
+        : `${fmt(balance)} available across ${noWallets ? "your account" : `${wallets.length} wallet${wallets.length!==1?"s":""}`}.`;
+    }
+    return { status, headline, subline, color, emoji, todayTotal, overLimit, nearLimit };
+  })();
+
+  const todayExpsAll  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const todayPct      = dailyLimit>0 ? Math.min((heroStatus.todayTotal/dailyLimit)*100,100) : runway ? Math.min((todaySpent/runway.allowedPerDay)*100,100) : 0;
+
   return (
-    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
+    <div className="screen-wrap" style={{ padding:"18px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
 
       {/* ── PWA INSTALL BANNER ── */}
@@ -2557,142 +2625,123 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
       {/* ── HEADER ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <BulsaLogo size={36}/>
-          <div>
-            <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text, letterSpacing:"-0.04em", lineHeight:1.1 }}>bulsa<span style={{ color:C.accent }}>.</span></h1>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Hey <span style={{ fontWeight:800, color:C.text }}>{name||"there"}</span> 👋</p>
-          </div>
+        <div>
+          <p style={{ margin:"0 0 1px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            {new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric"})}
+          </p>
+          <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1.1 }}>
+            {name ? `Hey, ${name.split(" ")[0]} 👋` : "Hey there 👋"}
+          </h1>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:16, transition:"all 0.2s" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15, transition:"all 0.2s" }}>
             {hidden ? "🙈" : "👁️"}
           </button>
           <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
-            {avatar?(<img src={avatar} alt="avatar" style={{ width:40, height:40, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>):(<div style={{ width:40, height:40, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 14px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>)}
+            {avatar
+              ? <img src={avatar} alt="avatar" style={{ width:38, height:38, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>
+              : <div style={{ width:38, height:38, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+            }
           </div>
         </div>
       </div>
 
-      {/* ── MORNING BRIEF + RING + STREAK ── */}
-      <div style={{ background:`linear-gradient(145deg,#0E2240,#111E2F)`, border:`1px solid ${morningBrief.color}30`, borderRadius:22, padding:"16px 18px", display:"flex", gap:16, alignItems:"center", position:"relative", overflow:"hidden", zIndex:1 }}>
-        <Orb x="80%" y="50%" color={morningBrief.color} size={140} opacity={0.1}/>
+      {/* ══════════════════════════════════════════════════════════════════
+          HERO CARD — the ONE thing above the fold
+          Answers: "Am I okay today?"
+      ══════════════════════════════════════════════════════════════════ */}
+      <div onClick={heroStatus.status==="empty"?onAdd:undefined}
+        style={{ background:`linear-gradient(145deg,#0F2240,#0A1628)`,
+          border:`2px solid ${heroStatus.color}50`,
+          borderRadius:26, padding:"22px 20px 18px",
+          position:"relative", overflow:"hidden", zIndex:1,
+          cursor:heroStatus.status==="empty"?"pointer":"default",
+          boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
+        <Orb x="70%" y="-10px" color={heroStatus.color} size={220} opacity={0.18}/>
 
-        {/* Daily ring -- the close-the-ring moment */}
-        <div style={{ flexShrink:0, position:"relative" }}>
-          <Ring
-            pct={ringPct}
-            size={72}
-            stroke={7}
-            color={ringColor}
-            bg={ringColor+"22"}
-          >
-            {dailyLimit > 0 ? (
-              <div style={{ textAlign:"center" }}>
-                <p style={{ margin:0, fontSize:10, fontWeight:800, color:ringColor, fontFamily:"DM Sans,sans-serif", lineHeight:1 }}>
-                  {ringPct >= 100 ? "MAX" : `${Math.round(ringPct)}%`}
-                </p>
-                <p style={{ margin:0, fontSize:8, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>today</p>
-              </div>
-            ) : (
-              <span style={{ fontSize:22 }}>💰</span>
-            )}
-          </Ring>
-          {/* Streak badge on ring */}
-          {budgetStreak !== null && budgetStreak > 0 && (
-            <div style={{ position:"absolute", bottom:-4, right:-4, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, minWidth:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.bg}`, padding:"0 4px" }}>
-              <span style={{ fontSize:9, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>{budgetStreak}🔥</span>
-            </div>
-          )}
+        {/* Status pill */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, position:"relative", zIndex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:`${heroStatus.color}20`, border:`1px solid ${heroStatus.color}40`, borderRadius:99, padding:"5px 12px 5px 8px" }}>
+            <span style={{ fontSize:14 }}>{heroStatus.emoji}</span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:800, color:heroStatus.color, letterSpacing:"0.02em" }}>
+              {heroStatus.status==="over" ? "OVER BUDGET" :
+               heroStatus.status==="tight" ? "CUTTING IT CLOSE" :
+               heroStatus.status==="peligro" ? "PETSA DE PELIGRO" :
+               heroStatus.status==="empty" ? "GET STARTED" :
+               heroStatus.status==="zero" ? "CLEAN SLATE" : "YOU'RE GOOD"}
+            </span>
+          </div>
+          {/* 7-day dot strip */}
+          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+            {Array.from({length:7},(_,i)=>{
+              const d = new Date(); d.setDate(d.getDate()-(6-i));
+              const ds = d.toDateString();
+              const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+              const hl = expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+              const isToday = i===6;
+              const ok  = hl && (dailyLimit<=0 || sp<=dailyLimit);
+              const bad = hl && dailyLimit>0 && sp>dailyLimit;
+              return <div key={i} style={{ width:isToday?10:6, height:isToday?10:6, borderRadius:"50%", background:bad?C.coral:ok?C.green:C.border, border:isToday?`2px solid ${heroStatus.color}`:""  }}/>;
+            })}
+          </div>
         </div>
 
-        {/* Brief text */}
-        <div style={{ flex:1, minWidth:0 }}>
-          <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.4 }}>
-            {morningBrief.greeting}
+        {/* THE big number */}
+        <div style={{ position:"relative", zIndex:1, marginBottom:14 }}>
+          <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            {heroStatus.status==="zero"||heroStatus.status==="empty" ? "Today's spend" : "Spent today"}
           </p>
-          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.4 }}>
-            {morningBrief.subtext}
-          </p>
-          {/* Mini streak row */}
-          {budgetStreak !== null && (
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:7 }}>
-              <div style={{ display:"flex", gap:3 }}>
-                {Array.from({length:7},(_,i)=>{
-                  const d = new Date(); d.setDate(d.getDate()-i);
-                  const ds = d.toDateString();
-                  const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
-                  const hl = i===0 ? todaySpent>0 : expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
-                  const ok = hl && (dailyLimit<=0 || sp<=dailyLimit);
-                  const over = hl && dailyLimit>0 && sp>dailyLimit;
-                  return (
-                    <div key={i} style={{ width:8, height:8, borderRadius:"50%", background: over?C.coral:ok?C.green:C.border, transition:"background 0.3s" }}/>
-                  );
-                }).reverse()}
-              </div>
-              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>last 7 days</span>
-              {budgetStreak >= 3 && (
-                <span style={{ fontSize:10, fontWeight:800, color:budgetStreak>=7?C.gold:C.lime, fontFamily:"DM Sans,sans-serif", marginLeft:"auto" }}>
-                  {budgetStreak} day streak 🔥
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── 1. TODAY HERO -- the main event ── */}
-      {(()=>{
-        const todayExps  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-        const todayTotal = todayExps.reduce((s,e)=>s+e.amount,0);
-        const overLimit  = dailyLimit>0 && todayTotal>dailyLimit;
-        const nearLimit  = dailyLimit>0 && !overLimit && (todayTotal/dailyLimit)>0.8;
-        const heroColor  = overLimit?C.coral:nearLimit?C.gold:C.accent;
-        const todayPct   = dailyLimit>0?Math.min((todayTotal/dailyLimit)*100,100):0;
-        return (
-          <div style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`1px solid ${heroColor}40`, borderRadius:24, padding:"24px 22px 20px", position:"relative", overflow:"hidden", zIndex:1 }}>
-            <Orb x="80%" y="-20px" color={heroColor} size={200} opacity={0.2}/>
-            {/* Date label */}
-            <p style={{ margin:"0 0 12px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif", zIndex:1, position:"relative" }}>
-              {new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric"})}
-            </p>
-            {/* Main number */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:16, position:"relative", zIndex:1 }}>
-              <div>
-                <p style={{ margin:"0 0 4px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Spent today</p>
-                <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:52, fontWeight:800, color:overLimit?C.coral:nearLimit?C.gold:C.text, letterSpacing:"-0.04em", lineHeight:1 }}>{fmt(todayTotal)}</h2>
-              </div>
-              <div style={{ textAlign:"right", paddingBottom:6 }}>
-                <p style={{ margin:"0 0 4px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{todayExps.length} transaction{todayExps.length!==1?"s":""}</p>
-                {overLimit&&<Tag color={C.coral}>Over limit</Tag>}
-                {nearLimit&&<Tag color={C.gold}>Almost there</Tag>}
-                {!overLimit&&!nearLimit&&todayExps.length>0&&<Tag color={C.green}>On track</Tag>}
-              </div>
-            </div>
-            {/* Daily limit bar */}
-            {dailyLimit>0&&(
-              <div style={{ marginBottom:10, position:"relative", zIndex:1 }}>
-                <Bar pct={todayPct} color={heroColor} h={6}/>
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
-                  <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{fmt(dailyLimit)} daily limit</span>
-                  <span style={{ fontSize:10, fontWeight:700, color:heroColor, fontFamily:"DM Sans,sans-serif" }}>{overLimit?`over by ${fmt(todayTotal-dailyLimit)}`:`${fmt(dailyLimit-todayTotal)} left`}</span>
-                </div>
-              </div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
+            <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800,
+              color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : C.text,
+              letterSpacing:"-0.04em", lineHeight:1 }}>
+              {hidden ? "₱••••" : fmt(heroStatus.todayTotal)}
+            </h2>
+            {todayExpsAll.length > 0 && (
+              <p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}
+              </p>
             )}
-            {/* Balance strip -- available + can spend/day only */}
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", paddingTop:12, borderTop:`1px solid ${C.accent}20`, position:"relative", zIndex:1 }}>
-              <div style={{ background:C.surface+"CC", borderRadius:9, padding:"6px 12px" }}>
-                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Available</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(balance)}</p>
-              </div>
-              {runway&&<div style={{ background:`${runway.color}15`, border:`1px solid ${runway.color}25`, borderRadius:9, padding:"6px 12px" }}>
-                <p style={{ margin:"0 0 1px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Can spend/day</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:runway.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(runway.allowedPerDay)}</p>
-              </div>}
+          </div>
+        </div>
+
+        {/* Progress bar — only if limit or runway is set */}
+        {(dailyLimit > 0 || runway) && heroStatus.status !== "empty" && (
+          <div style={{ marginBottom:14, position:"relative", zIndex:1 }}>
+            <Bar pct={todayPct} color={heroStatus.color} h={5}/>
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
+              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {dailyLimit > 0 ? `${fmt(dailyLimit)} daily limit` : `${fmt(runway.allowedPerDay)}/day runway`}
+              </span>
+              <span style={{ fontSize:10, fontWeight:800, color:heroStatus.color, fontFamily:"DM Sans,sans-serif" }}>
+                {heroStatus.overLimit
+                  ? `over by ${fmt(heroStatus.todayTotal - dailyLimit)}`
+                  : dailyLimit > 0
+                  ? `${fmt(dailyLimit - heroStatus.todayTotal)} left`
+                  : runway ? `${fmt(runway.allowedPerDay - todaySpent)} left` : ""}
+              </span>
             </div>
           </div>
-        );
-      })()}
+        )}
+
+        {/* Headline answer */}
+        <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}20`, paddingTop:12 }}>
+          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>
+            {heroStatus.headline}
+          </p>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
+            {heroStatus.subline}
+          </p>
+        </div>
+
+        {/* Budget streak badge — bottom right */}
+        {budgetStreak !== null && budgetStreak > 0 && (
+          <div style={{ position:"absolute", bottom:14, right:16, zIndex:2, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ fontSize:10 }}>🔥</span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
+          </div>
+        )}
+      </div>
 
       {/* ── WALLET GRID ── visible at a glance, no tapping required */}
       {wallets && wallets.length > 0 && (
