@@ -2754,11 +2754,11 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       color    = C.green;
       emoji    = "🟢";
       headline = runway
-        ? `${fmt(runway.allowedPerDay - todaySpent)} left for today — you're good`
-        : `₱${todaySpent.toLocaleString()} spent — on track`;
+        ? `${fmt(runway.allowedPerDay - todaySpent)} left to spend today`
+        : `${fmt(balance)} available`;
       subline  = runway
-        ? `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}. ${fmt(balance)} available.`
-        : `${fmt(balance)} available across ${noWallets ? "your account" : `${wallets.length} wallet${wallets.length!==1?"s":""}`}.`;
+        ? `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}. ${fmt(balance)} across all wallets.`
+        : `${fmt(heroStatus?.todayTotal || 0)} spent so far. Looking good.`;
     }
     return { status, headline, subline, color, emoji, todayTotal, overLimit, nearLimit };
   })();
@@ -2896,18 +2896,18 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>
             {heroStatus.headline}
           </p>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
-            {heroStatus.subline}
-          </p>
-        </div>
-
-        {/* Budget streak badge — bottom right */}
-        {budgetStreak !== null && budgetStreak > 0 && (
-          <div style={{ position:"absolute", bottom:14, right:16, zIndex:2, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ fontSize:10 }}>🔥</span>
-            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:8 }}>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>
+              {heroStatus.subline}
+            </p>
+            {budgetStreak !== null && budgetStreak > 0 && (
+              <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ fontSize:10 }}>🔥</span>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
