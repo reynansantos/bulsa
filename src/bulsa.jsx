@@ -2358,6 +2358,172 @@ function Onboarding({ onDone }) {
   );
 }
 
+// ─── PROACTIVE INSIGHT ENGINE ────────────────────────────────────────────────
+// Returns the single sharpest observation about this user's spending right now.
+// Priority: urgent > behavioral pattern > positive reinforcement > onboarding nudge
+
+function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) {
+  const fmt = n => "₱"+Math.round(n).toLocaleString();
+  const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toDateString();
+  const todayDow = today.getDay(); // 0=Sun
+
+  // Helper: get spend for a date
+  const spendOn = ds => expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+  const todaySpent = spendOn(todayStr);
+
+  // Last 30 days of data
+  const last30 = expenses.filter(e=>e.ts && (today - new Date(e.ts)) < 30*24*60*60*1000);
+  const last7  = expenses.filter(e=>e.ts && (today - new Date(e.ts)) <  7*24*60*60*1000);
+
+  if (expenses.length < 3) return null; // not enough data for insight
+
+  // ── INSIGHT CANDIDATES (ordered by priority) ──────────────────────────
+
+  // 1. SAME-DAY-LAST-WEEK spike: "Last Friday you spent ₱1,200. Today is Friday."
+  const lastWeekSameDay = new Date(today); lastWeekSameDay.setDate(today.getDate()-7);
+  const lastWeekSpend = spendOn(lastWeekSameDay.toDateString());
+  if (lastWeekSpend > 0 && dailyLimit > 0 && lastWeekSpend > dailyLimit * 1.3) {
+    return {
+      icon: "📅",
+      color: C.gold,
+      headline: `Last ${SHORT[todayDow]}, you spent ${fmt(lastWeekSpend)}`,
+      sub: `That's ${Math.round((lastWeekSpend/dailyLimit)*100)}% of your daily limit. Today is ${DAYS[todayDow]} again — heads up.`,
+      tag: "Pattern",
+    };
+  }
+
+  // 2. DAY-OF-WEEK pattern: "You spend ₱340 more on Fridays. Lagi na yata."
+  const byDow = Array(7).fill(0).map((_,i)=>({dow:i, total:0, count:0}));
+  expenses.filter(e=>e.ts).forEach(e=>{
+    const d = new Date(e.ts).getDay();
+    byDow[d].total += e.amount;
+    byDow[d].count += 1;
+  });
+  const dowAvg = byDow.map(d=>({ ...d, avg: d.count>0 ? d.total/d.count : 0 }));
+  const overallAvg = dowAvg.filter(d=>d.count>0).reduce((s,d)=>s+d.avg,0) / Math.max(dowAvg.filter(d=>d.count>0).length,1);
+  const peakDow = dowAvg.reduce((best,d)=>d.avg>best.avg?d:best, {avg:0});
+  if (peakDow.count >= 3 && peakDow.avg > overallAvg * 1.5) {
+    const extra = Math.round(peakDow.avg - overallAvg);
+    const isTodayPeak = todayDow === peakDow.dow;
+    return {
+      icon: "📊",
+      color: isTodayPeak ? C.coral : C.gold,
+      headline: `You spend ${fmt(extra)} more on ${DAYS[peakDow.dow]}s`,
+      sub: isTodayPeak
+        ? `Today is ${DAYS[peakDow.dow]}. Your most expensive day — mag-ingat sa gastos.`
+        : `${DAYS[peakDow.dow]} is your most expensive day on average. Plan for it.`,
+      tag: isTodayPeak ? "Today" : "Pattern",
+    };
+  }
+
+  // 3. CATEGORY SPIKE: "You've spent ₱2,100 on Food this week — 40% of all spending."
+  const catSpendWeek = {};
+  last7.forEach(e=>{ catSpendWeek[e.catId] = (catSpendWeek[e.catId]||0) + e.amount; });
+  const weekTotal = last7.reduce((s,e)=>s+e.amount,0);
+  const topCatWeek = Object.entries(catSpendWeek).sort((a,b)=>b[1]-a[1])[0];
+  if (topCatWeek && weekTotal > 0 && topCatWeek[1]/weekTotal > 0.45) {
+    const cat = CATS.find(c=>c.id===topCatWeek[0]);
+    const pct = Math.round((topCatWeek[1]/weekTotal)*100);
+    return {
+      icon: cat?.icon || "💸",
+      color: C.gold,
+      headline: `${pct}% of this week's spend is ${cat?.label || topCatWeek[0]}`,
+      sub: `${fmt(topCatWeek[1])} in 7 days. ${pct>60 ? "Malaking chunk 'yan — worth reviewing." : "Keep an eye on it."}`,
+      tag: "This week",
+    };
+  }
+
+  // 4. MOOD-SPEND LINK: "You spend ₱890 more when stressed. Noticed?"
+  const stressSpend = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
+  const stressCount = expenses.filter(e=>e.moodId==="stressed").length;
+  const neutralSpend = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").reduce((s,e)=>s+e.amount,0);
+  const neutralCount = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").length;
+  if (stressCount >= 3 && neutralCount >= 3) {
+    const stressAvg = stressSpend / stressCount;
+    const neutralAvg = neutralSpend / neutralCount;
+    if (stressAvg > neutralAvg * 1.4) {
+      const extra = Math.round(stressAvg - neutralAvg);
+      return {
+        icon: "😤",
+        color: C.rose,
+        headline: `Stressed spending costs you ${fmt(extra)} extra`,
+        sub: `Your average spend when stressed is ${fmt(Math.round(stressAvg))} vs ${fmt(Math.round(neutralAvg))} on normal days. Kumain ka na lang ng lugaw.`,
+        tag: "Mood pattern",
+      };
+    }
+  }
+
+  // 5. EVENING SPIKE: "60% of your spending happens after 6pm."
+  const eveningSpend = expenses.filter(e=>e.ts&&new Date(e.ts).getHours()>=18).reduce((s,e)=>s+e.amount,0);
+  const totalSpend   = expenses.reduce((s,e)=>s+e.amount,0);
+  if (totalSpend > 0 && eveningSpend/totalSpend > 0.55 && expenses.length >= 10) {
+    return {
+      icon: "🌙",
+      color: C.sky,
+      headline: `${Math.round((eveningSpend/totalSpend)*100)}% of your spending is after 6pm`,
+      sub: `${fmt(eveningSpend)} spent in evenings. Late-night GrabFood and lazada orders hit different sa budget.`,
+      tag: "Habit",
+    };
+  }
+
+  // 6. UTANG REMINDER: "hannah still owes you ₱500. 3 weeks ago."
+  const theyOwe = (utangs||[]).filter(u=>u.direction==="theyowe"&&!u.settled);
+  if (theyOwe.length > 0) {
+    const oldest = theyOwe.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0))[0];
+    const daysAgo = oldest.createdAt ? Math.round((Date.now()-new Date(oldest.createdAt))/(1000*60*60*24)) : null;
+    if (daysAgo !== null && daysAgo >= 7) {
+      const total = theyOwe.reduce((s,u)=>s+u.amount,0);
+      return {
+        icon: "🤝",
+        color: C.green,
+        headline: `${theyOwe.length === 1 ? oldest.name : `${theyOwe.length} people`} owe${theyOwe.length===1?"s":""} you ${fmt(total)}`,
+        sub: `Oldest: ${oldest.name} — ${daysAgo} day${daysAgo!==1?"s":""} ago. Friendly reminder: ${oldest.name}, bayad na? 😅`,
+        tag: "Utang",
+      };
+    }
+  }
+
+  // 7. POSITIVE: savings rate or clean streak
+  if (income > 0) {
+    const savingsRate = Math.round(((income - totalSpend) / income) * 100);
+    if (savingsRate >= 20) {
+      return {
+        icon: "🏆",
+        color: C.lime,
+        headline: `You're saving ${savingsRate}% of your income`,
+        sub: `${fmt(income - totalSpend)} saved this period. That's better than most. Keep it up.`,
+        tag: "Nice one",
+      };
+    }
+  }
+
+  // 8. WEEKEND vs WEEKDAY comparison
+  const weekendSpend = (byDow[0].total + byDow[6].total);
+  const weekdaySpend = (byDow[1].total + byDow[2].total + byDow[3].total + byDow[4].total + byDow[5].total);
+  const weekendDays  = (byDow[0].count + byDow[6].count);
+  const weekdayDays  = (byDow[1].count + byDow[2].count + byDow[3].count + byDow[4].count + byDow[5].count);
+  if (weekendDays >= 4 && weekdayDays >= 8) {
+    const weekendAvgDay = weekendSpend / weekendDays;
+    const weekdayAvgDay = weekdaySpend / weekdayDays;
+    if (weekendAvgDay > weekdayAvgDay * 1.6) {
+      const extra = Math.round(weekendAvgDay - weekdayAvgDay);
+      return {
+        icon: "🎉",
+        color: C.gold,
+        headline: `Weekends cost you ${fmt(extra)} more per day`,
+        sub: `You spend ${fmt(Math.round(weekendAvgDay))}/day on weekends vs ${fmt(Math.round(weekdayAvgDay))}/day on weekdays. Set a weekend allowance.`,
+        tag: "Weekend",
+      };
+    }
+  }
+
+  return null;
+}
+
+
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall }) {
@@ -2598,6 +2764,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   })();
 
   const todayExpsAll  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const sharpInsight  = getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday);
   const todayPct      = dailyLimit>0 ? Math.min((heroStatus.todayTotal/dailyLimit)*100,100) : runway ? Math.min((todaySpent/runway.allowedPerDay)*100,100) : 0;
 
   return (
@@ -2742,6 +2909,26 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
           </div>
         )}
       </div>
+
+      {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
+      {sharpInsight && (
+        <div style={{ background:`${sharpInsight.color}10`, border:`1.5px solid ${sharpInsight.color}35`, borderRadius:18, padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", position:"relative", overflow:"hidden", zIndex:1 }}>
+          <div style={{ width:40, height:40, borderRadius:12, background:`${sharpInsight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+            {sharpInsight.icon}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+              <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, fontWeight:800, color:sharpInsight.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{sharpInsight.tag}</span>
+            </div>
+            <p style={{ margin:"0 0 3px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.35 }}>
+              {sharpInsight.headline}
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
+              {sharpInsight.sub}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── WALLET GRID ── visible at a glance, no tapping required */}
       {wallets && wallets.length > 0 && (
