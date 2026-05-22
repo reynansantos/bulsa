@@ -2528,6 +2528,7 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
 
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall }) {
   const fmt = useFmt();
+  const [walletsHidden, setWalletsHidden] = useState(false);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -2934,36 +2935,45 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       {wallets && wallets.length > 0 && (
         <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
-            <button onClick={()=>setScreen("wallets")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
+              {/* Wallet-only hide toggle */}
+              <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn"
+                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"0 2px", opacity:0.7, lineHeight:1 }}>
+                {walletsHidden ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(wallets.length,3)},1fr)`, gap:8 }}>
             {wallets.slice(0,3).map(w => (
-              <button key={w.id} onClick={()=>setScreen("wallets")} className="tap-btn"
-                style={{ background:C.card, border:`1px solid ${hidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
+              <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
+                style={{ background:C.card, border:`1px solid ${walletsHidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
                 <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
                 <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}>
                   <WalletIcon wallet={w} size={28}/>
                 </div>
                 <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:hidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>
-                  {hidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em",
+                  filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s, color 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
+                  {walletsHidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
                 </p>
               </button>
             ))}
             {wallets.length > 3 && (
-              <button onClick={()=>setScreen("wallets")} className="tap-btn"
+              <button onClick={()=>setScreen("accounts")} className="tap-btn"
                 style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
                 <span style={{ fontSize:16, color:C.textSub }}>+{wallets.length - 3}</span>
                 <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>more</p>
               </button>
             )}
           </div>
-          {/* Total net worth strip */}
+          {/* Total strip */}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
             <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total across all wallets</span>
-            <span style={{ fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-              {hidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
+            <span style={{ fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif",
+              filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
+              {walletsHidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
             </span>
           </div>
         </div>
