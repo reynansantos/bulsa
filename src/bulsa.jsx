@@ -5197,18 +5197,48 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budg
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
+function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
   const [confirmClear, setCC]       = useState(false);
+  const [addingSource, setAddingSource] = useState(false);
+  const [srcName,      setSrcName]     = useState("");
+  const [srcAmount,    setSrcAmount]   = useState("");
+  const [srcType,      setSrcType]     = useState("salary");
   const avatarRef = useRef(null);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
   const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
+
+  const SOURCE_TYPES = [
+    { id:"salary",     label:"Salary",     emoji:"💼" },
+    { id:"freelance",  label:"Freelance",  emoji:"💻" },
+    { id:"business",   label:"Business",   emoji:"🏪" },
+    { id:"remittance", label:"Remittance", emoji:"✈️"  },
+    { id:"spouse",     label:"Spouse",     emoji:"💑" },
+    { id:"sideline",   label:"Sideline",   emoji:"⚡" },
+    { id:"allowance",  label:"Allowance",  emoji:"🎓" },
+    { id:"other",      label:"Other",      emoji:"📦" },
+  ];
+
+  const totalIncome = (incomeSources||[]).length>0
+    ? (incomeSources||[]).reduce((s,src)=>s+src.amount,0)
+    : income;
+
+  useEffect(()=>{
+    if ((incomeSources||[]).length>0) setIncome((incomeSources||[]).reduce((s,src)=>s+src.amount,0));
+  },[JSON.stringify(incomeSources)]);
+
+  const addSource = () => {
+    if (!srcName.trim()||!srcAmount||+srcAmount<=0) return;
+    setIncomeSources(prev=>[...(prev||[]), { id:uid(), name:srcName.trim(), amount:+srcAmount, type:srcType }]);
+    setSrcName(""); setSrcAmount(""); setSrcType("salary"); setAddingSource(false);
+  };
+  const removeSource = id => setIncomeSources(prev=>(prev||[]).filter(s=>s.id!==id));
 
   const pickAvatar = () => avatarRef.current?.click();
   const onAvatarFile = e => {
@@ -5262,29 +5292,104 @@ function ProfileScreen({ income, setIncome, name, setName, avatar, setAvatar, ex
       </div>
 
       <div>
-        <SLabel>Financial Settings</SLabel>
-        <Card style={{ border:`1px solid ${C.accent}30` }} glow>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:editIncome?14:0 }}>
-            <div style={{ width:40, height:40, borderRadius:12, background:`${C.accent}1A`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>💰</div>
-            <div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Monthly Income</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Drives balance, forecast & savings rate</p></div>
-            {!editIncome&&(<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 4px", fontSize:16, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(income)}</p><button onClick={()=>{ setIncInput(String(income)); setEditIncome(true); }} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button></div>)}
-          </div>
-          {editIncome&&(
-            <div>
-              <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:14, borderBottom:`1px solid ${C.border}`, paddingBottom:12 }}>
-                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:28, fontWeight:800, color:C.textSub }}>₱</span>
-                <input autoFocus type="number" value={incInput} onChange={e=>setIncInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ if(+incInput>0) setIncome(+incInput); setEditIncome(false); } if(e.key==="Escape") setEditIncome(false); }} style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:36, color:C.text, width:"100%", caretColor:C.accent }}/>
+        <SLabel>Income Sources</SLabel>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+
+          {/* Total bar */}
+          <Card style={{ border:`1px solid ${C.accent}30`, background:`${C.accent}08`, padding:"14px 16px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Total Monthly Income</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  {(incomeSources||[]).length>0?`${(incomeSources||[]).length} source${(incomeSources||[]).length!==1?"s":""}`: "Single income"}
+                </p>
               </div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
-                {[15000,20000,25000,30000,40000,50000,65000,80000].map(q=>(<button key={q} onClick={()=>setIncInput(String(q))} style={{ background:incInput===String(q)?C.accentGlow:C.surface, border:`1px solid ${incInput===String(q)?C.accent+"55":C.border}`, color:incInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{(q/1000).toFixed(0)}k</button>))}
+              <p style={{ margin:0, fontSize:26, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalIncome)}</p>
+            </div>
+          </Card>
+
+          {/* Sources */}
+          {(incomeSources||[]).map((src)=>{
+            const st = SOURCE_TYPES.find(t=>t.id===src.type)||SOURCE_TYPES[0];
+            const pct = totalIncome>0?Math.round((src.amount/totalIncome)*100):0;
+            return (
+              <Card key={src.id} style={{ padding:"12px 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:`${C.accent}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{st.emoji}</div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{src.name}</p>
+                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{st.label} · {pct}% of total</p>
+                  </div>
+                  <p style={{ margin:"0 10px 0 0", fontSize:14, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(src.amount)}</p>
+                  <button onClick={()=>removeSource(src.id)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:8, padding:"5px 8px", cursor:"pointer", fontSize:12 }}>🗑</button>
+                </div>
+                <div style={{ marginTop:8 }}><Bar pct={pct} color={C.accent} h={3}/></div>
+              </Card>
+            );
+          })}
+
+          {/* Legacy single income */}
+          {(incomeSources||[]).length===0&&income>0&&!addingSource&&(
+            <Card style={{ padding:"12px 16px", border:`1px solid ${C.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:20 }}>💼</span>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Primary Income</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to split into multiple sources</p>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:"0 0 4px", fontSize:14, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>{fmt(income)}</p>
+                  <button onClick={()=>{ setIncInput(String(income)); setEditIncome(true); }} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"3px 8px", fontSize:10, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Edit legacy income */}
+          {editIncome&&(incomeSources||[]).length===0&&(
+            <Card style={{ border:`1px solid ${C.accent}40`, padding:"14px 16px" }}>
+              <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:12, borderBottom:`1px solid ${C.border}`, paddingBottom:10 }}>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:24, fontWeight:800, color:C.textSub }}>₱</span>
+                <input autoFocus type="number" value={incInput} onChange={e=>setIncInput(e.target.value)}
+                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:C.text, width:"100%", caretColor:C.accent }}/>
               </div>
               <div style={{ display:"flex", gap:8 }}>
                 <Btn variant="outline" onClick={()=>setEditIncome(false)}>Cancel</Btn>
-                <Btn onClick={()=>{ if(+incInput>0) setIncome(+incInput); setEditIncome(false); }}>Save income</Btn>
+                <Btn onClick={()=>{ if(+incInput>0) setIncome(+incInput); setEditIncome(false); }}>Save</Btn>
               </div>
-            </div>
+            </Card>
           )}
-        </Card>
+
+          {/* Add source form */}
+          {addingSource?(
+            <Card style={{ border:`1px solid ${C.accent}40`, padding:"14px 16px" }}>
+              <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Add income source</p>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                {SOURCE_TYPES.map(t=>(
+                  <button key={t.id} onClick={()=>setSrcType(t.id)} style={{ display:"flex", alignItems:"center", gap:5, borderRadius:99, padding:"5px 10px", cursor:"pointer", background:srcType===t.id?`${C.accent}20`:C.surface, border:`1px solid ${srcType===t.id?C.accent+"60":C.border}`, color:srcType===t.id?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}><span>{t.emoji}</span><span>{t.label}</span></button>
+                ))}
+              </div>
+              <Inp value={srcName} onChange={setSrcName} placeholder={`e.g. ${SOURCE_TYPES.find(t=>t.id===srcType)?.label} from...`}/>
+              <div style={{ height:8 }}/>
+              <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${srcAmount?C.accent+"50":C.border}`, borderRadius:12, padding:"10px 14px", gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:18, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+                <input autoFocus type="text" inputMode="decimal" value={srcAmount} onChange={e=>setSrcAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="Monthly amount"
+                  style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:20, color:C.text, caretColor:C.accent }}/>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                {[5000,10000,15000,20000,25000,30000,50000].map(q=>(
+                  <button key={q} onClick={()=>setSrcAmount(String(q))} style={{ background:srcAmount===String(q)?C.accentGlow:C.surface, border:`1px solid ${srcAmount===String(q)?C.accent+"55":C.border}`, color:srcAmount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 10px", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{(q/1000).toFixed(0)}k</button>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <Btn variant="outline" onClick={()=>setAddingSource(false)}>Cancel</Btn>
+                <Btn onClick={addSource} style={{ opacity:srcName.trim()&&+srcAmount>0?1:0.4 }}>Add source</Btn>
+              </div>
+            </Card>
+          ):(
+            <button onClick={()=>setAddingSource(true)} style={{ width:"100%", padding:"12px", borderRadius:14, border:`2px dashed ${C.accent}35`, background:C.accentGlow, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add income source</button>
+          )}
+        </div>
       </div>
 
       {/* Payday setting */}
@@ -5459,7 +5564,8 @@ export default function Bulsa() {
   const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
   const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
   const [goals,     setGoals]     = useLocalStorage("bulsa_goals", SEED_GOALS);
-  const [income,    setIncome]    = useLocalStorage("bulsa_income", 0);
+  const [income,        setIncome]        = useLocalStorage("bulsa_income", 0);
+  const [incomeSources, setIncomeSources] = useLocalStorage("bulsa_income_sources", []);
   const [name,      setName]      = useLocalStorage("bulsa_name", "");
   const [dailyLimit,setDailyLimit]= useLocalStorage("bulsa_dailylimit", 0);
   const [avatar,    setAvatar]    = useLocalStorage("bulsa_avatar", null);
@@ -5651,7 +5757,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
   return (
