@@ -2526,7 +2526,7 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
   const fmt = useFmt();
   const [walletsHidden, setWalletsHidden] = useState(false);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
@@ -2771,6 +2771,28 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
   return (
     <div className="screen-wrap" style={{ padding:"18px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
+
+      {/* ── BACKUP NUDGE -- only when never backed up or >14 days ago ── */}
+      {(()=>{
+        const daysSince = lastBackup ? Math.floor((Date.now()-new Date(lastBackup))/(1000*60*60*24)) : null;
+        const show = daysSince===null||daysSince>14;
+        if (!show||expenses.length===0) return null;
+        return (
+          <div style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}35`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:10, zIndex:2 }}>
+            <span style={{ fontSize:20, flexShrink:0 }}>⚠️</span>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+                {daysSince===null ? "Your data has never been backed up" : `No backup in ${daysSince} days`}
+              </p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>A cache clear will erase everything.</p>
+            </div>
+            <button onClick={()=>setScreen("profile")} className="tap-btn"
+              style={{ background:C.coral, border:"none", borderRadius:9, padding:"7px 12px", cursor:"pointer", fontSize:11, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+              Back up
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── PWA INSTALL BANNER ── */}
       {showInstallBanner && (
@@ -5386,7 +5408,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budg
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, setScreen, payday, setPayday }) {
+function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
@@ -5397,6 +5419,9 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const [srcName,      setSrcName]     = useState("");
   const [srcAmount,    setSrcAmount]   = useState("");
   const [srcType,      setSrcType]     = useState("salary");
+  const [restoreMsg,   setRestoreMsg]  = useState("");
+  const [lastBackup,   setLastBackup]  = useLocalStorage("bulsa_last_backup", null);
+  const importRef = useRef(null);
   const avatarRef = useRef(null);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
@@ -5428,6 +5453,64 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
     setSrcName(""); setSrcAmount(""); setSrcType("salary"); setAddingSource(false);
   };
   const removeSource = id => setIncomeSources(prev=>(prev||[]).filter(s=>s.id!==id));
+
+  // ── Backup / restore ──────────────────────────────────────────────────────
+  const doBackup = () => {
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: "2.0",
+      name, income, payday, dailyLimit,
+      incomeSources: incomeSources||[],
+      expenses:  expenses||[],
+      loans:     loans||[],
+      goals:     goals||[],
+      utangs:    utangs||[],
+      wallets:   wallets||[],
+      budgets:   budgets||{},
+      subs:      subs||[],
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `bulsa-backup-${new Date().toISOString().slice(0,10)}.json`
+    });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setLastBackup(new Date().toISOString());
+  };
+
+  const doRestore = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const b = JSON.parse(e.target.result);
+        if (!b.exportedAt) { setRestoreMsg("Invalid backup file."); return; }
+        // Restore all fields that exist in the file
+        if (b.name          !== undefined) setName(b.name);
+        if (b.income        !== undefined) setIncome(b.income);
+        if (b.payday        !== undefined) setPayday(b.payday);
+        if (b.dailyLimit    !== undefined) setDailyLimit(b.dailyLimit);
+        if (b.incomeSources !== undefined) setIncomeSources(b.incomeSources);
+        if (b.expenses      !== undefined) setExpenses(b.expenses);
+        if (b.loans         !== undefined) setLoans(b.loans);
+        if (b.goals         !== undefined) setGoals(b.goals);
+        if (b.utangs        !== undefined) setUtangs(b.utangs);
+        if (b.wallets       !== undefined) setWallets(b.wallets);
+        if (b.budgets       !== undefined) setBudgets(b.budgets);
+        if (b.subs          !== undefined) setSubs(b.subs);
+        const d = new Date(b.exportedAt);
+        setRestoreMsg(`Restored! Backup from ${d.toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}.`);
+        setLastBackup(new Date().toISOString());
+      } catch { setRestoreMsg("Could not read file. Make sure it's a bulsa backup."); }
+    };
+    reader.readAsText(file);
+  };
+
+  const daysSinceBackup = lastBackup
+    ? Math.floor((Date.now()-new Date(lastBackup))/(1000*60*60*24))
+    : null;
 
   const pickAvatar = () => avatarRef.current?.click();
   const onAvatarFile = e => {
@@ -5630,7 +5713,63 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
       </div>
 
       <div>
-        <SLabel>Data</SLabel>
+        <SLabel>Data & Backup</SLabel>
+
+        {/* Backup status banner */}
+        <div style={{ background: daysSinceBackup===null||daysSinceBackup>7 ? `${C.coral}0C` : `${C.green}0C`, border:`1px solid ${daysSinceBackup===null||daysSinceBackup>7?C.coral:C.green}30`, borderRadius:14, padding:"12px 16px", marginBottom:10, display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:22 }}>{daysSinceBackup===null||daysSinceBackup>7?"⚠️":"✅"}</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+              {daysSinceBackup===null ? "No backup yet" : daysSinceBackup===0 ? "Backed up today" : `Last backup ${daysSinceBackup}d ago`}
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              {daysSinceBackup===null||daysSinceBackup>7
+                ? "A cache clear or phone reset will erase all your data. Back up now."
+                : "Your data is safe. Back up weekly to stay protected."}
+            </p>
+          </div>
+        </div>
+
+        {/* Full backup */}
+        <Card style={{ padding:"14px 16px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                Expenses, loans, goals, utangs, wallets, subs
+              </p>
+            </div>
+            <button onClick={doBackup}
+              style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:9, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              Download
+            </button>
+          </div>
+        </Card>
+
+        {/* Restore */}
+        <Card style={{ padding:"14px 16px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${C.accent}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📂</div>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Restore from backup</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                Upload a bulsa-backup-*.json file
+              </p>
+            </div>
+            <button onClick={()=>importRef.current?.click()}
+              style={{ background:`${C.accent}14`, border:`1px solid ${C.accent}30`, color:C.accent, borderRadius:9, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              Restore
+            </button>
+          </div>
+          {restoreMsg&&(
+            <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:700, color:restoreMsg.startsWith("Restored")?C.green:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+              {restoreMsg.startsWith("Restored")?"✅":"❌"} {restoreMsg}
+            </p>
+          )}
+          <input ref={importRef} type="file" accept=".json" style={{ display:"none" }}
+            onChange={e=>{ doRestore(e.target.files?.[0]); e.target.value=""; }}/>
+        </Card>
 
         {/* Export CSV */}
         <Card style={{ padding:"14px 16px", marginBottom:10 }}>
@@ -5638,7 +5777,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
             <div style={{ width:38, height:38, borderRadius:11, background:`${C.green}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📊</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Export to CSV</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Open in Excel, Google Sheets, Numbers</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Open in Excel or Google Sheets</p>
             </div>
             <button onClick={()=>{
               if (expenses.length===0) return;
@@ -5647,6 +5786,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
                 const d = e.ts ? new Date(e.ts) : null;
                 const cat = CATS.find(c=>c.id===e.catId);
                 const mood = MOODS.find(m=>m.id===e.moodId);
+                const wallet = (wallets||[]).find(w=>w.id===e.walletId);
                 return [
                   d ? d.toLocaleDateString("en-PH") : e.date || "",
                   d ? d.toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"}) : e.time || "",
@@ -5654,7 +5794,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
                   cat?.label || e.catId || "",
                   e.amount || 0,
                   mood?.label || "",
-                  e.walletId || "",
+                  wallet?.name || e.walletId || "",
                   `"${(e.groceryItems?.join(", ")||"").replace(/"/g,'""')}"`
                 ].join(",");
               });
@@ -5664,46 +5804,24 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
               const a    = Object.assign(document.createElement("a"), { href:url, download:`bulsa-expenses-${new Date().toISOString().slice(0,10)}.csv` });
               document.body.appendChild(a); a.click(); document.body.removeChild(a);
               URL.revokeObjectURL(url);
-            }} style={{ background:`${C.green}14`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            }} style={{ background:`${C.green}14`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:9, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
               Export
             </button>
           </div>
           {expenses.length>0&&<p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{expenses.length} transactions ready to export</p>}
         </Card>
 
-        {/* Export JSON backup */}
-        <Card style={{ padding:"14px 16px", marginBottom:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:38, height:38, borderRadius:11, background:`${C.sky}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>💾</div>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Full backup (JSON)</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>All data -- expenses, loans, goals, utangs</p>
-            </div>
-            <button onClick={()=>{
-              const backup = {
-                exportedAt: new Date().toISOString(),
-                version: "1.0",
-                name,
-                income,
-                expenses,
-                loans: JSON.parse(localStorage.getItem("bulsa_loans")||"[]"),
-                goals: JSON.parse(localStorage.getItem("bulsa_goals")||"[]"),
-                utangs: JSON.parse(localStorage.getItem("bulsa_utangs")||"[]"),
-                wallets: JSON.parse(localStorage.getItem("bulsa_wallets")||"[]"),
-                budgets: JSON.parse(localStorage.getItem("bulsa_budgets")||"{}"),
-              };
-              const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
-              const url  = URL.createObjectURL(blob);
-              const a    = Object.assign(document.createElement("a"), { href:url, download:`bulsa-backup-${new Date().toISOString().slice(0,10)}.json` });
-              document.body.appendChild(a); a.click(); document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            }} style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-              Backup
-            </button>
-          </div>
-        </Card>
         {!confirmClear?(
-          <Card style={{ padding:"14px 16px" }}><div style={{ display:"flex", alignItems:"center", gap:12 }}><div style={{ width:38, height:38, borderRadius:11, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p></div><button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button></div></Card>
+          <Card style={{ padding:"14px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:11, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p>
+              </div>
+              <button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:9, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button>
+            </div>
+          </Card>
         ):(
           <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}40`, padding:"16px 18px" }}>
             <p style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all {expenses.length} expenses? Can't be undone.</p>
@@ -5762,6 +5880,7 @@ export default function Bulsa() {
   const [utangs,    setUtangs]    = useLocalStorage("bulsa_utangs", []);
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
   const [subs,      setSubs]      = useLocalStorage("bulsa_subs", []);
+  const [lastBackup]              = useLocalStorage("bulsa_last_backup", null);
   const [hidden,    setHidden]    = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -5935,7 +6054,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
@@ -5946,7 +6065,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
   };
 
   return (
