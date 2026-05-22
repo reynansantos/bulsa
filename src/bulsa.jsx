@@ -3163,6 +3163,70 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
       {/* ── 3. ALERTS -- only if triggered ── */}
       {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
 
+      {/* ── DUE THIS WEEK ── */}
+      {(()=>{
+        const now  = new Date();
+        const soon = new Date(now); soon.setDate(now.getDate()+7);
+        const items = [];
+
+        // Loans
+        (loans||[]).forEach(l=>{
+          if (!l.nextDueDate) return;
+          const d = new Date(l.nextDueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"loan-"+l.id, icon:"⊗", label:l.name, sub:`Loan payment · ${fmt(l.monthlyDue||0)}`, days, color:days<=2?C.coral:C.gold, screen:"accounts", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        // Subscriptions
+        (subs||[]).filter(s=>s.active!==false).forEach(s=>{
+          if (!s.dueDate) return;
+          const d = new Date(s.dueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"sub-"+s.id, icon:s.icon||"📱", label:s.name, sub:`Subscription · ${fmt(s.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"subs", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        // Utangs I owe
+        (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled&&u.dueDate).forEach(u=>{
+          const d = new Date(u.dueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"utang-"+u.id, icon:"🤝", label:`Pay ${u.person}`, sub:`Utang · ${fmt(u.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"utang", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        if (items.length===0) return null;
+        items.sort((a,b)=>a.days-b.days);
+
+        return (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>🔔 Due this week</p>
+              <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{items.length} item{items.length!==1?"s":""}</span>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {items.map(item=>(
+                <Card key={item.id} style={{ padding:"12px 16px", border:`1px solid ${item.color}40`, background:`${item.color}07` }} onClick={()=>setScreen(item.screen)}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:38, height:38, borderRadius:11, background:`${item.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{item.icon}</div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.label}</p>
+                      <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{item.sub}</p>
+                    </div>
+                    <div style={{ background:`${item.color}20`, border:`1px solid ${item.color}40`, borderRadius:99, padding:"4px 10px" }}>
+                      <span style={{ fontSize:11, fontWeight:800, color:item.color, fontFamily:"DM Sans,sans-serif" }}>{item.tag}</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── 4. FINANCIAL SUMMARY ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
