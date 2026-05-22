@@ -237,17 +237,8 @@ function WalletIcon({ wallet, size=22 }) {
     </svg>
   );
 }
-const SEED_LOANS = [
-  { id:1, name:"Maya Credit",       amount:25000, paid:8000,  rate:3.5,   due:"Jun 15", type:"BNPL",     color:C.accent },
-  { id:2, name:"BPI Personal Loan", amount:50000, paid:18000, rate:14.88, due:"Jun 30", type:"Personal", color:C.sky },
-  { id:3, name:"GCash GLoan",       amount:9000,  paid:5500,  rate:5.9,   due:"Jun 22", type:"Cash Loan",color:C.gold },
-];
-const SEED_GOALS = [
-  { id:1, name:"Japan Trip",     emoji:"✈️", target:80000,  saved:54400, deadline:"Oct 2025", color:C.accent },
-  { id:2, name:"Emergency Fund", emoji:"🛡️", target:100000, saved:42000, deadline:"Dec 2025", color:C.sky },
-  { id:3, name:"MacBook Pro",    emoji:"💻", target:90000,  saved:31050, deadline:"Mar 2026", color:C.rose },
-  { id:4, name:"Move Out Fund",  emoji:"🏠", target:200000, saved:22000, deadline:"Jan 2027", color:C.gold },
-];
+const SEED_LOANS = [];
+const SEED_GOALS = [];
 
 const fmt    = n  => "₱" + Math.round(n).toLocaleString();
 const useFmt = () => { const h = useHide(); return n => h ? mask : fmt(n); };
@@ -973,7 +964,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
   const nameRef = useRef(null);
 
-  const [aiMode,    setAiMode]    = useState(false);
+  const [aiMode,    setAiMode]    = useState(!isEdit);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
@@ -1177,11 +1168,11 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
               {!isEdit&&(
                 <div style={{ marginBottom:16 }}>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                      🔢 Type amount
-                    </button>
                     <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                      ✨ Describe it
+                      ✨ Just describe it
+                    </button>
+                    <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      🔢 Manual
                     </button>
                   </div>
                 </div>
@@ -2524,11 +2515,84 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
 }
 
 
+// ─── UNDER-BUDGET GOAL NUDGE ─────────────────────────────────────────────────
+function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
+  const [chosen,    setChosen]    = useState(null);
+  const [saved,     setSaved]     = useState(false);
+  const [customAmt, setCustomAmt] = useState(String(Math.round(underAmount)));
+  const activeGoals = goals.filter(g => g.saved < g.target);
+  if (!activeGoals.length) return null;
+
+  const handleSave = () => {
+    if (!chosen) return;
+    const amt = Math.min(+customAmt||0, chosen.target - chosen.saved);
+    if (amt <= 0) return;
+    setGoals(prev => prev.map(g => g.id===chosen.id ? {...g, saved: Math.min(g.saved+amt, g.target)} : g));
+    setSaved(true);
+    setTimeout(onDismiss, 2200);
+  };
+
+  if (saved) return (
+    <div style={{ background:`${C.green}18`, border:`1.5px solid ${C.green}40`, borderRadius:18, padding:"14px 16px", display:"flex", alignItems:"center", gap:12, zIndex:1 }}>
+      <span style={{ fontSize:22 }}>🎉</span>
+      <div>
+        <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>Saved to {chosen.emoji} {chosen.name}!</p>
+        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+          {fmt(+customAmt)} added. {fmt(Math.max(chosen.target - chosen.saved - (+customAmt||0), 0))} to go.
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ background:`${C.lime}10`, border:`1.5px solid ${C.lime}35`, borderRadius:18, padding:"14px 16px", zIndex:1 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <span style={{ fontSize:20 }}>💰</span>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
+              You're <span style={{ color:C.lime }}>{fmt(underAmount)} under budget</span> today
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Want to move it to a goal?</p>
+          </div>
+        </div>
+        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px", lineHeight:1 }}>×</button>
+      </div>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+        {activeGoals.slice(0,4).map(g => (
+          <button key={g.id} onClick={()=>setChosen(g)}
+            style={{ display:"flex", alignItems:"center", gap:5, background:chosen?.id===g.id?`${g.color||C.accent}22`:C.card, border:`1.5px solid ${chosen?.id===g.id?g.color||C.accent:C.border}`, borderRadius:99, padding:"5px 12px", cursor:"pointer", transition:"all 0.15s" }}>
+            <span style={{ fontSize:14 }}>{g.emoji||"🎯"}</span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:700, color:chosen?.id===g.id?g.color||C.accent:C.text }}>{g.name}</span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, color:C.textFaint }}>{Math.round(((g.saved/g.target)||0)*100)}%</span>
+          </button>
+        ))}
+      </div>
+      {chosen && (
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", gap:4, flex:1 }}>
+            <span style={{ fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>₱</span>
+            <input type="text" inputMode="decimal" value={customAmt}
+              onChange={e=>setCustomAmt(e.target.value.replace(/[^0-9]/g,""))}
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text, caretColor:C.accent, width:60 }}/>
+          </div>
+          <button onClick={handleSave}
+            style={{ background:C.lime, border:"none", borderRadius:10, padding:"9px 18px", cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#111", whiteSpace:"nowrap" }}>
+            Save it →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
   const fmt = useFmt();
-  const [walletsHidden, setWalletsHidden] = useState(false);
+  const [walletsHidden,  setWalletsHidden]  = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -2766,6 +2830,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
   const todayExpsAll  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
   const sharpInsight  = getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday);
+
+  const underBudgetAmt = (() => {
+    if (nudgeDismissed) return 0;
+    if (!goals || goals.filter(g=>g.saved<g.target).length === 0) return 0;
+    const t = heroStatus.todayTotal;
+    if (t <= 0) return 0;
+    if (dailyLimit > 0) { const u = dailyLimit - t; return u >= 50 ? u : 0; }
+    if (runway)         { const u = runway.allowedPerDay - t; return u >= 50 ? u : 0; }
+    return 0;
+  })();
   const todayPct      = dailyLimit>0 ? Math.min((heroStatus.todayTotal/dailyLimit)*100,100) : runway ? Math.min((todaySpent/runway.allowedPerDay)*100,100) : 0;
 
   return (
@@ -2951,6 +3025,11 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
             </p>
           </div>
         </div>
+      )}
+
+      {/* ── UNDER-BUDGET GOAL NUDGE ── */}
+      {underBudgetAmt > 0 && goals && goals.length > 0 && (
+        <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
       )}
 
       {/* ── WALLET GRID ── visible at a glance, no tapping required */}
@@ -6054,7 +6133,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
