@@ -364,20 +364,15 @@ function BottomSheet({ children, onClose, title }) {
   return (
     <>
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{
-        position:"fixed", bottom:0, left:"50%",
-        transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
-        width:"100%", maxWidth:420,
-        background:C.surface, borderRadius:"26px 26px 0 0",
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
+        width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
-        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto",
-        paddingBottom:"env(safe-area-inset-bottom)",
-      }}>
+        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
         {/* Drag handle */}
         <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
           <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
         </div>
-        <div style={{ padding:"10px 22px 32px" }}>
+        <div style={{ padding:"10px 22px 44px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
             <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{title}</h3>
             <button onClick={close} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -561,122 +556,128 @@ function WalletSheet({ wallet, onSave, onClose }) {
   );
 }
 
-// ─── TOP UP SHEET ──────────────────────────────────────────────────────────
+// ─── WALLET ADJUST SHEET ───────────────────────────────────────────────────
 
-function TopUpSheet({ wallet, onSave, onClose }) {
-  const [amount,  setAmount]  = useState("");
-  const [type,    setType]    = useState("topup"); // topup | deduct | set
-  const [note,    setNote]    = useState("");
-  const [date,    setDate]    = useState(new Date().toISOString().split("T")[0]);
-  const today = new Date().toISOString().split("T")[0];
-  const valid = amount !== "" && !isNaN(+amount) && +amount > 0;
+function WalletAdjustSheet({ wallet, onSave, onClose }) {
+  const color   = wallet.color || C.accent;
+  const today   = new Date().toISOString().split("T")[0];
+  const [type,  setType]  = useState("in");   // "in" | "out"
+  const [amt,   setAmt]   = useState("");
+  const [label, setLabel] = useState("");
+  const [date,  setDate]  = useState(today);
 
-  const QUICK_AMOUNTS = [100, 200, 500, 1000, 2000, 5000];
+  const parsed     = parseFloat(amt) || 0;
+  const newBalance = type === "in"
+    ? wallet.balance + parsed
+    : Math.max(wallet.balance - parsed, 0);
+  const valid = parsed > 0;
 
-  const typeConfig = {
-    topup:  { label:"Top Up",       icon:"📥", color:C.green,  verb:"Added" },
-    deduct: { label:"Deduct",       icon:"📤", color:C.coral,  verb:"Deducted" },
-    set:    { label:"Set Balance",  icon:"⚖️",  color:C.accent, verb:"Set to" },
+  const QUICK_IN  = [500, 1000, 5000, 10000, 17000];
+  const QUICK_OUT = [500, 1000, 2000, 3000, 5000];
+  const quickAmts = type === "in" ? QUICK_IN : QUICK_OUT;
+
+  const LABEL_SUGGESTIONS = {
+    in:  ["Salary", "Freelance", "Transfer in", "GCash cashout", "BDO withdrawal", "Side income", "Received"],
+    out: ["Withdrawal", "Transfer out", "Bills", "Load sent", "Cash out"],
   };
-  const tc = typeConfig[type];
-
-  const newBalance = type==="set" ? +amount
-    : type==="topup"  ? wallet.balance + +amount
-    : Math.max(wallet.balance - +amount, 0);
 
   const save = () => {
     if (!valid) return;
-    const entry = {
-      id: uid(), type, amount:+amount, date, note:note.trim(),
-      balanceBefore: wallet.balance, balanceAfter: newBalance,
-      ts: new Date(date+"T12:00:00").toISOString(),
+    const adjustment = {
+      id:      uid(),
+      type,
+      amount:  parsed,
+      label:   label.trim() || (type === "in" ? "Added" : "Deducted"),
+      date,
+      displayDate: new Date(date + "T12:00:00").toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" }),
+      balanceBefore: wallet.balance,
+      balanceAfter:  newBalance,
     };
-    onSave({ ...wallet, balance: newBalance, history: [...(wallet.history||[]), entry] });
+    onSave(adjustment);
   };
 
   return (
-    <BottomSheet onClose={onClose} title={`${wallet.icon} ${wallet.name}`}>
+    <BottomSheet onClose={onClose} title={`Adjust -- ${wallet.name}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-        {/* Type selector */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-          {Object.entries(typeConfig).map(([k,v])=>(
-            <button key={k} onClick={()=>setType(k)} style={{
-              padding:"10px 6px", borderRadius:12,
-              border:`1.5px solid ${type===k?v.color+"60":C.border}`,
-              background:type===k?`${v.color}12`:C.card,
-              cursor:"pointer", textAlign:"center",
-            }}>
-              <p style={{ margin:"0 0 3px", fontSize:18 }}>{v.icon}</p>
-              <p style={{ margin:0, fontSize:11, fontWeight:800, color:type===k?v.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{v.label}</p>
-            </button>
-          ))}
-        </div>
-
-        {/* Amount */}
-        <div>
-          <SLabel>{type==="set"?"New Balance":"Amount"}</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1.5px solid ${valid?tc.color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
-            <span style={{ fontSize:24, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-            <input autoFocus type="text" inputMode="decimal" value={amount}
-              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
-              placeholder="0"
-              onKeyDown={e=>e.key==="Enter"&&valid&&save()}
-              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:32, color:amount?C.text:C.textFaint, caretColor:tc.color }}/>
+        {/* Current balance */}
+        <div style={{ background:`${color}10`, border:`1px solid ${color}25`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Current balance</p>
+            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>
+              {`\u20B1${Math.round(wallet.balance).toLocaleString()}`}
+            </p>
           </div>
-          {type!=="set"&&(
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
-              {QUICK_AMOUNTS.map(q=>(
-                <button key={q} onClick={()=>setAmount(String(q))} style={{
-                  background:amount===String(q)?tc.color+"18":C.surface,
-                  border:`1px solid ${amount===String(q)?tc.color+"50":C.border}`,
-                  color:amount===String(q)?tc.color:C.textSub,
-                  borderRadius:99, padding:"5px 12px", cursor:"pointer",
-                  fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif",
-                }}>₱{q.toLocaleString()}</button>
-              ))}
+          {parsed > 0 && (
+            <div style={{ textAlign:"right" }}>
+              <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>New balance</p>
+              <p style={{ margin:0, fontSize:18, fontWeight:800, fontFamily:"DM Sans,sans-serif", color: type==="in" ? C.green : C.coral }}>
+                {`\u20B1${Math.round(newBalance).toLocaleString()}`}
+              </p>
             </div>
           )}
         </div>
 
-        {/* Preview */}
-        {valid&&(
-          <div style={{ background:`${tc.color}0C`, border:`1px solid ${tc.color}25`, borderRadius:12, padding:"12px 16px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div>
-                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Current balance</p>
-                <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>₱{wallet.balance.toLocaleString()}</p>
-              </div>
-              <span style={{ fontSize:20, color:tc.color }}>→</span>
-              <div style={{ textAlign:"right" }}>
-                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>New balance</p>
-                <p style={{ margin:0, fontSize:14, fontWeight:800, color:tc.color, fontFamily:"DM Sans,sans-serif" }}>₱{newBalance.toLocaleString()}</p>
-              </div>
-            </div>
+        {/* +/- toggle */}
+        <div style={{ display:"flex", gap:8 }}>
+          {[["in","+ Add money","#22C55E"],["out","- Deduct","#F87171"]].map(([v,l,c])=>(
+            <button key={v} onClick={()=>setType(v)} className="tap-btn"
+              style={{ flex:1, padding:"12px 0", borderRadius:12, border:`2px solid ${type===v?c:C.border}`, background:type===v?c+"18":C.card, color:type===v?c:C.textSub, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", transition:"all 0.15s" }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Amount input */}
+        <div>
+          <SLabel>Amount</SLabel>
+          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`2px solid ${amt ? (type==="in"?"#22C55E":"#F87171")+"60" : C.border}`, borderRadius:14, padding:"12px 16px", gap:8, transition:"border-color 0.15s" }}>
+            <span style={{ fontSize:24, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amt}
+              onChange={e=>setAmt(e.target.value.replace(/[^0-9.]/g,""))}
+              placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:30, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
           </div>
-        )}
+          {/* Quick amounts */}
+          <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
+            {quickAmts.map(q=>(
+              <button key={q} onClick={()=>setAmt(String(q))} className="tap-btn"
+                style={{ padding:"5px 12px", borderRadius:99, border:`1px solid ${amt===String(q)?color+"60":C.border}`, background:amt===String(q)?color+"18":C.card, color:amt===String(q)?color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                {`\u20B1${q.toLocaleString()}`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Label */}
+        <div>
+          <SLabel>Label (what is this?)</SLabel>
+          <Inp value={label} onChange={setLabel} placeholder={type==="in" ? "e.g. Salary, BDO transfer..." : "e.g. Withdrawal, bills..."}/>
+          <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
+            {LABEL_SUGGESTIONS[type].map(s=>(
+              <button key={s} onClick={()=>setLabel(s)} className="tap-btn"
+                style={{ padding:"4px 10px", borderRadius:99, border:`1px solid ${label===s?color+"60":C.border}`, background:label===s?color+"18":C.card, color:label===s?color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Date */}
         <div>
           <SLabel>Date</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?C.accent+"50":C.border}`, borderRadius:12, padding:"10px 14px", gap:8 }}>
+          <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?color+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
             <span style={{ fontSize:16 }}>📅</span>
             <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value)}
               style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
-            {date!==today&&<Tag color={C.accent}>Past date</Tag>}
           </div>
         </div>
 
-        {/* Note */}
-        <div>
-          <SLabel>Note (optional)</SLabel>
-          <Inp value={note} onChange={setNote} placeholder="e.g. Salary, GCash cashout, allowance..."/>
-        </div>
-
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:10 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?tc.color:C.border }}>
-            {tc.verb} ₱{amount||"0"}
+          <Btn onClick={save}
+            style={{ opacity:valid?1:0.4, background:type==="in"?"linear-gradient(135deg,#22C55E,#16A34A)":"linear-gradient(135deg,#F87171,#DC2626)", boxShadow:"none" }}>
+            {type==="in" ? "+ Add to balance" : "- Deduct from balance"}
           </Btn>
         </div>
       </div>
@@ -688,10 +689,10 @@ function TopUpSheet({ wallet, onSave, onClose }) {
 
 function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
   const fmt = useFmt();
-  const [sheet,   setSheet]   = useState(null);
-  const [topUp,   setTopUp]   = useState(null);
-  const [confirm, setConfirm] = useState(null);
-  const [expanded,setExpanded]= useState(null);
+  const [sheet,        setSheet]        = useState(null);
+  const [adjustSheet,  setAdjustSheet]  = useState(null); // wallet being adjusted
+  const [confirm,      setConfirm]      = useState(null);
+  const [histOpen,     setHistOpen]     = useState({});
 
   const total = wallets.reduce((s,w) => s + w.balance, 0);
 
@@ -699,16 +700,26 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
     setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]);
     setSheet(null);
   };
-  const saveTopUp = w => {
-    setWallets(prev => prev.map(x=>x.id===w.id?w:x));
-    setTopUp(null);
-  };
   const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
+
+  const applyAdjustment = (walletId, adj) => {
+    setWallets(prev => prev.map(w => {
+      if (w.id !== walletId) return w;
+      return {
+        ...w,
+        balance:     adj.balanceAfter,
+        adjustments: [...(w.adjustments || []), adj],
+      };
+    }));
+    setAdjustSheet(null);
+  };
+
+  const toggleHist = id => setHistOpen(prev => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
-      {topUp && <TopUpSheet wallet={topUp} onSave={saveTopUp} onClose={()=>setTopUp(null)}/>}
+      {adjustSheet && <WalletAdjustSheet wallet={adjustSheet} onSave={adj=>applyAdjustment(adjustSheet.id,adj)} onClose={()=>setAdjustSheet(null)}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -767,12 +778,9 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
           }}>+ Add your first account</button>
         </div>
       ) : (
-        wallets.map((w, idx) => {
-          const isExp  = expanded===w.id;
-          const history= (w.history||[]).slice().reverse();
-          return (
+        wallets.map((w, idx) => (
           <Card key={w.id} glow animDelay={idx*50}>
-            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
               <div style={{ width:50, height:50, borderRadius:16, overflow:"hidden", flexShrink:0 }}>
                 <WalletIcon wallet={w} size={50}/>
               </div>
@@ -780,74 +788,58 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{w.name}</p>
                 <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
               </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                {/* Adjust button -- the new one */}
+                <button onClick={()=>setAdjustSheet(w)} className="tap-btn"
+                  style={{ background:`${w.color}18`, border:`1.5px solid ${w.color}50`, color:w.color, borderRadius:10, padding:"7px 14px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
+                  +/- Adjust
+                </button>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={()=>setSheet(w)} className="tap-btn" style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
+                  {confirm===w.id ? (
+                    <button onClick={()=>deleteWallet(w.id)} className="tap-btn" style={{ background:C.coral, border:"none", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>Confirm</button>
+                  ) : (
+                    <button onClick={()=>setConfirm(w.id)} className="tap-btn" style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif" }}>🗑</button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Share of total bar */}
             <Bar pct={total>0?(w.balance/total)*100:0} color={w.color} h={4}/>
-            <p style={{ margin:"6px 0 12px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
               {total>0?Math.round((w.balance/total)*100):0}% of total
             </p>
 
-            {/* Actions */}
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>setTopUp(w)} className="tap-btn" style={{
-                flex:2, background:`${w.color}15`, border:`1px solid ${w.color}40`,
-                color:w.color, borderRadius:10, padding:"9px",
-                cursor:"pointer", fontSize:13, fontFamily:"DM Sans,sans-serif", fontWeight:800,
-              }}>📥 Top Up / Adjust</button>
-              <button onClick={()=>setExpanded(isExp?null:w.id)} style={{
-                flex:1, background:C.surface, border:`1px solid ${C.border}`,
-                color:C.textSub, borderRadius:10, padding:"9px",
-                cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700,
-              }}>{isExp?"Hide":"History"}</button>
-              <button onClick={()=>setSheet(w)} className="tap-btn" style={{
-                background:C.surface, border:`1px solid ${C.border}`, color:C.textSub,
-                borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13,
-              }}>✏️</button>
-              {confirm===w.id ? (
-                <button onClick={()=>deleteWallet(w.id)} className="tap-btn" style={{
-                  background:C.coral, border:"none", borderRadius:10, padding:"9px 10px",
-                  cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff",
-                }}>✓</button>
-              ) : (
-                <button onClick={()=>setConfirm(w.id)} className="tap-btn" style={{
-                  background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral,
-                  borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:14,
-                }}>🗑</button>
-              )}
-            </div>
-
-            {/* History */}
-            {isExp&&(
-              <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-                <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textSub, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Transaction history</p>
-                {history.length===0?(
-                  <p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontStyle:"italic" }}>No history yet. Top up to start tracking.</p>
-                ):(
-                  history.slice(0,8).map((h,i)=>{
-                    const typeMap = { topup:{ icon:"📥", color:C.green, sign:"+" }, deduct:{ icon:"📤", color:C.coral, sign:"-" }, set:{ icon:"⚖️", color:C.accent, sign:"→" } };
-                    const t = typeMap[h.type]||typeMap.topup;
-                    return (
-                      <div key={h.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:i<history.slice(0,8).length-1?10:0, marginBottom:i<history.slice(0,8).length-1?10:0, borderBottom:i<history.slice(0,8).length-1?`1px solid ${C.border}`:"none" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <span style={{ fontSize:16 }}>{t.icon}</span>
-                          <div>
-                            <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{h.note||( h.type==="topup"?"Top up":h.type==="deduct"?"Deducted":"Balance set")}</p>
-                            <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{h.date}</p>
-                          </div>
+            {/* Adjustment history */}
+            {(w.adjustments||[]).length > 0 && (
+              <div style={{ marginTop:12, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+                <button onClick={()=>toggleHist(w.id)}
+                  style={{ background:"none", border:"none", color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:0, display:"flex", alignItems:"center", gap:6 }}>
+                  📋 {w.adjustments.length} adjustment{w.adjustments.length!==1?"s":""}
+                  <span style={{ fontSize:10, color:C.textFaint }}>{histOpen[w.id]?"▲":"▼"}</span>
+                </button>
+                {histOpen[w.id] && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+                    {[...(w.adjustments)].reverse().map(a => (
+                      <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:10, padding:"8px 12px" }}>
+                        <div>
+                          <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>
+                          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                            {a.displayDate || a.date} - {`\u20B1${Math.round(a.balanceBefore).toLocaleString()}`} {"->"} {`\u20B1${Math.round(a.balanceAfter).toLocaleString()}`}
+                          </p>
                         </div>
-                        <div style={{ textAlign:"right" }}>
-                          <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:t.color, fontFamily:"DM Sans,sans-serif" }}>{t.sign}₱{h.amount.toLocaleString()}</p>
-                          <p style={{ margin:0, fontSize:9, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>→ ₱{h.balanceAfter?.toLocaleString()}</p>
-                        </div>
+                        <p style={{ margin:0, fontSize:14, fontWeight:800, fontFamily:"DM Sans,sans-serif", color: a.type==="in" ? C.green : C.coral }}>
+                          {a.type==="in"?"+":"-"}{fmt(a.amount)}
+                        </p>
                       </div>
-                    );
-                  })
+                    ))}
+                  </div>
                 )}
               </div>
             )}
           </Card>
-        );})
+        ))
       )}
 
       <p style={{ textAlign:"center", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", padding:"4px 0 8px" }}>
@@ -1100,11 +1092,11 @@ load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
 
   return (
     <>
-      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
       <div style={{
-        position:"absolute", bottom:0, left:0, right:0,
-        transform:`translateY(${vis?0:"110%"})`,
-        width:"100%", background:C.surface,
+        position:"fixed", bottom:0, left:"50%",
+        transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
+        width:"100%", maxWidth:420, background:C.surface,
         borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`,
         borderBottom:"none", zIndex:201,
         transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)",
@@ -1368,8 +1360,8 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
 
   return (
     <>
-      <div onClick={close} style={{ position:"absolute", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"absolute", bottom:0, left:0, right:0, transform:`translateY(${vis?0:"100%"})`, width:"100%", background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
+      <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:300, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"100%"})`, width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:301, transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)", overflow:"hidden" }}>
         <div style={{ display:"flex", justifyContent:"center", paddingTop:14 }}><div style={{ width:36, height:4, borderRadius:99, background:C.border }}/></div>
 
         {/* Photo -- shown at top if exists */}
@@ -2061,8 +2053,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setScreen, 
 
   const totalDebt  = loans.reduce((s,l)=>s+(l.amount-l.paid),0);
   const totalSaved = goals.reduce((s,g)=>s+g.saved,0);
-  const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe").reduce((s,u)=>s+u.amount,0);
-  const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe").reduce((s,u)=>s+u.amount,0);
+  const iOweTotal  = (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
+  const theyOweTotal=(utangs||[]).filter(u=>u.direction==="theyowe"&&!u.settled).reduce((s,u)=>s+u.amount,0);
 
   const todayStr   = new Date().toDateString();
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
@@ -2973,47 +2965,34 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
 // ─── UTANG ─────────────────────────────────────────────────────────────────
 
-function PaymentSheet({ utang, onSave, onClose, wallets=[], onAdjustWallet }) {
+function PaymentSheet({ utang, onSave, onClose }) {
   const color     = utang.direction==="iowe" ? C.coral : C.green;
-  // total remaining across all borrows
-  const totalBorrowed = (utang.borrows||[]).reduce((s,b)=>s+b.amount,0) || utang.amount||0;
-  const totalPaid     = (utang.payments||[]).reduce((s,p)=>s+p.amount,0);
-  const remaining     = Math.max(totalBorrowed - totalPaid, 0);
-  const today         = new Date().toISOString().split("T")[0];
-  const [amt,      setAmt]      = useState("");
-  const [date,     setDate]     = useState(today);
-  const [note,     setNote]     = useState("");
-  const [walletId, setWalletId] = useState(null);
+  const remaining = utang.amount - (utang.payments||[]).reduce((s,p)=>s+p.amount,0);
+  const today     = new Date().toISOString().split("T")[0];
+  const [amt,  setAmt]  = useState("");
+  const [date, setDate] = useState(today);
+  const [note, setNote] = useState("");
 
   const save = () => {
     if (!amt || +amt<=0) return;
-    // wallet effect: if they owe me and I'm receiving payment → add to wallet
-    //                if I owe them and I'm paying → deduct from wallet
-    if (walletId && onAdjustWallet) {
-      onAdjustWallet(walletId, utang.direction==="theyowe" ? +amt : -amt);
-    }
-    onSave({ id:uid(), amount:+amt, date, note:note.trim(), walletId,
-      walletName: wallets.find(w=>w.id===walletId)?.name||null,
+    onSave({ id:uid(), amount:+amt, date, note:note.trim(),
       label:new Date(date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) });
   };
 
   return (
-    <BottomSheet onClose={onClose} title={`Log payment · ${utang.person}`}>
+    <BottomSheet onClose={onClose} title={`Log payment - ${utang.person}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-        {/* Remaining summary */}
         <div style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:14, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
             <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Still remaining</p>
-            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>₱{remaining.toLocaleString()}</p>
+            <p style={{ margin:0, fontSize:22, fontWeight:800, color, fontFamily:"DM Sans,sans-serif" }}>{fmt(remaining)}</p>
           </div>
           <div style={{ textAlign:"right" }}>
-            <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total borrowed</p>
-            <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱{totalBorrowed.toLocaleString()}</p>
+            <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Original</p>
+            <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(utang.amount)}</p>
           </div>
         </div>
 
-        {/* Amount */}
         <div>
           <SLabel>Payment amount</SLabel>
           <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1px solid ${amt?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
@@ -3023,49 +3002,24 @@ function PaymentSheet({ utang, onSave, onClose, wallets=[], onAdjustWallet }) {
               style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:28, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
           </div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
-            {[100,200,500,1000].filter(q=>q<=remaining).map(q=>(
+            {[100,200,500,1000].filter(q=>q<remaining).map(q=>(
               <button key={q} onClick={()=>setAmt(String(q))} className="tap-btn"
                 style={{ background:amt===String(q)?`${color}20`:C.card, border:`1px solid ${amt===String(q)?color+"55":C.border}`, color:amt===String(q)?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
                 ₱{q.toLocaleString()}
               </button>
             ))}
-            {remaining>0&&<button onClick={()=>setAmt(String(Math.round(remaining)))} className="tap-btn"
+            <button onClick={()=>setAmt(String(Math.round(remaining)))} className="tap-btn"
               style={{ background:amt===String(Math.round(remaining))?`${color}20`:C.card, border:`1px solid ${amt===String(Math.round(remaining))?color+"55":C.border}`, color:amt===String(Math.round(remaining))?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
-              Full (₱{Math.round(remaining).toLocaleString()})
-            </button>}
+              Full ({fmt(remaining)})
+            </button>
           </div>
           {+amt>0&&(
             <p style={{ margin:"8px 0 0", fontSize:11, fontFamily:"DM Sans,sans-serif", color:remaining-+amt<=0?C.green:C.textSub }}>
-              After: <strong style={{ color:remaining-+amt<=0?C.green:C.text }}>{remaining-+amt<=0?"🎉 Fully settled!":"₱"+Math.max(remaining-+amt,0).toLocaleString()+" remaining"}</strong>
+              After: <strong style={{ color:remaining-+amt<=0?C.green:C.text }}>{remaining-+amt<=0?"🎉 Fully settled!":fmt(Math.max(remaining-+amt,0))+" remaining"}</strong>
             </p>
           )}
         </div>
 
-        {/* Wallet picker — only show if wallets exist */}
-        {wallets.length>0&&(
-          <div>
-            <SLabel>{utang.direction==="theyowe" ? "Add payment to wallet" : "Paid from wallet"} (optional)</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              <button onClick={()=>setWalletId(null)} className="tap-btn"
-                style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===null?C.accent+"60":C.border}`, background:walletId===null?C.accentGlow:C.card, color:walletId===null?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                Skip
-              </button>
-              {wallets.map(w=>(
-                <button key={w.id} onClick={()=>setWalletId(w.id)} className="tap-btn"
-                  style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===w.id?w.color+"60":C.border}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {w.icon} {w.name}
-                </button>
-              ))}
-            </div>
-            {walletId&&+amt>0&&(
-              <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                {utang.direction==="theyowe"?"₱"+amt+" will be added to":"₱"+amt+" will be deducted from"} <strong style={{ color:wallets.find(w=>w.id===walletId)?.color }}>{wallets.find(w=>w.id===walletId)?.name}</strong>
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Date */}
         <div>
           <SLabel>Date paid</SLabel>
           <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${date!==today?color+"60":C.border}`, borderRadius:14, padding:"10px 14px", gap:10 }}>
@@ -3090,97 +3044,41 @@ function PaymentSheet({ utang, onSave, onClose, wallets=[], onAdjustWallet }) {
   );
 }
 
-function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets }) {
-  const [utangTab,       setUtangTab]       = useState("personal");
+function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen }) {
+  const [utangTab, setUtangTab] = useState("personal"); // "personal" | "loans"
   const fmt = useFmt();
-  const [view,           setView]           = useState("all");
-  const [sheet,          setSheet]          = useState(null);   // add/edit utang
-  const [borrowSheet,    setBorrowSheet]    = useState(null);   // add borrow to existing utang
-  const [paySheet,       setPaySheet]       = useState(null);
-  const [confirm,        setConfirm]        = useState(null);
-  const [expanded,       setExpanded]       = useState({});
-  const [expandedBorrow, setExpandedBorrow] = useState({});
-  const [toast,          setToast]          = useState(null);
+  const [view,     setView]     = useState("all");
+  const [sheet,    setSheet]    = useState(null);
+  const [paySheet, setPaySheet] = useState(null);
+  const [confirm,  setConfirm]  = useState(null);
+  const [expanded, setExpanded] = useState({});
 
-  const showToast = msg => { setToast(msg); setTimeout(()=>setToast(null), 3000); };
-
-  // Adjust wallet balance by delta (positive = add, negative = deduct)
-  const adjustWallet = (walletId, delta) => {
-    setWallets(prev => prev.map(w =>
-      w.id === walletId ? { ...w, balance: Math.max(w.balance + delta, 0) } : w
-    ));
-  };
-
-  const saveUtang = u => {
-    // On new "they owe me" utang with a wallet: deduct from wallet
-    const isNew = !utangs.find(x=>x.id===u.id);
-    if (isNew && u.direction==="theyowe" && u.walletId) {
-      adjustWallet(u.walletId, -(u.borrows?.[0]?.amount||u.amount||0));
-    }
-    setUtangs(prev=>prev.find(x=>x.id===u.id)?prev.map(x=>x.id===u.id?u:x):[...prev,u]);
-    setSheet(null);
-  };
-
-  const addBorrow = (utangId, borrow) => {
-    // Deduct from wallet if specified and direction is theyowe
-    const u = utangs.find(x=>x.id===utangId);
-    if (u && u.direction==="theyowe" && borrow.walletId) {
-      adjustWallet(borrow.walletId, -borrow.amount);
-    }
-    setUtangs(prev=>prev.map(u=>{
-      if (u.id!==utangId) return u;
-      const borrows = [...(u.borrows||[{ id:uid(), amount:u.amount, note:u.note||"", ts:u.ts }]), borrow];
-      return { ...u, borrows, amount: borrows.reduce((s,b)=>s+b.amount,0) };
-    }));
-    setBorrowSheet(null);
-  };
-
-  const deleteUtang = id => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
-  const markSettled = (id, direction) => {
-    const u = utangs.find(x => x.id === id);
-    if (!u) return;
-    const msg = direction === "iowe"
-      ? `✓ Paid! ${u.person} cleared.`
-      : `✓ Collected from ${u.person}!`;
-    setUtangs(prev => prev.filter(x => x.id !== id));
-    showToast(msg);
-  };
+  const saveUtang  = u => { setUtangs(prev=>prev.find(x=>x.id===u.id)?prev.map(x=>x.id===u.id?u:x):[...prev,u]); setSheet(null); };
+  const deleteUtang= id=> { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
+  const markSettled= id=> setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
 
   const logPayment = (utangId, payment) => {
     setUtangs(prev=>prev.map(u=>{
       if (u.id!==utangId) return u;
-      const payments     = [...(u.payments||[]), payment];
-      const totalPaid    = payments.reduce((s,p)=>s+p.amount,0);
-      const totalBorrowed= (u.borrows||[]).reduce((s,b)=>s+b.amount,0) || u.amount||0;
-      return { ...u, payments, settled: totalPaid>=totalBorrowed };
+      const payments  = [...(u.payments||[]), payment];
+      const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
+      return { ...u, payments, settled: totalPaid>=u.amount };
     }));
     setPaySheet(null);
   };
 
-  const remaining = u => {
-    const totalBorrowed = (u.borrows||[]).reduce((s,b)=>s+b.amount,0) || u.amount||0;
-    const totalPaid     = (u.payments||[]).reduce((s,p)=>s+p.amount,0);
-    return Math.max(totalBorrowed - totalPaid, 0);
-  };
-
-  const iOwe      = utangs.filter(u=>u.direction==="iowe");
-  const theyOwe   = utangs.filter(u=>u.direction==="theyowe");
-  const iOweTotal = iOwe.reduce((s,u)=>s+remaining(u),0);
+  const remaining  = u => Math.max(u.amount-(u.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
+  const iOwe       = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
+  const theyOwe    = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
+  const settled    = utangs.filter(u=>u.settled);
+  const iOweTotal  = iOwe.reduce((s,u)=>s+remaining(u),0);
   const theyOweTotal=theyOwe.reduce((s,u)=>s+remaining(u),0);
-  const filtered  = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe];
+  const filtered   = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe,...settled];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)} wallets={wallets}/>}
-      {borrowSheet&&<AddBorrowSheet utang={borrowSheet} onSave={b=>addBorrow(borrowSheet.id,b)} onClose={()=>setBorrowSheet(null)} wallets={wallets}/>}
-      {paySheet&&<PaymentSheet utang={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)} wallets={wallets} onAdjustWallet={adjustWallet}/>}
-
-      {/* Toast */}
-      {toast&&(
-        <div style={{ position:"fixed", top:22, left:"50%", transform:"translateX(-50%)", background:C.green, color:"#fff", borderRadius:14, padding:"11px 22px", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif", zIndex:999, whiteSpace:"nowrap", boxShadow:"0 4px 24px #00000050", pointerEvents:"none" }}>
-          {toast}
-        </div>
-      )}
+      {sheet&&<UtangSheet utang={sheet==="add"?null:sheet} onSave={saveUtang} onClose={()=>setSheet(null)}/>}
+      {paySheet&&<PaymentSheet utang={paySheet} onSave={p=>logPayment(paySheet.id,p)} onClose={()=>setPaySheet(null)}/>}
 
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3206,10 +3104,12 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
         ))}
       </div>
 
+      {/* Loans tab -- embed LoansScreen content inline */}
       {utangTab === "loans" && (
         <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen} embedded/>
       )}
 
+      {/* Personal utang tab */}
       {utangTab === "personal" && (<>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
@@ -3246,25 +3146,20 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
         <div style={{ textAlign:"center", padding:"60px 0 40px" }}>
           <div style={{ width:88, height:88, borderRadius:28, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:40, margin:"0 auto 18px" }}>🤝</div>
           <p style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang utang!</p>
-          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track who owes who — for lunches, GCash, or basta.</p>
+          <p style={{ margin:"0 0 24px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Track who owes who -- for lunches, GCash, or basta.</p>
           <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.accentGlow, border:`2px dashed ${C.accent}40`, color:C.accent, borderRadius:16, padding:"14px 32px", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add utang</button>
         </div>
       )}
 
       {filtered.map((u,i)=>{
-        const color        = u.direction==="iowe" ? C.coral : C.green;
-        const payments     = u.payments||[];
-        const borrows      = u.borrows||[{ id:"init", amount:u.amount, note:u.note||"", ts:u.ts }];
-        const totalBorrowed= borrows.reduce((s,b)=>s+b.amount,0);
-        const totalPaid    = payments.reduce((s,p)=>s+p.amount,0);
-        const rem          = Math.max(totalBorrowed-totalPaid,0);
-        const pct          = totalBorrowed>0 ? Math.min((totalPaid/totalBorrowed)*100,100) : 0;
-        const isExpB       = expandedBorrow[u.id];
-        const isExpP       = expanded[u.id];
+        const color     = u.direction==="iowe" ? C.coral : C.green;
+        const payments  = u.payments||[];
+        const totalPaid = payments.reduce((s,p)=>s+p.amount,0);
+        const rem       = Math.max(u.amount-totalPaid, 0);
+        const pct       = Math.min((totalPaid/u.amount)*100, 100);
+        const isExp     = expanded[u.id];
         return (
           <Card key={u.id} animDelay={i*40} style={{ opacity:u.settled?0.65:1, border:`1.5px solid ${u.settled?C.border:color+"40"}` }}>
-
-            {/* Header row */}
             <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
               <div style={{ width:44, height:44, borderRadius:14, background:u.direction==="iowe"?`${C.coral}15`:`${C.green}12`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
                 {u.direction==="iowe"?"😬":"🤑"}
@@ -3273,77 +3168,44 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 <p style={{ margin:"0 0 2px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
                 <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
                   {u.direction==="iowe"?"I owe them":"They owe me"}
-                  {borrows.length===1&&borrows[0].note&&<span style={{ color:C.textFaint }}> · "{borrows[0].note}"</span>}
+                  {u.note&&<span style={{ color:C.textFaint }}> - "{u.note}"</span>}
                 </p>
-                {u.dateBorrowed&&(
-                  <p style={{ margin:"3px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-                    📅 {new Date(u.dateBorrowed+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
-                    {u.dueDate&&<span style={{ color: new Date(u.dueDate+"T12:00:00")<new Date()?C.coral:C.textFaint }}> · due {new Date(u.dueDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}{new Date(u.dueDate+"T12:00:00")<new Date()?" ⚠️":""}</span>}
-                  </p>
-                )}
-                {u.walletName&&u.direction==="theyowe"&&<p style={{ margin:"2px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💳 from {u.walletName}</p>}
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 {u.settled?(
                   <Tag color={C.green}>Settled ✓</Tag>
                 ):(
                   <>
-                    <p style={{ margin:"0 0 1px", fontSize:20, fontWeight:800, color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>₱{rem.toLocaleString()}</p>
-                    {totalPaid>0&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of ₱{totalBorrowed.toLocaleString()}</p>}
+                    <p style={{ margin:"0 0 1px", fontSize:20, fontWeight:800, color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(rem)}</p>
+                    {totalPaid>0&&<p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>of {fmt(u.amount)}</p>}
                   </>
                 )}
               </div>
             </div>
 
-            {/* Progress bar */}
             {!u.settled&&totalPaid>0&&(
               <div style={{ marginBottom:10 }}>
                 <Bar pct={pct} color={color} h={6}/>
                 <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
-                  <span style={{ fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid ₱{totalPaid.toLocaleString()}</span>
+                  <span style={{ fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Paid {fmt(totalPaid)}</span>
                   <span style={{ fontSize:10, color, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>{Math.round(pct)}%</span>
                 </div>
               </div>
             )}
 
-            {/* Borrow breakdown — collapsible if multiple */}
-            {borrows.length>1&&(
-              <div style={{ marginBottom:10 }}>
-                <button onClick={()=>setExpandedBorrow(p=>({...p,[u.id]:!p[u.id]}))} className="tap-btn"
-                  style={{ background:"none", border:"none", color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"0 0 6px", display:"flex", alignItems:"center", gap:4 }}>
-                  {isExpB?"▾":"▸"} {borrows.length} borrows · ₱{totalBorrowed.toLocaleString()} total
-                </button>
-                {isExpB&&(
-                  <div style={{ background:C.bg, borderRadius:12, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
-                    {borrows.map((b,bi)=>(
-                      <div key={b.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:bi<borrows.length-1?6:0, borderBottom:bi<borrows.length-1?`1px solid ${C.border}`:undefined }}>
-                        <div>
-                          <p style={{ margin:0, fontSize:12, fontWeight:700, color, fontFamily:"DM Sans,sans-serif" }}>₱{b.amount.toLocaleString()}</p>
-                          {b.note&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{b.note}</p>}
-                          {b.walletName&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>💳 {b.walletName}</p>}
-                        </div>
-                        <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{b.ts?new Date(b.ts).toLocaleDateString("en-PH",{month:"short",day:"numeric"}):""}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Payment log — collapsible */}
             {payments.length>0&&(
               <div style={{ marginBottom:10 }}>
                 <button onClick={()=>setExpanded(p=>({...p,[u.id]:!p[u.id]}))} className="tap-btn"
                   style={{ background:"none", border:"none", color:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"0 0 6px", display:"flex", alignItems:"center", gap:4 }}>
-                  {isExpP?"▾":"▸"} {payments.length} payment{payments.length!==1?"s":""} logged
+                  {isExp?"▾":"▸"} {payments.length} payment{payments.length!==1?"s":""} logged
                 </button>
-                {isExpP&&(
+                {isExp&&(
                   <div style={{ background:C.bg, borderRadius:12, padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
                     {payments.slice().reverse().map((p,pi)=>(
                       <div key={p.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:pi<payments.length-1?6:0, borderBottom:pi<payments.length-1?`1px solid ${C.border}`:undefined }}>
                         <div>
-                          <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>₱{p.amount.toLocaleString()}</p>
-                          {(p.note||p.walletName)&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{[p.walletName&&`💳 ${p.walletName}`,p.note].filter(Boolean).join(" · ")}</p>}
+                          <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(p.amount)}</p>
+                          {p.note&&<p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{p.note}</p>}
                         </div>
                         <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{p.label}</p>
                       </div>
@@ -3353,21 +3215,13 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
               </div>
             )}
 
-            {/* Action buttons */}
             {!u.settled&&(
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", gap:8 }}>
                 <button onClick={()=>setPaySheet(u)} className="tap-btn"
                   style={{ flex:2, background:`${color}15`, border:`1px solid ${color}40`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
                   💸 Log payment
                 </button>
-                {/* Add another borrow — only for "they owe me" */}
-                {u.direction==="theyowe"&&(
-                  <button onClick={()=>setBorrowSheet(u)} className="tap-btn"
-                    style={{ flex:2, background:`${C.sky}12`, border:`1px solid ${C.sky}40`, color:C.sky, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                    ＋ Add borrow
-                  </button>
-                )}
-                <button onClick={()=>markSettled(u.id, u.direction)} className="tap-btn"
+                <button onClick={()=>markSettled(u.id)} className="tap-btn"
                   style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
                   ✓ Settle
                 </button>
@@ -3384,7 +3238,10 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 )}
               </div>
             )}
-
+            {u.settled&&(
+              <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
+            )}
           </Card>
         );
       })}
@@ -3393,115 +3250,16 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   );
 }
 
-// ─── ADD BORROW TO EXISTING UTANG ─────────────────────────────────────────
-
-function AddBorrowSheet({ utang, onSave, onClose, wallets=[] }) {
-  const color = C.sky;
-  const [amount,   setAmount]   = useState("");
-  const [note,     setNote]     = useState("");
-  const [walletId, setWalletId] = useState(null);
-  const today = new Date().toISOString().split("T")[0];
-
-  const valid = amount && +amount > 0;
-  const save  = () => {
-    if (!valid) return;
-    onSave({
-      id: uid(), amount: +amount, note: note.trim(), walletId,
-      walletName: wallets.find(w=>w.id===walletId)?.name||null,
-      ts: new Date().toISOString(),
-    });
-  };
-
-  return (
-    <BottomSheet onClose={onClose} title={`Add borrow · ${utang.person}`}>
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-
-        {/* Context pill */}
-        <div style={{ background:`${C.green}0E`, border:`1px solid ${C.green}30`, borderRadius:14, padding:"10px 14px" }}>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            This will be stacked on <strong style={{ color:C.green }}>{utang.person}</strong>'s existing card — one person, all borrows in one place.
-          </p>
-        </div>
-
-        {/* Amount */}
-        <div>
-          <SLabel>New amount borrowed</SLabel>
-          <div style={{ display:"flex", alignItems:"center", background:C.cardAlt, border:`1.5px solid ${valid?color+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
-            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
-            <input autoFocus type="text" inputMode="decimal" value={amount}
-              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
-              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:32, fontWeight:800, fontFamily:"DM Sans,sans-serif", caretColor:color }}/>
-          </div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
-            {[50,100,200,500,1000].map(q=>(
-              <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
-                style={{ background:amount===String(q)?`${color}20`:C.card, border:`1px solid ${amount===String(q)?color+"55":C.border}`, color:amount===String(q)?color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
-                ₱{q}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Reason */}
-        <div>
-          <SLabel>For what? (optional)</SLabel>
-          <Inp value={note} onChange={setNote} placeholder="e.g. fare, lunch, load..."/>
-        </div>
-
-        {/* Wallet — deduct source */}
-        {wallets.length>0&&(
-          <div>
-            <SLabel>Came from which wallet? (optional)</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              <button onClick={()=>setWalletId(null)} className="tap-btn"
-                style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===null?C.accent+"60":C.border}`, background:walletId===null?C.accentGlow:C.card, color:walletId===null?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                Skip
-              </button>
-              {wallets.map(w=>(
-                <button key={w.id} onClick={()=>setWalletId(w.id)} className="tap-btn"
-                  style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===w.id?w.color+"60":C.border}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {w.icon} {w.name}
-                </button>
-              ))}
-            </div>
-            {walletId&&+amount>0&&(
-              <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                ₱{amount} will be deducted from <strong style={{ color:wallets.find(w=>w.id===walletId)?.color }}>{wallets.find(w=>w.id===walletId)?.name}</strong>
-              </p>
-            )}
-          </div>
-        )}
-
-        <div style={{ display:"flex", gap:10 }}>
-          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:`linear-gradient(135deg,${color},#0099DD)`, boxShadow:"none" }}>Add borrow</Btn>
-        </div>
-      </div>
-    </BottomSheet>
-  );
-}
-
-function UtangSheet({ utang, onSave, onClose, wallets=[] }) {
-  const [person,       setPerson]       = useState(utang?.person||"");
-  const [amount,       setAmount]       = useState(utang?.amount?String(utang.amount):"");
-  const [direction,    setDirection]    = useState(utang?.direction||"iowe");
-  const [note,         setNote]         = useState(utang?.note||"");
-  const [walletId,     setWalletId]     = useState(null);
-  const [dateBorrowed, setDateBorrowed] = useState(utang?.dateBorrowed||new Date().toISOString().split("T")[0]);
-  const [dueDate,      setDueDate]      = useState(utang?.dueDate||"");
+function UtangSheet({ utang, onSave, onClose }) {
+  const [person,    setPerson]    = useState(utang?.person||"");
+  const [amount,    setAmount]    = useState(utang?.amount?String(utang.amount):"");
+  const [direction, setDirection] = useState(utang?.direction||"iowe");
+  const [note,      setNote]      = useState(utang?.note||"");
 
   const save = () => {
     if (!person.trim()||!amount||+amount<=0) return;
-    const walletName = wallets.find(w=>w.id===walletId)?.name||null;
-    const borrows = [{ id:uid(), amount:+amount, note:note.trim(), walletId, walletName, ts:new Date().toISOString() }];
-    onSave({
-      id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(),
-      walletId, walletName,
-      settled:utang?.settled||false, payments:utang?.payments||[],
-      borrows: utang?.borrows||borrows,
-      dateBorrowed, dueDate: dueDate||null,
-      ts:utang?.ts||new Date().toISOString(),
-    });
+    onSave({ id:utang?.id||uid(), person:person.trim(), amount:+amount, direction, note:note.trim(),
+      settled:utang?.settled||false, payments:utang?.payments||[], ts:utang?.ts||new Date().toISOString() });
   };
 
   return (
@@ -3516,9 +3274,9 @@ function UtangSheet({ utang, onSave, onClose, wallets=[] }) {
             </button>
           ))}
         </div>
-        <div><SLabel>Who?</SLabel><Inp autoFocus value={person} onChange={setPerson} placeholder="e.g. Hannah, Mico, Sir JA..."/></div>
+        <div><SLabel>Who?</SLabel><Inp autoFocus value={person} onChange={setPerson} placeholder="e.g. Mico, Jessa, Sir JA..."/></div>
         <div>
-          <SLabel>Amount</SLabel>
+          <SLabel>Total amount</SLabel>
           <div style={{ display:"flex", alignItems:"center", background:C.card, border:`1px solid ${amount?C.accent+"60":C.border}`, borderRadius:14, padding:"12px 16px", gap:8 }}>
             <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>₱</span>
             <input type="text" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0"
@@ -3529,45 +3287,6 @@ function UtangSheet({ utang, onSave, onClose, wallets=[] }) {
           </div>
         </div>
         <div><SLabel>For what? (optional)</SLabel><Inp value={note} onChange={setNote} placeholder="e.g. lunch, GCash load, taxi share..."/></div>
-
-        {/* Date fields */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <div>
-            <SLabel>Date borrowed</SLabel>
-            <input type="date" value={dateBorrowed} onChange={e=>setDateBorrowed(e.target.value)}
-              style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box", colorScheme:"dark" }}/>
-          </div>
-          <div>
-            <SLabel>Due date (optional)</SLabel>
-            <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}
-              style={{ width:"100%", background:C.card, border:`1px solid ${dueDate?C.accent+"60":C.border}`, borderRadius:12, padding:"10px 12px", color:dueDate?C.text:C.textFaint, fontSize:13, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box", colorScheme:"dark" }}/>
-          </div>
-        </div>
-
-        {/* Wallet picker — only on new "they owe me" entries */}
-        {!utang && direction==="theyowe" && wallets.length>0&&(
-          <div>
-            <SLabel>Came from which wallet? (optional)</SLabel>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              <button onClick={()=>setWalletId(null)} className="tap-btn"
-                style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===null?C.accent+"60":C.border}`, background:walletId===null?C.accentGlow:C.card, color:walletId===null?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                Skip
-              </button>
-              {wallets.map(w=>(
-                <button key={w.id} onClick={()=>setWalletId(w.id)} className="tap-btn"
-                  style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${walletId===w.id?w.color+"60":C.border}`, background:walletId===w.id?w.color+"1A":C.card, color:walletId===w.id?w.color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {w.icon} {w.name}
-                </button>
-              ))}
-            </div>
-            {walletId&&+amount>0&&(
-              <p style={{ margin:"6px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                ₱{amount} will be deducted from <strong style={{ color:wallets.find(w=>w.id===walletId)?.color }}>{wallets.find(w=>w.id===walletId)?.name}</strong>
-              </p>
-            )}
-          </div>
-        )}
-
         <div style={{ display:"flex", gap:10 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:person.trim()&&+amount>0?1:0.4 }}>Log it</Btn>
@@ -4655,7 +4374,7 @@ export default function Bulsa() {
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen}/>,
     // new combined screens
-    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
@@ -4666,7 +4385,7 @@ export default function Bulsa() {
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)", position:"relative", overflow:"hidden" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
         {!onboarded?(
           <Onboarding onDone={handleOnboardDone}/>
         ):(
