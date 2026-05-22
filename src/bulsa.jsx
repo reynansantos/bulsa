@@ -981,77 +981,125 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 
   useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
 
-  const parseWithAI = async () => {
+  // Local regex fallback -- runs when API is unavailable
+  const parseLocally = (input) => {
+    const txt = input.toLowerCase().trim();
+    // Amount: look for a number (with optional comma/peso sign)
+    const amtMatch = txt.match(/[₱p]?\s*(\d[\d,]*(?:\.\d+)?)/);
+    const amount   = amtMatch ? parseFloat(amtMatch[1].replace(/,/g,"")) : 0;
+    // Remove amount from text to isolate name/mood
+    const rest     = txt.replace(/[₱p]?\s*\d[\d,]*(?:\.\d+)?/, " ").replace(/\s+/g," ").trim();
+    // Mood keywords
+    const moodMap  = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
+    let moodId = null;
+    for (const [kw,id] of Object.entries(moodMap)) { if (rest.includes(kw)) { moodId=id; break; } }
+    // Category keywords
+    const catMap = [
+      { id:"food",      kw:["jollibee","mcdo","mcdonald","kfc","mang inasal","chowking","greenwich","bk","burger","pizza","meryenda","ulam","kain","food","eat","lunch","dinner","breakfast","coffee","milk tea","milktea","boba","7/11","711","711","ministop","lawson","sm food","kfc"] },
+      { id:"transport", kw:["grab","angkas","mrt","lrt","bus","jeep","jeepney","tricycle","trike","uber","taxi","transport","fare","gas","petrol","fuel","commute"] },
+      { id:"grocery",   kw:["grocery","groceries","palengke","market","sm","robinsons","puregold","alfamart","indomaret","shopwise","waltermart"] },
+      { id:"bills",     kw:["load","bill","bills","electric","meralco","water","maynilad","internet","wifi","pldt","globe","smart","netflix","spotify","subscription","rent","bayad"] },
+      { id:"shopping",  kw:["lazada","shopee","shein","ukay","clothes","shirt","shoes","bag","shop","bought","purchase"] },
+      { id:"health",    kw:["gamot","medicine","pharmacy","mercury","rose","clinic","hospital","doctor","checkup","vitamins"] },
+      { id:"other",     kw:[] },
+    ];
+    let catId = "other";
+    for (const cat of catMap) { if (cat.kw.some(kw=>rest.includes(kw)||txt.includes(kw))) { catId=cat.id; break; } }
+    // Name: take up to first 3 words of rest, strip mood keywords
+    const moodWords = Object.keys(moodMap);
+    const nameWords = rest.split(" ").filter(w=>w.length>1&&!moodWords.includes(w)&&!/^\d/.test(w)).slice(0,3);
+    const name = nameWords.join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || "";
+    return { name, amount, catId, moodId, note:null, fromLocal:true };
+  };
+
+  const [aiPreview,  setAiPreview]  = useState(null); // parsed result awaiting confirm
+  const [aiRetrying, setAiRetrying] = useState(false);
+
+  const applyParsed = (parsed) => {
+    if (parsed.amount > 0)                                       setAmount(String(parsed.amount));
+    if (parsed.name)                                             setName(parsed.name);
+    if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))     setCatId(parsed.catId);
+    if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId))   setMoodId(parsed.moodId);
+    if (parsed.note)                                             setNote?.(parsed.note);
+  };
+
+  const confirmPreview = () => {
+    if (!aiPreview) return;
+    applyParsed(aiPreview);
+    setAiMode(false);
+    setAiInput("");
+    setAiPreview(null);
+    setAiError("");
+  };
+
+  const parseWithAI = async (isRetry=false) => {
     if (!aiInput.trim()) return;
-    setAiLoading(true); setAiError("");
+    if (isRetry) setAiRetrying(true); else setAiLoading(true);
+    setAiError("");
+    setAiPreview(null);
+
+    let parsed = null;
+    let usedFallback = false;
+
     try {
       const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
       const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
-      const systemPrompt = `You are a Filipino expense parser. Extract expense details from casual natural language (English, Tagalog, or Taglish). Return ONLY valid JSON with no markdown, no code fences, no explanation -- just the raw JSON object.
 
+      const res = await Promise.race([
+        fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model:      "claude-haiku-4-5-20251001", // faster + cheaper for parsing
+            max_tokens: 150,
+            system: `You are a Filipino expense parser. Return ONLY a raw JSON object, no markdown, no explanation.
 Categories: ${catList}
 Moods: ${moodList}
+Shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null","note":"string|null"}
+Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best match, moodId=emotional word or null.`,
+            messages: [{ role:"user", content: aiInput.trim() }]
+          })
+        }),
+        new Promise((_,reject) => setTimeout(()=>reject(new Error("timeout")), 8000))
+      ]);
 
-Return exactly: {"name":"string","amount":number,"catId":"string","moodId":"string or null","note":"string or null"}
-
-Rules:
-- name: merchant/item, cleaned and capitalized
-- amount: number only, no symbols. 0 if not found.
-- catId: best match from the list above
-- moodId: map emotional words (stressed, sad, happy, motivated, excited, masaya, malungkot, naasar) or null
-- note: extra context or null
-
-Examples:
-mang inasal 235 stressed -> {"name":"Mang Inasal","amount":235,"catId":"food","moodId":"stressed","note":null}
-grab 150 pabili -> {"name":"Grab","amount":150,"catId":"transport","moodId":null,"note":"pabili"}
-7/11 coffee 55 masaya -> {"name":"7-Eleven Coffee","amount":55,"catId":"food","moodId":"happy","note":null}
-load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          system: systemPrompt,
-          messages: [{ role: "user", content: aiInput.trim() }]
-        })
-      });
-
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Surface API-level errors clearly
-      if (data.type === "error") {
-        setAiError(`API error: ${data.error?.message || "unknown"}`);
-        setAiLoading(false);
-        return;
-      }
+      if (data.type === "error") throw new Error(data.error?.message || "API error");
 
-      const raw  = data.content?.[0]?.text || "";
-      if (!raw) { setAiError("Empty response -- try again"); setAiLoading(false); return; }
+      const raw   = data.content?.[0]?.text || "";
+      const clean = raw.replace(/```[\w]*\n?/g,"").replace(/```/g,"").trim();
+      // Try to extract JSON even if there's surrounding text
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("no JSON in response");
+      parsed = JSON.parse(jsonMatch[0]);
 
-      // Strip any accidental markdown fences
-      const clean = raw.replace(/^```[\w]*\n?/, "").replace(/```$/, "").trim();
-      let parsed;
-      try {
-        parsed = JSON.parse(clean);
-      } catch {
-        setAiError(`Got: "${raw.slice(0,80)}" -- couldn't read it as JSON`);
-        setAiLoading(false);
-        return;
-      }
-
-      if (parsed.amount > 0) setAmount(String(parsed.amount));
-      if (parsed.name)       setName(parsed.name);
-      if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))  setCatId(parsed.catId);
-      if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) setMoodId(parsed.moodId);
-      if (parsed.note)       setNote?.(parsed.note);
-      setAiMode(false);
-      setAiInput("");
     } catch(e) {
-      setAiError(`Network error: ${e.message}`);
+      // Any failure -- silently fall back to local parser
+      usedFallback = true;
+      parsed = parseLocally(aiInput);
     }
+
+    // Validate and sanitize
+    if (!parsed || typeof parsed !== "object") {
+      parsed = parseLocally(aiInput);
+      usedFallback = true;
+    }
+    parsed.amount = parseFloat(parsed.amount)||0;
+    if (!CATS.find(c=>c.id===parsed.catId))  parsed.catId  = parseLocally(aiInput).catId;
+    if (!MOODS.find(m=>m.id===parsed.moodId)) parsed.moodId = null;
+
+    if (parsed.amount === 0 && !parsed.name) {
+      setAiError("Couldn't find an amount. Try: \"jollibee 120\" or \"grab 85 stressed\"");
+      setAiLoading(false); setAiRetrying(false);
+      return;
+    }
+
+    // Show preview for confirmation instead of silently filling
+    setAiPreview({ ...parsed, usedFallback });
     setAiLoading(false);
+    setAiRetrying(false);
   };
 
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
@@ -1142,27 +1190,79 @@ load 99 -> {"name":"Load","amount":99,"catId":"bills","moodId":null,"note":null}
               {/* AI describe mode */}
               {aiMode&&(
                 <div style={{ marginBottom:16 }}>
-                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
-                    <span style={{ fontSize:18, flexShrink:0 }}>✨</span>
+                  {/* Input row */}
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading||aiRetrying?"⏳":"✨"}</span>
                     <input
                       ref={aiInputRef}
                       value={aiInput}
-                      onChange={e=>setAiInput(e.target.value)}
-                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
-                      placeholder="mang inasal 235 stressed..."
+                      onChange={e=>{ setAiInput(e.target.value); setAiPreview(null); setAiError(""); }}
+                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&!aiRetrying&&parseWithAI()}
+                      placeholder="jollibee 120 stressed..."
                       style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
                     />
-                    {aiInput&&!aiLoading&&<button onClick={()=>setAiInput("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>×</button>}
+                    {aiInput&&!aiLoading&&!aiRetrying&&(
+                      <button onClick={()=>{ setAiInput(""); setAiPreview(null); setAiError(""); }}
+                        style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>x</button>
+                    )}
                   </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-                    {["mang inasal 235","grab 150","7/11 coffee 55","load 99","sm 500 stressed"].map(s=>(
-                      <button key={s} onClick={()=>setAiInput(s)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"4px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>{s}</button>
-                    ))}
-                  </div>
+
+                  {/* Example chips -- hide after preview */}
+                  {!aiPreview&&(
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+                      {["jollibee 120","grab 85 stressed","load 99","sm 450 masaya","mercury gamot 250"].map(s=>(
+                        <button key={s} onClick={()=>{ setAiInput(s); setAiPreview(null); }}
+                          style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"4px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>{s}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Error */}
                   {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
-                  <Btn onClick={parseWithAI} disabled={!aiInput.trim()||aiLoading} style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
-                    {aiLoading?"Parsing...":"Parse →"}
-                  </Btn>
+
+                  {/* Preview confirmation */}
+                  {aiPreview&&!aiError&&(
+                    <div style={{ background:`${C.green}0E`, border:`1.5px solid ${C.green}40`, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
+                      <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.07em" }}>
+                        {aiPreview.usedFallback ? "Quick parse -- does this look right?" : "AI parsed -- confirm?"}
+                      </p>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                        {[
+                          ["Amount",   aiPreview.amount>0 ? `P${aiPreview.amount}` : "not found"],
+                          ["Name",     aiPreview.name || "--"],
+                          ["Category", CATS.find(c=>c.id===aiPreview.catId)?.label || aiPreview.catId],
+                          ["Mood",     MOODS.find(m=>m.id===aiPreview.moodId)?.label || "none"],
+                        ].map(([l,v])=>(
+                          <div key={l} style={{ background:C.surface, borderRadius:8, padding:"6px 10px" }}>
+                            <p style={{ margin:"0 0 2px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{l}</p>
+                            <p style={{ margin:0, fontSize:13, fontWeight:800, color:aiPreview.amount===0&&l==="Amount"?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                        <button onClick={()=>{ setAiPreview(null); setAiError(""); }} className="tap-btn"
+                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                          Edit input
+                        </button>
+                        <button onClick={()=>parseWithAI(true)} disabled={aiRetrying} className="tap-btn"
+                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.accent}40`, background:`${C.accent}12`, color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", opacity:aiRetrying?0.5:1 }}>
+                          {aiRetrying ? "Retrying..." : "Retry AI"}
+                        </button>
+                        <button onClick={confirmPreview} className="tap-btn"
+                          style={{ flex:2, padding:"9px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.green},#16A34A)`, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                          Use this
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Parse button -- only show before preview */}
+                  {!aiPreview&&(
+                    <Btn onClick={()=>parseWithAI(false)} disabled={!aiInput.trim()||aiLoading}
+                      style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
+                      {aiLoading ? "Parsing..." : "Parse →"}
+                    </Btn>
+                  )}
                 </div>
               )}
               {/* Manual amount input -- hidden in AI mode */}
