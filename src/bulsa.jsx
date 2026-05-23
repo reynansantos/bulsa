@@ -2108,7 +2108,7 @@ function NavBar({ screen, setScreen, onAdd }) {
       display:"flex", justifyContent:"space-around", alignItems:"center",
       padding:`10px 8px calc(16px + env(safe-area-inset-bottom))`,
       background:C.surface, borderTop:`1px solid ${C.border}`,
-      flexShrink:0, zIndex:100,
+      position:"sticky", bottom:0, zIndex:100,
     }}>
       <NavIcon icon={Home}          active={screen==="home"}      label="Home"     onClick={()=>setScreen("home")}/>
       <NavIcon icon={Receipt}       active={screen==="expenses"}   label="Expenses" onClick={()=>setScreen("expenses")}/>
@@ -2119,7 +2119,7 @@ function NavBar({ screen, setScreen, onAdd }) {
         background:C.gradAccent, color:"#fff", cursor:"pointer",
         display:"flex", alignItems:"center", justifyContent:"center",
         boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
-        flexShrink:0,
+        marginTop:-22, flexShrink:0,
       }}>
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
@@ -3222,27 +3222,28 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       )}
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER ── compact single row ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
-        <div>
-          <p style={{ margin:"0 0 1px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric"})}
-          </p>
-          <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1.1 }}>
-            {name ? `Hey, ${name.split(" ")[0]} 👋` : "Hey there 👋"}
-          </h1>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15, transition:"all 0.2s" }}>
-            {hidden ? "🙈" : "👁️"}
-          </button>
-          <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer", flexShrink:0 }}>
             {avatar
-              ? <img src={avatar} alt="avatar" style={{ width:38, height:38, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${C.accent}70` }}/>
-              : <div style={{ width:38, height:38, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+              ? <img src={avatar} alt="avatar" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
+              : <div style={{ width:36, height:36, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{name?name.charAt(0).toUpperCase():"?"}</div>
             }
           </div>
+          <div>
+            <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:16, fontWeight:800, color:C.text, letterSpacing:"-0.02em", lineHeight:1.1 }}>
+              {name ? `${name.split(" ")[0]}` : "Bulsa"}
+              <span style={{ fontWeight:400, color:C.textSub, fontSize:13 }}> · {new Date().toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"})}</span>
+            </p>
+            <p style={{ margin:0, fontSize:11, color:morningBrief.color, fontFamily:"DM Sans,sans-serif", fontWeight:600, lineHeight:1.3 }}>
+              {morningBrief.subtext}
+            </p>
+          </div>
         </div>
+        <button onClick={()=>setHidden(h=>!h)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, padding:"4px", opacity:0.6 }}>
+          {hidden ? "🙈" : "👁️"}
+        </button>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -3252,7 +3253,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       <div onClick={heroStatus.status==="empty"?onAdd:undefined}
         style={{ background:`linear-gradient(145deg,#0F2240,#0A1628)`,
           border:`2px solid ${heroStatus.color}50`,
-          borderRadius:26, padding:"22px 20px 18px",
+          borderRadius:22, padding:"16px 18px 14px",
           position:"relative", overflow:"hidden", zIndex:1,
           cursor:heroStatus.status==="empty"?"pointer":"default",
           boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
@@ -3291,9 +3292,9 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             {heroStatus.status==="zero"||heroStatus.status==="empty" ? "Today's spend" : "Spent today"}
           </p>
           <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
-            <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800,
+            <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:46, fontWeight:800,
               color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : C.text,
-              letterSpacing:"-0.04em", lineHeight:1 }}>
+              letterSpacing:"-0.03em", lineHeight:1 }}>
               {hidden ? "₱••••" : fmt(heroStatus.todayTotal)}
             </h2>
             {todayExpsAll.length > 0 && (
@@ -3323,24 +3324,36 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </div>
         )}
 
-        {/* Headline answer */}
-        <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}20`, paddingTop:12 }}>
-          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>
-            {heroStatus.headline}
+        {/* Compact bottom row — subline + streak inline */}
+        <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.4, flex:1 }}>
+            {heroStatus.subline}
           </p>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:8 }}>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>
-              {heroStatus.subline}
-            </p>
-            {budgetStreak !== null && budgetStreak > 0 && (
-              <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
-                <span style={{ fontSize:10 }}>🔥</span>
-                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
-              </div>
-            )}
-          </div>
+          {budgetStreak !== null && budgetStreak > 0 && (
+            <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3 }}>
+              <span style={{ fontSize:10 }}>🔥</span>
+              <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── QUICK LOG SHORTCUT ── the most important action ── */}
+      <button onClick={onAdd} className="tap-btn" style={{
+        width:"100%", background:C.card, border:`1.5px dashed ${C.accent}50`,
+        borderRadius:16, padding:"13px 18px", cursor:"pointer",
+        display:"flex", alignItems:"center", gap:12, zIndex:1,
+        transition:"border-color 0.2s, background 0.2s",
+      }}>
+        <div style={{ width:36, height:36, borderRadius:11, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+          <span style={{ fontSize:18 }}>+</span>
+        </div>
+        <div style={{ textAlign:"left" }}>
+          <p style={{ margin:"0 0 1px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>Tap to log an expense</p>
+        </div>
+        <div style={{ marginLeft:"auto", color:C.accent, fontSize:18, opacity:0.6 }}>›</div>
+      </button>
 
       {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
       {sharpInsight && (
@@ -6494,7 +6507,18 @@ export default function Bulsa() {
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-
+              {/* Floating AI Chat bubble — visible on all screens except chat */}
+              {screen!=="chat"&&(
+                <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
+                  position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
+                  width:50, height:50, borderRadius:"50%", border:`2px solid ${C.accent}50`,
+                  background:C.surface, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:`0 4px 18px rgba(0,0,0,0.35)`, zIndex:89,
+                }}>
+                  <MessageCircle size={20} strokeWidth={2.5} color={C.accent}/>
+                </button>
+              )}
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
