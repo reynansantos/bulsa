@@ -969,7 +969,16 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
+  const [isOnline,  setIsOnline]  = useState(navigator.onLine);
   const aiInputRef = useRef(null);
+
+  useEffect(() => {
+    const on  = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online",  on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
 
   useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
 
@@ -1032,6 +1041,19 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 
     let parsed = null;
     let usedFallback = false;
+
+    // Skip API when offline — use local parser instantly
+    if (!navigator.onLine) {
+      parsed = parseLocally(aiInput);
+      usedFallback = true;
+      setAiLoading(false); setAiRetrying(false);
+      if (!parsed.amount && !parsed.name) {
+        setAiError("Couldn't find an amount. Try: \"jollibee 120\" or \"grab 85 stressed\"");
+        return;
+      }
+      setAiPreview(parsed);
+      return;
+    }
 
     try {
       const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
@@ -1169,8 +1191,9 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
               {!isEdit&&(
                 <div style={{ marginBottom:16 }}>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                      ✨ Just describe it
+                    <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", position:"relative" }}>
+                      {isOnline ? "✨ Just describe it" : "✍️ Describe it"}
+                      {!isOnline&&<span style={{ position:"absolute", top:-6, right:-4, background:C.gold, color:"#111", fontSize:9, fontWeight:800, borderRadius:99, padding:"2px 5px", fontFamily:"DM Sans,sans-serif" }}>OFFLINE</span>}
                     </button>
                     <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
                       🔢 Manual
@@ -1183,8 +1206,9 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
               {aiMode&&(
                 <div style={{ marginBottom:16 }}>
                   {/* Input row */}
-                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
-                    <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading||aiRetrying?"⏳":"✨"}</span>
+                  {!isOnline&&<p style={{ margin:"0 0 8px", fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>📵 Offline — using smart local parser. Works the same, just no AI.</p>}
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":!isOnline?C.gold+"50":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading||aiRetrying?"⏳":isOnline?"✨":"✍️"}</span>
                     <input
                       ref={aiInputRef}
                       value={aiInput}
@@ -2086,23 +2110,22 @@ function NavBar({ screen, setScreen, onAdd }) {
       background:C.surface, borderTop:`1px solid ${C.border}`,
       position:"sticky", bottom:0, zIndex:100,
     }}>
-      <NavIcon icon={Home}          active={screen==="home"}     label="Home"     onClick={()=>setScreen("home")}/>
-      <NavIcon icon={Receipt}       active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
+      <NavIcon icon={Home}          active={screen==="home"}      label="Home"     onClick={()=>setScreen("home")}/>
+      <NavIcon icon={Receipt}       active={screen==="expenses"}   label="Expenses" onClick={()=>setScreen("expenses")}/>
 
-      {/* Center chat button */}
-      <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
+      {/* Center + button — the core action, always here */}
+      <button onClick={onAdd} className="tap-btn" style={{
         width:54, height:54, borderRadius:"50%", border:"none",
-        background: screen==="chat" ? C.gradAccent : C.surface,
-        border: screen==="chat" ? "none" : `2px solid ${C.accent}50`,
-        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow: screen==="chat" ? `0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)` : "none",
-        marginTop:-22, flexShrink:0, transition:"all 0.2s",
+        background:C.gradAccent, color:"#fff", cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
+        marginTop:-22, flexShrink:0,
       }}>
-        <MessageCircle size={22} strokeWidth={2.5} color={screen==="chat"?"#fff":C.accent}/>
+        <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
 
-      <NavIcon icon={Handshake}     active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Wallet}        active={screen==="accounts"} label="Accounts" onClick={()=>setScreen("accounts")}/>
+      <NavIcon icon={Handshake}     active={screen==="utang"}     label="Utang"    onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Accounts" onClick={()=>setScreen("accounts")}/>
     </div>
   );
 }
@@ -2217,6 +2240,17 @@ RULES:
 
     const userMsg = { id: uid(), role:"user", text, ts: new Date().toISOString(), type:"text" };
     setMessages(prev => [...prev, userMsg]);
+
+    // Offline — can't use AI chat, but acknowledge
+    if (!navigator.onLine) {
+      setMessages(prev => [...prev, {
+        id: uid(), role:"assistant", type:"offline",
+        text: "📵 You're offline right now.\n\nYou can still log expenses manually using the + button. The AI chat needs internet to work — come back when you're connected!",
+        ts: new Date().toISOString(),
+      }]);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -6459,18 +6493,21 @@ export default function Bulsa() {
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto" }}>{screens[screen]}</div>
+            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
+              {/* Floating AI Chat bubble — visible on all screens except chat */}
+              {screen!=="chat"&&(
+                <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
+                  position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
+                  width:50, height:50, borderRadius:"50%", border:`2px solid ${C.accent}50`,
+                  background:C.surface, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:`0 4px 18px rgba(0,0,0,0.35)`, zIndex:89,
+                }}>
+                  <MessageCircle size={20} strokeWidth={2.5} color={C.accent}/>
+                </button>
+              )}
+            </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {screen!=="chat"&&(
-              <button onClick={()=>setAddOpen(true)} className="tap-btn" style={{
-                position:"fixed", bottom:"calc(80px + env(safe-area-inset-bottom))", right:20,
-                width:52, height:52, borderRadius:"50%", border:"none",
-                background:C.gradAccent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-                boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`, zIndex:90,
-              }}>
-                <Plus size={22} strokeWidth={2.5} color="#fff"/>
-              </button>
-            )}
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
         )}
