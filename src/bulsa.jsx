@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat, MessageCircle, Send } from "lucide-react";
 
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
@@ -965,7 +965,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
   const nameRef = useRef(null);
 
-  const [aiMode,    setAiMode]    = useState(false); // AI disabled — manual only
+  const [aiMode,    setAiMode]    = useState(!isEdit);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
@@ -1187,10 +1187,102 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
           {/* ── STEP 0: Amount + Category ── */}
           {step === 0 && (
             <div>
+              {/* AI quick-log toggle */}
+              {!isEdit&&(
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", position:"relative" }}>
+                      {isOnline ? "✨ Just describe it" : "✍️ Describe it"}
+                      {!isOnline&&<span style={{ position:"absolute", top:-6, right:-4, background:C.gold, color:"#111", fontSize:9, fontWeight:800, borderRadius:99, padding:"2px 5px", fontFamily:"DM Sans,sans-serif" }}>OFFLINE</span>}
+                    </button>
+                    <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                      🔢 Manual
+                    </button>
+                  </div>
+                </div>
+              )}
 
+              {/* AI describe mode */}
+              {aiMode&&(
+                <div style={{ marginBottom:16 }}>
+                  {/* Input row */}
+                  {!isOnline&&<p style={{ margin:"0 0 8px", fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>📵 Offline — using smart local parser. Works the same, just no AI.</p>}
+                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":!isOnline?C.gold+"50":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading||aiRetrying?"⏳":isOnline?"✨":"✍️"}</span>
+                    <input
+                      ref={aiInputRef}
+                      value={aiInput}
+                      onChange={e=>{ setAiInput(e.target.value); setAiPreview(null); setAiError(""); }}
+                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&!aiRetrying&&parseWithAI()}
+                      placeholder="jollibee 120 stressed..."
+                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
+                    />
+                    {aiInput&&!aiLoading&&!aiRetrying&&(
+                      <button onClick={()=>{ setAiInput(""); setAiPreview(null); setAiError(""); }}
+                        style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>x</button>
+                    )}
+                  </div>
 
-              {/* Amount input */}
-              <>
+                  {/* Example chips -- hide after preview */}
+                  {!aiPreview&&(
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+                      {["jollibee 120","grab 85 stressed","load 99","sm 450 masaya","mercury gamot 250"].map(s=>(
+                        <button key={s} onClick={()=>{ setAiInput(s); setAiPreview(null); }}
+                          style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"4px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>{s}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
+
+                  {/* Preview confirmation */}
+                  {aiPreview&&!aiError&&(
+                    <div style={{ background:`${C.green}0E`, border:`1.5px solid ${C.green}40`, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
+                      <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.07em" }}>
+                        {aiPreview.usedFallback ? "Quick parse -- does this look right?" : "AI parsed -- confirm?"}
+                      </p>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                        {[
+                          ["Amount",   aiPreview.amount>0 ? `P${aiPreview.amount}` : "not found"],
+                          ["Name",     aiPreview.name || "--"],
+                          ["Category", CATS.find(c=>c.id===aiPreview.catId)?.label || aiPreview.catId],
+                          ["Mood",     MOODS.find(m=>m.id===aiPreview.moodId)?.label || "none"],
+                        ].map(([l,v])=>(
+                          <div key={l} style={{ background:C.surface, borderRadius:8, padding:"6px 10px" }}>
+                            <p style={{ margin:"0 0 2px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{l}</p>
+                            <p style={{ margin:0, fontSize:13, fontWeight:800, color:aiPreview.amount===0&&l==="Amount"?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                        <button onClick={()=>{ setAiPreview(null); setAiError(""); }} className="tap-btn"
+                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                          Edit input
+                        </button>
+                        <button onClick={()=>parseWithAI(true)} disabled={aiRetrying} className="tap-btn"
+                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.accent}40`, background:`${C.accent}12`, color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", opacity:aiRetrying?0.5:1 }}>
+                          {aiRetrying ? "Retrying..." : "Retry AI"}
+                        </button>
+                        <button onClick={confirmPreview} className="tap-btn"
+                          style={{ flex:2, padding:"9px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.green},#16A34A)`, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                          Use this
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Parse button -- only show before preview */}
+                  {!aiPreview&&(
+                    <Btn onClick={()=>parseWithAI(false)} disabled={!aiInput.trim()||aiLoading}
+                      style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
+                      {aiLoading ? "Parsing..." : "Parse →"}
+                    </Btn>
+                  )}
+                </div>
+              )}
+              {/* Manual amount input -- hidden in AI mode */}
+              {!aiMode&&(<>
               {/* Big amount input */}
               <div style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:14 }}>
                 <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
@@ -2013,24 +2105,26 @@ function NavIcon({ icon: Icon, active, label, onClick }) {
 function NavBar({ screen, setScreen, onAdd }) {
   return (
     <div style={{
-      display:"flex", justifyContent:"space-around", alignItems:"center",
-      padding:`10px 8px calc(16px + env(safe-area-inset-bottom))`,
+      display:"flex", justifyContent:"space-around", alignItems:"flex-end",
+      padding:`6px 8px calc(16px + env(safe-area-inset-bottom))`,
       background:C.surface, borderTop:`1px solid ${C.border}`,
-      position:"sticky", bottom:0, zIndex:100,
+      position:"sticky", bottom:0, zIndex:100, overflow:"visible",
     }}>
       <NavIcon icon={Home}          active={screen==="home"}      label="Home"     onClick={()=>setScreen("home")}/>
       <NavIcon icon={Receipt}       active={screen==="expenses"}   label="Expenses" onClick={()=>setScreen("expenses")}/>
 
-      {/* Center + button — the core action, always here */}
-      <button onClick={onAdd} className="tap-btn" style={{
-        width:54, height:54, borderRadius:"50%", border:"none",
-        background:C.gradAccent, color:"#fff", cursor:"pointer",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
-        marginTop:-22, flexShrink:0,
-      }}>
-        <Plus size={24} strokeWidth={2.5} color="#fff"/>
-      </button>
+      {/* Center + button — raised but contained within navbar */}
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:4 }}>
+        <button onClick={onAdd} className="tap-btn" style={{
+          width:54, height:54, borderRadius:"50%", border:"none",
+          background:C.gradAccent, color:"#fff", cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          boxShadow:`0 4px 16px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.3)`,
+          flexShrink:0, transform:"translateY(-10px)",
+        }}>
+          <Plus size={24} strokeWidth={2.5} color="#fff"/>
+        </button>
+      </div>
 
       <NavIcon icon={Handshake}     active={screen==="utang"}     label="Utang"    onClick={()=>setScreen("utang")}/>
       <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Accounts" onClick={()=>setScreen("accounts")}/>
@@ -2040,6 +2134,313 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 
 // ─── CHAT SCREEN ────────────────────────────────────────────────────────────
+
+function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name }) {
+  const fmt = useFmt();
+  const [messages, setMessages] = useState([
+    {
+      id: "intro",
+      role: "assistant",
+      text: `Hoy${name ? ", " + name.split(" ")[0] : ""}! 👋 I'm your bulsa. assistant. Ask me anything about your money — in Tagalog, English, or Taglish.\n\nTry:\n• "Kaya pa ba ako mag-Jollibee?"\n• "Magkano na utang ni Hannah?"\n• "Log Grab 150"\n• "How much have I spent this week?"`,
+      ts: new Date().toISOString(),
+      type: "text",
+    }
+  ]);
+  const [input,   setInput]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [messages]);
+
+  // Build full financial context snapshot for Claude
+  const buildContext = () => {
+    const now        = new Date();
+    const todayStr   = now.toDateString();
+    const cycle      = getPaycycle(payday || "both");
+    const cycleExp   = expenses.filter(e => { if (!e.ts) return false; const d = new Date(e.ts); return d >= cycle.cycleStart && d <= cycle.nextPayday; });
+    const todayExp   = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr);
+    const todaySpent = todayExp.reduce((s,e) => s + e.amount, 0);
+    const cycleSpent = cycleExp.reduce((s,e) => s + e.amount, 0);
+    const walletTotal = wallets.reduce((s,w) => s + w.balance, 0);
+    const iOwe       = utangs.filter(u => u.direction === "iowe");
+    const theyOwe    = utangs.filter(u => u.direction === "theyowe");
+    const iOweTotal  = iOwe.reduce((s,u) => s + u.amount, 0);
+    const theyOweTotal = theyOwe.reduce((s,u) => s + u.amount, 0);
+    const activeLoans = loans.filter(l => { const rem = Math.max(l.amount - (l.paid||0) - (l.payments||[]).reduce((s,p)=>s+p.amount,0), 0); return rem > 0; });
+    const totalDebt   = activeLoans.reduce((s,l) => s + l.amount, 0);
+    const topCats     = CATS.map(c => ({ name:c.label, spent:cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent).slice(0,5);
+
+    // Budget status
+    const budgetStatus = CATS.map(c => {
+      const lim = budgets[c.id]||0; if (!lim) return null;
+      const spent = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+      return { category:c.label, limit:lim, spent, remaining:lim-spent, overBy:spent>lim?spent-lim:0 };
+    }).filter(Boolean);
+
+    // Recent 10 expenses
+    const recent = expenses.slice(0,10).map(e => ({ name:e.name, amount:e.amount, category:catOf(e.catId).label, date:e.date, mood:e.moodId||null }));
+
+    // Upcoming dues
+    const dueSoon = [];
+    (subs||[]).filter(s=>s.active!==false).forEach(s => { const d=daysUntil(s.dueDate); if(d<=7) dueSoon.push({ name:s.name, amount:s.amount, daysLeft:d, type:"subscription" }); });
+    activeLoans.forEach(l => { if(l.dueDay&&l.startDate){ const pc=l.payments?.length||0; const b=new Date(l.startDate+"T12:00:00"); const nd=new Date(b.getFullYear(),b.getMonth()+pc,l.dueDay); const days=Math.round((nd-now)/(1000*60*60*24)); if(days<=7) dueSoon.push({ name:l.name, amount:l.monthlyAmount||0, daysLeft:days, type:"loan" }); } });
+    utangs.filter(u=>u.direction==="iowe"&&u.dueDate).forEach(u => { const d=Math.round((new Date(u.dueDate+"T00:00:00")-now)/(1000*60*60*24)); if(d<=7) dueSoon.push({ name:`Pay ${u.person}`, amount:u.amount, daysLeft:d, type:"utang" }); });
+
+    return {
+      user: { name, income, payday, dailyLimit },
+      today: { date: now.toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric",year:"numeric"}), spent: todaySpent, remaining: dailyLimit > 0 ? dailyLimit - todaySpent : null, transactionCount: todayExp.length },
+      cycle: { label: cycle.label, daysLeft: cycle.daysLeft, spent: cycleSpent, income: Math.round(income * cycle.incomeMultiplier), remaining: Math.round(income * cycle.incomeMultiplier) - cycleSpent },
+      wallets: wallets.map(w => ({ name:w.name, balance:w.balance })),
+      walletTotal,
+      topSpendingCategories: topCats,
+      budgetLimits: budgetStatus,
+      utang: { iOweTotal, theyOweTotal, iOwe: iOwe.map(u=>({ person:u.person, amount:u.amount, dueDate:u.dueDate||null })), theyOwe: theyOwe.map(u=>({ person:u.person, amount:u.amount, dueDate:u.dueDate||null })) },
+      loans: activeLoans.map(l => ({ name:l.name, remaining:Math.max(l.amount-(l.paid||0)-(l.payments||[]).reduce((s,p)=>s+p.amount,0),0), monthlyPayment:l.monthlyAmount||0 })),
+      totalDebt,
+      goals: goals.map(g => ({ name:g.name, target:g.target, saved:g.saved||0, remaining:g.target-(g.saved||0), deadline:g.deadline||null })),
+      recentExpenses: recent,
+      dueSoon,
+    };
+  };
+
+  const SYSTEM_PROMPT = (ctx) => `You are the personal finance assistant built into bulsa. — a Filipino budget tracking app. You speak naturally in Taglish (mix of Tagalog and English), just like a knowledgeable kuya or ate who knows everything about the user's finances.
+
+Your personality:
+- Warm, direct, slightly playful — like a smart friend, not a bank
+- You use Filipino expressions naturally: "ay nako", "kaya pa", "konti na lang", "grabe"
+- You give real, specific answers based on the actual data — never vague
+- Short replies unless the user asks for detail
+- You can do math instantly and explain it simply
+
+CURRENT FINANCIAL SNAPSHOT (as of ${ctx.today.date}):
+${JSON.stringify(ctx, null, 2)}
+
+ACTIONS you can perform (respond with JSON action block if needed):
+1. Log an expense: if user says "log [item] [amount]" or "gastos [amount] [item]", respond with a SINGLE line at the END of your message in this exact format:
+   ACTION:LOG_EXPENSE:{"name":"item name","amount":123,"catId":"food","moodId":null,"note":null}
+   
+   Available catIds: food, transport, bills, shopping, health, education, entertainment, savings, other
+   Available moodIds: happy, sad, stressed, motivated, excited, neutral — or null
+
+2. For everything else, just answer conversationally.
+
+RULES:
+- Always use actual numbers from the snapshot, never make up figures
+- When asked "kaya pa ba" (can I still afford), calculate remaining daily/cycle budget and compare to typical cost
+- When asked about a specific person's utang, look it up in the utang data
+- Keep replies under 4 sentences unless asked for detail
+- Never give generic financial advice — always personalize to the data
+- If asked to log something, confirm what you logged at the end`;
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput("");
+
+    const userMsg = { id: uid(), role:"user", text, ts: new Date().toISOString(), type:"text" };
+    setMessages(prev => [...prev, userMsg]);
+
+    // Offline — can't use AI chat, but acknowledge
+    if (!navigator.onLine) {
+      setMessages(prev => [...prev, {
+        id: uid(), role:"assistant", type:"offline",
+        text: "📵 You're offline right now.\n\nYou can still log expenses manually using the + button. The AI chat needs internet to work — come back when you're connected!",
+        ts: new Date().toISOString(),
+      }]);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const ctx = buildContext();
+      const history = messages
+        .filter(m => m.id !== "intro")
+        .slice(-8)  // last 8 messages for context window
+        .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: SYSTEM_PROMPT(ctx),
+          messages: [...history, { role:"user", content: text }],
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const fullText = data.content?.[0]?.text || "";
+
+      // Check for action
+      const actionMatch = fullText.match(/ACTION:LOG_EXPENSE:(\{.*?\})/);
+      let displayText = fullText.replace(/ACTION:LOG_EXPENSE:\{.*?\}/g, "").trim();
+      let actionResult = null;
+
+      if (actionMatch) {
+        try {
+          const parsed = JSON.parse(actionMatch[1]);
+          const newExp = {
+            id:     uid(),
+            name:   parsed.name,
+            amount: Number(parsed.amount),
+            catId:  parsed.catId || "other",
+            moodId: parsed.moodId || null,
+            note:   parsed.note  || null,
+            date:   new Date().toLocaleDateString("en-PH", { month:"short", day:"numeric" }),
+            time:   new Date().toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" }),
+            ts:     new Date().toISOString(),
+          };
+          setExpenses(prev => [newExp, ...prev]);
+
+          // Deduct from first wallet if exists
+          if (wallets.length > 0) {
+            setWallets(prev => prev.map((w,i) => i===0 ? {...w, balance: Math.max(w.balance - newExp.amount, 0)} : w));
+          }
+
+          actionResult = { name: parsed.name, amount: parsed.amount };
+        } catch(e) {
+          // ignore parse error
+        }
+      }
+
+      const assistantMsg = {
+        id:     uid(),
+        role:   "assistant",
+        text:   displayText,
+        ts:     new Date().toISOString(),
+        type:   "text",
+        logged: actionResult,
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+
+    } catch(err) {
+      setMessages(prev => [...prev, {
+        id: uid(), role:"assistant", type:"error",
+        text: `Ay, may error: ${err.message || "Something went wrong."}`,
+        ts: new Date().toISOString(),
+      }]);
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const suggestions = [
+    "Kaya pa ba ako mag-Jollibee?",
+    "How much did I spend today?",
+    "Sino pa may utang sa akin?",
+    "Log Grab 180",
+    "Am I on budget?",
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bg }}>
+
+      {/* Header */}
+      <div style={{ padding:"18px 18px 12px", borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:40, height:40, borderRadius:13, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 16px ${C.accentGlow}` }}>
+            <MessageCircle size={20} color="#fff" strokeWidth={2.5}/>
+          </div>
+          <div>
+            <p style={{ margin:"0 0 1px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>bulsa. AI</p>
+            <p style={{ margin:0, fontSize:11, color:C.green, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>● Online · knows your finances</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+        {messages.map(msg => (
+          <div key={msg.id} style={{ display:"flex", flexDirection:"column", alignItems:msg.role==="user"?"flex-end":"flex-start", gap:4 }}>
+            <div style={{
+              maxWidth:"82%", padding:"11px 14px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",
+              background: msg.role==="user"
+                ? `linear-gradient(135deg,${C.accent},#0099DD)`
+                : msg.type==="error" ? `${C.coral}18` : C.surface,
+              border: msg.role==="assistant" ? `1px solid ${msg.type==="error"?C.coral+"40":C.border}` : "none",
+              boxShadow: msg.role==="user" ? `0 4px 16px ${C.accentGlow}` : "none",
+            }}>
+              <p style={{ margin:0, fontSize:13, lineHeight:1.65, color:msg.role==="user"?"#fff":C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"pre-wrap" }}>
+                {msg.text}
+              </p>
+              {msg.logged && (
+                <div style={{ marginTop:8, padding:"8px 10px", background:"rgba(255,255,255,0.15)", borderRadius:10, display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:14 }}>✅</span>
+                  <p style={{ margin:0, fontSize:12, fontWeight:800, color:msg.role==="user"?"#fff":C.green, fontFamily:"DM Sans,sans-serif" }}>
+                    Logged: {msg.logged.name} · ₱{msg.logged.amount.toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+            <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", paddingLeft:4, paddingRight:4 }}>
+              {new Date(msg.ts).toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"})}
+            </p>
+          </div>
+        ))}
+
+        {/* Typing indicator */}
+        {loading && (
+          <div style={{ display:"flex", alignItems:"flex-start" }}>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"18px 18px 18px 4px", padding:"12px 16px", display:"flex", gap:5, alignItems:"center" }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.accent, opacity:0.6, animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite` }}/>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Suggestion chips — only when no conversation yet */}
+        {messages.length <= 1 && !loading && (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginTop:6 }}>
+            {suggestions.map((s,i) => (
+              <button key={i} onClick={()=>{ setInput(s); inputRef.current?.focus(); }} className="tap-btn"
+                style={{ background:C.surface, border:`1px solid ${C.accent}35`, borderRadius:99, padding:"7px 13px", cursor:"pointer", fontSize:12, color:C.accent, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* Input */}
+      <div style={{ padding:"12px 14px", paddingBottom:`calc(12px + env(safe-area-inset-bottom))`, borderTop:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+          <div style={{ flex:1, background:C.card, border:`1.5px solid ${C.border}`, borderRadius:22, padding:"10px 16px", display:"flex", alignItems:"center" }}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
+              placeholder="Tanong mo ako... (e.g. Log Jollibee 180)"
+              rows={1}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", resize:"none", lineHeight:1.5, maxHeight:80, overflowY:"auto" }}
+            />
+          </div>
+          <button onClick={send} disabled={!input.trim()||loading} className="tap-btn"
+            style={{ width:46, height:46, borderRadius:"50%", border:"none", background:input.trim()&&!loading?C.gradAccent:"none", cursor:input.trim()&&!loading?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, border:`1.5px solid ${input.trim()&&!loading?C.accent+"60":C.border}`, transition:"all 0.2s" }}>
+            <Send size={18} color={input.trim()&&!loading?"#fff":C.textFaint} strokeWidth={2.5}/>
+          </button>
+        </div>
+        <p style={{ margin:"6px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>
+          Powered by Claude · your data stays on your device
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ─── ONBOARDING ────────────────────────────────────────────────────────────
 
@@ -6081,7 +6482,7 @@ export default function Bulsa() {
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
-
+    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
   };
 
   return (
@@ -6095,7 +6496,18 @@ export default function Bulsa() {
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-
+              {/* Floating AI Chat bubble — visible on all screens except chat */}
+              {screen!=="chat"&&(
+                <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
+                  position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
+                  width:50, height:50, borderRadius:"50%", border:`2px solid ${C.accent}50`,
+                  background:C.surface, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:`0 4px 18px rgba(0,0,0,0.35)`, zIndex:89,
+                }}>
+                  <MessageCircle size={20} strokeWidth={2.5} color={C.accent}/>
+                </button>
+              )}
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
