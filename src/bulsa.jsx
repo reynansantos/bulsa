@@ -2928,6 +2928,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const fmt = useFmt();
   const [walletsHidden,  setWalletsHidden]  = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [activeInsight,  setActiveInsight]  = useState(0);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -3289,19 +3290,29 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         {/* THE big number */}
         <div style={{ position:"relative", zIndex:1, marginBottom:14 }}>
           <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {heroStatus.status==="zero"||heroStatus.status==="empty" ? "Today's spend" : "Spent today"}
+            {heroStatus.status==="zero" ? "Available to spend today"
+             : heroStatus.status==="empty" ? "Today's spend"
+             : "Spent today"}
           </p>
           <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
             <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:46, fontWeight:800,
-              color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : C.text,
+              color: heroStatus.status==="zero" ? heroStatus.color
+                   : heroStatus.overLimit ? C.coral
+                   : heroStatus.nearLimit ? C.gold
+                   : C.text,
               letterSpacing:"-0.03em", lineHeight:1 }}>
-              {hidden ? "₱••••" : fmt(heroStatus.todayTotal)}
+              {hidden ? "₱••••"
+               : heroStatus.status==="zero"
+                 ? fmt(runway?.allowedPerDay || dailyLimit || 0)
+                 : fmt(heroStatus.todayTotal)}
             </h2>
-            {todayExpsAll.length > 0 && (
+            {heroStatus.status==="zero" && (runway?.allowedPerDay || dailyLimit) ? (
+              <p style={{ margin:"0 0 8px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>daily budget</p>
+            ) : todayExpsAll.length > 0 ? (
               <p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
                 {todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -3324,17 +3335,25 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </div>
         )}
 
-        {/* Compact bottom row — subline + streak inline */}
+        {/* Compact bottom row — subline + streaks inline */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.4, flex:1 }}>
             {heroStatus.subline}
           </p>
-          {budgetStreak !== null && budgetStreak > 0 && (
-            <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3 }}>
-              <span style={{ fontSize:10 }}>🔥</span>
-              <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
-            </div>
-          )}
+          <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+            {walangGastosStreak >= 1 && (
+              <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 8px", display:"flex", alignItems:"center", gap:3 }}>
+                <span style={{ fontSize:10 }}>{streakEmoji}</span>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:streakColor }}>{walangGastosStreak}d</span>
+              </div>
+            )}
+            {budgetStreak !== null && budgetStreak > 0 && (
+              <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3 }}>
+                <span style={{ fontSize:10 }}>🔥</span>
+                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3380,13 +3399,12 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
       )}
 
-      {/* ── WALLET GRID ── visible at a glance, no tapping required */}
+      {/* ── WALLET LIST ── visible at a glance, no tapping required */}
       {wallets && wallets.length > 0 && (
         <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
-              {/* Wallet-only hide toggle */}
               <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn"
                 style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"0 2px", opacity:0.7, lineHeight:1 }}>
                 {walletsHidden ? "🙈" : "👁️"}
@@ -3394,36 +3412,41 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
             <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(wallets.length,3)},1fr)`, gap:8 }}>
-            {wallets.slice(0,3).map(w => (
-              <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
-                style={{ background:C.card, border:`1px solid ${walletsHidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
-                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}>
-                  <WalletIcon wallet={w} size={28}/>
-                </div>
-                <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em",
-                  filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s, color 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
-                  {walletsHidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
-                </p>
-              </button>
-            ))}
-            {wallets.length > 3 && (
-              <button onClick={()=>setScreen("accounts")} className="tap-btn"
-                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <span style={{ fontSize:16, color:C.textSub }}>+{wallets.length - 3}</span>
-                <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>more</p>
-              </button>
-            )}
-          </div>
-          {/* Total strip */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
-            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total across all wallets</span>
-            <span style={{ fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif",
-              filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
-              {walletsHidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
-            </span>
+          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+            {(()=>{
+              const sorted = [...wallets].sort((a,b)=>b.balance-a.balance);
+              const maxBal = Math.max(...wallets.map(w=>w.balance), 1);
+              return sorted.slice(0,4).map(w=>(
+                <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
+                  style={{ background:C.card, border:`1px solid ${walletsHidden?C.border:w.color+"28"}`, borderRadius:14, padding:"10px 14px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:12, width:"100%" }}>
+                  <div style={{ borderRadius:9, overflow:"hidden", width:30, height:30, flexShrink:0 }}>
+                    <WalletIcon wallet={w} size={30}/>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"55%" }}>{w.name}</p>
+                      <p style={{ margin:0, fontSize:13, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif",
+                        filter:walletsHidden?"blur(6px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
+                        {walletsHidden?"••••":`₱${Math.round(w.balance).toLocaleString()}`}
+                      </p>
+                    </div>
+                    <div style={{ background:C.border, borderRadius:99, height:3 }}>
+                      <div style={{ width:`${Math.max(Math.round((w.balance/maxBal)*100),w.balance>0?2:0)}%`, height:"100%", background:w.color, borderRadius:99, transition:"width 0.4s ease" }}/>
+                    </div>
+                  </div>
+                </button>
+              ));
+            })()}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 4px 0" }}>
+              {wallets.length > 4
+                ? <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>+{wallets.length-4} more →</button>
+                : <span/>
+              }
+              <span style={{ fontSize:11, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif",
+                filter:walletsHidden?"blur(6px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
+                {walletsHidden?"₱••••":`₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()} total`}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -3625,39 +3648,32 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         if (expenses.length===0) return (
           <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
         );
+        // Hero already handles the zero-state message — don't duplicate it here
+        if (todayExps.length===0) return null;
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Today's transactions</p>
               <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
             </div>
-            {todayExps.length===0?(
-              <div style={{ textAlign:"center", padding:"18px 0", background:C.surface, borderRadius:16, border:`1px dashed ${C.border}` }}>
-                <p style={{ margin:"0 0 6px", fontSize:22 }}>🌅</p>
-                <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clean slate today</p>
-                <p style={{ margin:"0 0 10px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet.</p>
-                <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log first expense</button>
-              </div>
-            ):(
-              <>
-                {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                  <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
-                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
-                      <div style={{ flex:1 }}>
-                        <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
-                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}</p>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        {m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}
-                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
-                      </div>
+            <>
+              {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
+                <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
+                    <div style={{ flex:1 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
+                      <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}</p>
                     </div>
-                  </Card>
-                );})}
-                {todayExps.length>4&&<button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"2px 0" }}>+{todayExps.length-4} more today →</button>}
-              </>
-            )}
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      {m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}
+                      <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmt(e.amount)}</p>
+                    </div>
+                  </div>
+                </Card>
+              );})}
+              {todayExps.length>4&&<button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"2px 0" }}>+{todayExps.length-4} more today →</button>}
+            </>
           </div>
         );
       })()}
@@ -3729,87 +3745,133 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         );
       })()}
 
-      {/* ── 4. FINANCIAL SUMMARY ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
-        <Card glow onClick={()=>setScreen("accounts")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
-      </div>
-
-      {(iOweTotal>0||theyOweTotal>0)&&(
-        <Card style={{ padding:"12px 16px", border:`1px solid ${iOweTotal>theyOweTotal?C.coral+"40":C.green+"40"}` }} onClick={()=>setScreen("utang")}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:18 }}>🤝</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang tracker</p></div>
-            <div style={{ display:"flex", gap:10 }}>
-              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>I owe {fmt(iOweTotal)}</span>}
-              {theyOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>+{fmt(theyOweTotal)}</span>}
-            </div>
+      {/* ── 4. FINANCIAL SUMMARY ── consolidated 3-stat strip */}
+      <button onClick={()=>setScreen("utang")} className="tap-btn"
+        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"14px 16px", width:"100%", cursor:"pointer", textAlign:"left" }}>
+        <div style={{ display:"flex", alignItems:"center" }}>
+          <div style={{ flex:1, textAlign:"center" }}>
+            <p style={{ margin:"0 0 5px", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p>
+            <p style={{ margin:0, fontSize:17, fontWeight:800, color:totalDebt>0?C.coral:C.textFaint, fontFamily:"DM Sans,sans-serif",
+              filter:hidden?"blur(6px)":"none", userSelect:hidden?"none":"auto" }}>
+              {hidden?"₱••••":fmt(totalDebt)}
+            </p>
           </div>
-        </Card>
-      )}
-
-
-
-      {/* ── 7. BOTTOM INSIGHTS: STREAK + MOOD TIP ── */}
-      <div style={{ display:"flex", flexDirection:"column", gap:10, paddingTop:6, borderTop:`1px solid ${C.border}` }}>
-        <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
-
-        <Card style={{ background:walangGastosStreak>=7?`${streakColor}0C`:C.surface, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`, padding:"14px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
-                <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
-                  <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
-                </div>
-              </div>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
-            </div>
+          <div style={{ width:1, background:C.border, height:32, flexShrink:0 }}/>
+          <div style={{ flex:1, textAlign:"center" }}>
+            <p style={{ margin:"0 0 5px", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p>
+            <p style={{ margin:0, fontSize:17, fontWeight:800, color:totalSaved>0?C.green:C.textFaint, fontFamily:"DM Sans,sans-serif",
+              filter:hidden?"blur(6px)":"none", userSelect:hidden?"none":"auto" }}>
+              {hidden?"₱••••":fmt(totalSaved)}
+            </p>
           </div>
-          {walangGastosStreak>=1&&(
-            <div style={{ marginTop:12, display:"flex", gap:4 }}>
-              {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
-              {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:C.border }}/>))}
+          {theyOweTotal > 0 && <>
+            <div style={{ width:1, background:C.border, height:32, flexShrink:0 }}/>
+            <div style={{ flex:1, textAlign:"center" }}>
+              <p style={{ margin:"0 0 5px", fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>They owe</p>
+              <p style={{ margin:0, fontSize:17, fontWeight:800, color:C.gold, fontFamily:"DM Sans,sans-serif",
+                filter:hidden?"blur(6px)":"none", userSelect:hidden?"none":"auto" }}>
+                {hidden?"₱••••":fmt(theyOweTotal)}
+              </p>
             </div>
-          )}
-        </Card>
-
-        {moodLogs>=2&&stressAmt>0&&(
-          <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} onClick={()=>setScreen("expenses")}>
-            <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-              <div style={{ width:42, height:42, borderRadius:13, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>😰</div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Mood Insight</p>
-                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed -- {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
-                <Tag color={C.coral}>See mood breakdown →</Tag>
-              </div>
-            </div>
-          </Card>
+          </>}
+        </div>
+        {iOweTotal > 0 && (
+          <p style={{ margin:"10px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", textAlign:"center", borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+            You owe <span style={{ color:C.coral, fontWeight:800 }}>{fmt(iOweTotal)}</span> total · Tap to manage
+          </p>
         )}
+      </button>
 
-        {(()=>{
-          if (expenses.length<3) return null;
+
+
+      {/* ── 7. BOTTOM INSIGHTS: rotating single card ── */}
+      {(()=>{
+        const insights = [];
+
+        // Insight 1: Walang Gastos Streak
+        insights.push({
+          key:"streak",
+          color: streakColor,
+          tag: "STREAK",
+          icon: streakEmoji,
+          headline: `Walang Gastos Streak — ${walangGastosStreak}d`,
+          body: streakMsg,
+          extra: walangGastosStreak>=1 ? (
+            <div style={{ marginTop:10, display:"flex", gap:4 }}>
+              {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
+              {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:C.border }}/>))}
+            </div>
+          ) : null,
+        });
+
+        // Insight 2: Mood (if enough data)
+        if (moodLogs>=2&&stressAmt>0) {
+          insights.push({
+            key:"mood",
+            color: C.coral,
+            tag: "MOOD INSIGHT",
+            icon: "😰",
+            headline: `${fmt(stressAmt)} spent while stressed`,
+            body: `That's ${Math.round((stressAmt/Math.max(totalSpent,1))*100)}% of your total. Stress spending adds up. Try pausing before opening Shopee.`,
+            action: { label:"See mood breakdown →", screen:"expenses" },
+          });
+        }
+
+        // Insight 3: Smart tip (data-driven)
+        if (expenses.length>=3) {
           const byCat=CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
           const totalAll=expenses.reduce((s,e)=>s+e.amount,0);
           const foodAmt=byCat.find(c=>c.id==="food")?.total||0;
           const shopAmt=byCat.find(c=>c.id==="shopping")?.total||0;
           const byDay2=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) byDay2[new Date(e.ts).getDay()]+=e.amount; });
           const fri=byDay2[5],sat=byDay2[6],wkAvg=(byDay2[1]+byDay2[2]+byDay2[3]+byDay2[4])/4||1;
-          let tip={ icon:"✅", text:"Your spending looks balanced. Keep logging to see more patterns." };
-          if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use -- leave the rest in your account." };
-          else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week -- kahit simpleng ulam. Malaking tipid over a month.` };
-          else if(shopAmt/totalAll>0.25) tip={ icon:"🛍️", text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
-          else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning -- once it's gone, it's gone." };
-          return (
-            <Card style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
-              <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                <span style={{ fontSize:20, flexShrink:0 }}>{tip.icon}</span>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p>
+          let tip={ icon:"✅", color:C.green, tag:"TIP", headline:"Spending looks balanced", body:"Keep logging -- mas magiging clear ang pattern mo over time." };
+          if(totalAll>0&&totalAll/income>0.8)       tip={ icon:"🚨", color:C.coral, tag:"HEADS UP", headline:"Over 80% of income spent", body:"Try withdrawing only what you plan to use -- leave the rest in your account." };
+          else if(foodAmt/totalAll>0.4)              tip={ icon:"🍜", color:C.accent, tag:"PATTERN", headline:`Food is ${Math.round((foodAmt/totalAll)*100)}% of spending`, body:"Try cooking 2x a week -- kahit simpleng ulam. Malaking tipid over a month." };
+          else if(shopAmt/totalAll>0.25)             tip={ icon:"🛍️", color:C.rose, tag:"PATTERN", headline:"Shopping is running high", body:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
+          else if(fri>wkAvg*1.8||sat>wkAvg*1.8)     tip={ icon:"📅", color:C.gold, tag:"PATTERN", headline:"Weekends drain your wallet", body:"Set a cash allowance on Friday morning -- once it's gone, it's gone." };
+          insights.push({ key:"tip", color:tip.color, tag:tip.tag, icon:tip.icon, headline:tip.headline, body:tip.body });
+        }
+
+        if (insights.length===0) return null;
+        const idx     = Math.min(activeInsight, insights.length-1);
+        const insight = insights[idx];
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:0, paddingTop:6, borderTop:`1px solid ${C.border}` }}>
+            <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
+            <Card style={{ background:`${insight.color}0C`, border:`1.5px solid ${insight.color}30`, padding:"14px 16px" }}
+              onClick={()=>setActiveInsight(i=>(i+1)%insights.length)}>
+              <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                <div style={{ width:42, height:42, borderRadius:13, background:`${insight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{insight.icon}</div>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 3px", fontSize:10, fontWeight:800, color:insight.color, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>{insight.tag}</p>
+                  <p style={{ margin:"0 0 5px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.35 }}>{insight.headline}</p>
+                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>{insight.body}</p>
+                  {insight.extra}
+                  {insight.action && (
+                    <button onClick={e=>{e.stopPropagation();setScreen(insight.action.screen);}}
+                      style={{ background:"none", border:"none", color:insight.color, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"6px 0 0" }}>
+                      {insight.action.label}
+                    </button>
+                  )}
+                </div>
               </div>
+              {insights.length > 1 && (
+                <div style={{ display:"flex", gap:5, justifyContent:"center", marginTop:12 }}>
+                  {insights.map((_,i)=>(
+                    <div key={i} onClick={e=>{e.stopPropagation();setActiveInsight(i);}}
+                      style={{ height:3, borderRadius:99, background:i===idx?insight.color:C.border, width:i===idx?18:6, transition:"width 0.25s ease, background 0.25s ease", cursor:"pointer" }}/>
+                  ))}
+                </div>
+              )}
             </Card>
-          );
-        })()}
-      </div>
+            {insights.length > 1 && (
+              <p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, textAlign:"center", fontFamily:"DM Sans,sans-serif" }}>Tap card to cycle insights</p>
+            )}
+          </div>
+        );
+      })()}
 
     </div>
   );
