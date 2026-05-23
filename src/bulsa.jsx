@@ -2105,26 +2105,24 @@ function NavIcon({ icon: Icon, active, label, onClick }) {
 function NavBar({ screen, setScreen, onAdd }) {
   return (
     <div style={{
-      display:"flex", justifyContent:"space-around", alignItems:"flex-end",
-      padding:`6px 8px calc(16px + env(safe-area-inset-bottom))`,
+      display:"flex", justifyContent:"space-around", alignItems:"center",
+      padding:`10px 8px calc(16px + env(safe-area-inset-bottom))`,
       background:C.surface, borderTop:`1px solid ${C.border}`,
-      position:"sticky", bottom:0, zIndex:100, overflow:"visible",
+      flexShrink:0, zIndex:100,
     }}>
       <NavIcon icon={Home}          active={screen==="home"}      label="Home"     onClick={()=>setScreen("home")}/>
       <NavIcon icon={Receipt}       active={screen==="expenses"}   label="Expenses" onClick={()=>setScreen("expenses")}/>
 
-      {/* Center + button — raised but contained within navbar */}
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:4 }}>
-        <button onClick={onAdd} className="tap-btn" style={{
-          width:54, height:54, borderRadius:"50%", border:"none",
-          background:C.gradAccent, color:"#fff", cursor:"pointer",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          boxShadow:`0 4px 16px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.3)`,
-          flexShrink:0, transform:"translateY(-10px)",
-        }}>
-          <Plus size={24} strokeWidth={2.5} color="#fff"/>
-        </button>
-      </div>
+      {/* Center + button — the core action, always here */}
+      <button onClick={onAdd} className="tap-btn" style={{
+        width:54, height:54, borderRadius:"50%", border:"none",
+        background:C.gradAccent, color:"#fff", cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
+        flexShrink:0,
+      }}>
+        <Plus size={24} strokeWidth={2.5} color="#fff"/>
+      </button>
 
       <NavIcon icon={Handshake}     active={screen==="utang"}     label="Utang"    onClick={()=>setScreen("utang")}/>
       <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Accounts" onClick={()=>setScreen("accounts")}/>
@@ -6496,18 +6494,7 @@ export default function Bulsa() {
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-              {/* Floating AI Chat bubble — visible on all screens except chat */}
-              {screen!=="chat"&&(
-                <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
-                  position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
-                  width:50, height:50, borderRadius:"50%", border:`2px solid ${C.accent}50`,
-                  background:C.surface, cursor:"pointer",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  boxShadow:`0 4px 18px rgba(0,0,0,0.35)`, zIndex:89,
-                }}>
-                  <MessageCircle size={20} strokeWidth={2.5} color={C.accent}/>
-                </button>
-              )}
+
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
