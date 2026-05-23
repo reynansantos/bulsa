@@ -939,7 +939,7 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 // ─── ADD EXPENSE ───────────────────────────────────────────────────────────
 
-function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets, onDeductWallet }) {
+function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets, onDeductWallet, apiKey="" }) {
   const isEdit = !!editExpense;
 
   // Read URL prefill from sessionStorage (set by Back Tap / Shortcut handler)
@@ -1055,6 +1055,12 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
       return;
     }
 
+    if (!apiKey || !apiKey.startsWith("sk-ant")) {
+      usedFallback = true;
+      parsed = parseLocally(aiInput);
+      setAiError("Add your Anthropic API key in Profile → AI Features to use AI logging.");
+      return;
+    }
     try {
       const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
       const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
@@ -1062,7 +1068,12 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
       const res = await Promise.race([
         fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true",
+            },
           body: JSON.stringify({
             model:      "claude-haiku-4-5-20251001", // faster + cheaper for parsing
             max_tokens: 150,
@@ -2133,7 +2144,7 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 // ─── CHAT SCREEN ────────────────────────────────────────────────────────────
 
-function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name }) {
+function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name, apiKey="" }) {
   const fmt = useFmt();
   const [messages, setMessages] = useState([
     {
@@ -2253,6 +2264,14 @@ RULES:
 
     setLoading(true);
 
+    if (!apiKey || !apiKey.startsWith("sk-ant")) {
+      setMessages(prev => [...prev, {
+        id: uid(), role:"assistant", ts:Date.now(),
+        text:"Para magamit ang AI chat, i-add ang iyong Anthropic API key sa Profile → AI Features. 🔑"
+      }]);
+      setLoading(false);
+      return;
+    }
     try {
       const ctx = buildContext();
       const history = messages
@@ -2264,6 +2283,7 @@ RULES:
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
           "anthropic-dangerous-direct-browser-access": "true",
         },
@@ -5822,7 +5842,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budg
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday }) {
+function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday, apiKey="", setApiKey }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
@@ -6127,6 +6147,22 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
       </div>
 
       <div>
+        <SLabel>AI Features</SLabel>
+        <div style={{ background:C.card, borderRadius:14, border:`1px solid ${apiKey.startsWith("sk-ant") ? C.green+"60" : C.border}`, padding:"12px 14px", marginBottom:8 }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
+            <span style={{ fontSize:18 }}>{apiKey.startsWith("sk-ant") ? "🟢" : "🔑"}</span>
+            <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value.trim())}
+              placeholder="sk-ant-api-key..."
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:13, color:C.text, caretColor:C.accent }}/>
+            {apiKey && <button onClick={()=>setApiKey("")} style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>}
+          </div>
+          <p style={{ margin:0, fontSize:11, color:apiKey.startsWith("sk-ant")?C.green:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
+            {apiKey.startsWith("sk-ant")
+              ? "✓ AI logging and chat are active."
+              : "Paste your Anthropic API key to enable AI expense logging and the chat assistant. Get one free at console.anthropic.com"}
+          </p>
+        </div>
+
         <SLabel>Data & Backup</SLabel>
 
         {/* Backup status banner */}
@@ -6279,6 +6315,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 
 export default function Bulsa() {
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
+  const [apiKey,    setApiKey]    = useLocalStorage("bulsa_api_key", "");
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
@@ -6479,8 +6516,8 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
-    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
+    profile:  <ProfileScreen income={income} apiKey={apiKey} setApiKey={setApiKey} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name} apiKey={apiKey}/>,
   };
 
   return (
@@ -6508,7 +6545,7 @@ export default function Bulsa() {
               )}
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet} apiKey={apiKey}/>}
           </>
         )}
       </div>
