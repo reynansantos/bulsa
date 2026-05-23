@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat, MessageCircle, Send } from "lucide-react";
 
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
@@ -47,6 +47,7 @@ const GlobalStyles = () => (
       transition: transform 0.12s ease, opacity 0.12s ease !important;
     }
     .tap-btn:active { transform: scale(0.95) !important; opacity: 0.85 !important; }
+    @keyframes pulse { 0%,100%{transform:translateY(0);opacity:0.4} 50%{transform:translateY(-4px);opacity:1} }
 
     .nav-btn {
       -webkit-tap-highlight-color: transparent;
@@ -2085,22 +2086,322 @@ function NavBar({ screen, setScreen, onAdd }) {
       background:C.surface, borderTop:`1px solid ${C.border}`,
       position:"sticky", bottom:0, zIndex:100,
     }}>
-      <NavIcon icon={Home}       active={screen==="home"}     label="Home"     onClick={()=>setScreen("home")}/>
-      <NavIcon icon={Receipt}    active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
+      <NavIcon icon={Home}          active={screen==="home"}     label="Home"     onClick={()=>setScreen("home")}/>
+      <NavIcon icon={Receipt}       active={screen==="expenses"}  label="Expenses" onClick={()=>setScreen("expenses")}/>
 
-      {/* Center add button */}
-      <button onClick={onAdd} className="tap-btn" style={{
+      {/* Center chat button */}
+      <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
         width:54, height:54, borderRadius:"50%", border:"none",
-        background:C.gradAccent, color:"#fff", cursor:"pointer",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
-        marginTop:-22, flexShrink:0,
+        background: screen==="chat" ? C.gradAccent : C.surface,
+        border: screen==="chat" ? "none" : `2px solid ${C.accent}50`,
+        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow: screen==="chat" ? `0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)` : "none",
+        marginTop:-22, flexShrink:0, transition:"all 0.2s",
       }}>
-        <Plus size={24} strokeWidth={2.5} color="#fff"/>
+        <MessageCircle size={22} strokeWidth={2.5} color={screen==="chat"?"#fff":C.accent}/>
       </button>
 
-      <NavIcon icon={Handshake}  active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Wallet}     active={screen==="accounts"} label="Accounts" onClick={()=>setScreen("accounts")}/>
+      <NavIcon icon={Handshake}     active={screen==="utang"}    label="Utang"    onClick={()=>setScreen("utang")}/>
+      <NavIcon icon={Wallet}        active={screen==="accounts"} label="Accounts" onClick={()=>setScreen("accounts")}/>
+    </div>
+  );
+}
+
+
+// ─── CHAT SCREEN ────────────────────────────────────────────────────────────
+
+function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name }) {
+  const fmt = useFmt();
+  const [messages, setMessages] = useState([
+    {
+      id: "intro",
+      role: "assistant",
+      text: `Hoy${name ? ", " + name.split(" ")[0] : ""}! 👋 I'm your bulsa. assistant. Ask me anything about your money — in Tagalog, English, or Taglish.\n\nTry:\n• "Kaya pa ba ako mag-Jollibee?"\n• "Magkano na utang ni Hannah?"\n• "Log Grab 150"\n• "How much have I spent this week?"`,
+      ts: new Date().toISOString(),
+      type: "text",
+    }
+  ]);
+  const [input,   setInput]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [messages]);
+
+  // Build full financial context snapshot for Claude
+  const buildContext = () => {
+    const now        = new Date();
+    const todayStr   = now.toDateString();
+    const cycle      = getPaycycle(payday || "both");
+    const cycleExp   = expenses.filter(e => { if (!e.ts) return false; const d = new Date(e.ts); return d >= cycle.cycleStart && d <= cycle.nextPayday; });
+    const todayExp   = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr);
+    const todaySpent = todayExp.reduce((s,e) => s + e.amount, 0);
+    const cycleSpent = cycleExp.reduce((s,e) => s + e.amount, 0);
+    const walletTotal = wallets.reduce((s,w) => s + w.balance, 0);
+    const iOwe       = utangs.filter(u => u.direction === "iowe");
+    const theyOwe    = utangs.filter(u => u.direction === "theyowe");
+    const iOweTotal  = iOwe.reduce((s,u) => s + u.amount, 0);
+    const theyOweTotal = theyOwe.reduce((s,u) => s + u.amount, 0);
+    const activeLoans = loans.filter(l => { const rem = Math.max(l.amount - (l.paid||0) - (l.payments||[]).reduce((s,p)=>s+p.amount,0), 0); return rem > 0; });
+    const totalDebt   = activeLoans.reduce((s,l) => s + l.amount, 0);
+    const topCats     = CATS.map(c => ({ name:c.label, spent:cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent).slice(0,5);
+
+    // Budget status
+    const budgetStatus = CATS.map(c => {
+      const lim = budgets[c.id]||0; if (!lim) return null;
+      const spent = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+      return { category:c.label, limit:lim, spent, remaining:lim-spent, overBy:spent>lim?spent-lim:0 };
+    }).filter(Boolean);
+
+    // Recent 10 expenses
+    const recent = expenses.slice(0,10).map(e => ({ name:e.name, amount:e.amount, category:catOf(e.catId).label, date:e.date, mood:e.moodId||null }));
+
+    // Upcoming dues
+    const dueSoon = [];
+    (subs||[]).filter(s=>s.active!==false).forEach(s => { const d=daysUntil(s.dueDate); if(d<=7) dueSoon.push({ name:s.name, amount:s.amount, daysLeft:d, type:"subscription" }); });
+    activeLoans.forEach(l => { if(l.dueDay&&l.startDate){ const pc=l.payments?.length||0; const b=new Date(l.startDate+"T12:00:00"); const nd=new Date(b.getFullYear(),b.getMonth()+pc,l.dueDay); const days=Math.round((nd-now)/(1000*60*60*24)); if(days<=7) dueSoon.push({ name:l.name, amount:l.monthlyAmount||0, daysLeft:days, type:"loan" }); } });
+    utangs.filter(u=>u.direction==="iowe"&&u.dueDate).forEach(u => { const d=Math.round((new Date(u.dueDate+"T00:00:00")-now)/(1000*60*60*24)); if(d<=7) dueSoon.push({ name:`Pay ${u.person}`, amount:u.amount, daysLeft:d, type:"utang" }); });
+
+    return {
+      user: { name, income, payday, dailyLimit },
+      today: { date: now.toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric",year:"numeric"}), spent: todaySpent, remaining: dailyLimit > 0 ? dailyLimit - todaySpent : null, transactionCount: todayExp.length },
+      cycle: { label: cycle.label, daysLeft: cycle.daysLeft, spent: cycleSpent, income: Math.round(income * cycle.incomeMultiplier), remaining: Math.round(income * cycle.incomeMultiplier) - cycleSpent },
+      wallets: wallets.map(w => ({ name:w.name, balance:w.balance })),
+      walletTotal,
+      topSpendingCategories: topCats,
+      budgetLimits: budgetStatus,
+      utang: { iOweTotal, theyOweTotal, iOwe: iOwe.map(u=>({ person:u.person, amount:u.amount, dueDate:u.dueDate||null })), theyOwe: theyOwe.map(u=>({ person:u.person, amount:u.amount, dueDate:u.dueDate||null })) },
+      loans: activeLoans.map(l => ({ name:l.name, remaining:Math.max(l.amount-(l.paid||0)-(l.payments||[]).reduce((s,p)=>s+p.amount,0),0), monthlyPayment:l.monthlyAmount||0 })),
+      totalDebt,
+      goals: goals.map(g => ({ name:g.name, target:g.target, saved:g.saved||0, remaining:g.target-(g.saved||0), deadline:g.deadline||null })),
+      recentExpenses: recent,
+      dueSoon,
+    };
+  };
+
+  const SYSTEM_PROMPT = (ctx) => `You are the personal finance assistant built into bulsa. — a Filipino budget tracking app. You speak naturally in Taglish (mix of Tagalog and English), just like a knowledgeable kuya or ate who knows everything about the user's finances.
+
+Your personality:
+- Warm, direct, slightly playful — like a smart friend, not a bank
+- You use Filipino expressions naturally: "ay nako", "kaya pa", "konti na lang", "grabe"
+- You give real, specific answers based on the actual data — never vague
+- Short replies unless the user asks for detail
+- You can do math instantly and explain it simply
+
+CURRENT FINANCIAL SNAPSHOT (as of ${ctx.today.date}):
+${JSON.stringify(ctx, null, 2)}
+
+ACTIONS you can perform (respond with JSON action block if needed):
+1. Log an expense: if user says "log [item] [amount]" or "gastos [amount] [item]", respond with a SINGLE line at the END of your message in this exact format:
+   ACTION:LOG_EXPENSE:{"name":"item name","amount":123,"catId":"food","moodId":null,"note":null}
+   
+   Available catIds: food, transport, bills, shopping, health, education, entertainment, savings, other
+   Available moodIds: happy, sad, stressed, motivated, excited, neutral — or null
+
+2. For everything else, just answer conversationally.
+
+RULES:
+- Always use actual numbers from the snapshot, never make up figures
+- When asked "kaya pa ba" (can I still afford), calculate remaining daily/cycle budget and compare to typical cost
+- When asked about a specific person's utang, look it up in the utang data
+- Keep replies under 4 sentences unless asked for detail
+- Never give generic financial advice — always personalize to the data
+- If asked to log something, confirm what you logged at the end`;
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput("");
+
+    const userMsg = { id: uid(), role:"user", text, ts: new Date().toISOString(), type:"text" };
+    setMessages(prev => [...prev, userMsg]);
+    setLoading(true);
+
+    try {
+      const ctx = buildContext();
+      const history = messages
+        .filter(m => m.id !== "intro")
+        .slice(-8)  // last 8 messages for context window
+        .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: SYSTEM_PROMPT(ctx),
+          messages: [...history, { role:"user", content: text }],
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const fullText = data.content?.[0]?.text || "";
+
+      // Check for action
+      const actionMatch = fullText.match(/ACTION:LOG_EXPENSE:(\{.*?\})/);
+      let displayText = fullText.replace(/ACTION:LOG_EXPENSE:\{.*?\}/g, "").trim();
+      let actionResult = null;
+
+      if (actionMatch) {
+        try {
+          const parsed = JSON.parse(actionMatch[1]);
+          const newExp = {
+            id:     uid(),
+            name:   parsed.name,
+            amount: Number(parsed.amount),
+            catId:  parsed.catId || "other",
+            moodId: parsed.moodId || null,
+            note:   parsed.note  || null,
+            date:   new Date().toLocaleDateString("en-PH", { month:"short", day:"numeric" }),
+            time:   new Date().toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" }),
+            ts:     new Date().toISOString(),
+          };
+          setExpenses(prev => [newExp, ...prev]);
+
+          // Deduct from first wallet if exists
+          if (wallets.length > 0) {
+            setWallets(prev => prev.map((w,i) => i===0 ? {...w, balance: Math.max(w.balance - newExp.amount, 0)} : w));
+          }
+
+          actionResult = { name: parsed.name, amount: parsed.amount };
+        } catch(e) {
+          // ignore parse error
+        }
+      }
+
+      const assistantMsg = {
+        id:     uid(),
+        role:   "assistant",
+        text:   displayText,
+        ts:     new Date().toISOString(),
+        type:   "text",
+        logged: actionResult,
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+
+    } catch(err) {
+      setMessages(prev => [...prev, {
+        id: uid(), role:"assistant", type:"error",
+        text: `Ay, may error: ${err.message || "Something went wrong."}`,
+        ts: new Date().toISOString(),
+      }]);
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const suggestions = [
+    "Kaya pa ba ako mag-Jollibee?",
+    "How much did I spend today?",
+    "Sino pa may utang sa akin?",
+    "Log Grab 180",
+    "Am I on budget?",
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bg }}>
+
+      {/* Header */}
+      <div style={{ padding:"18px 18px 12px", borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:40, height:40, borderRadius:13, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 16px ${C.accentGlow}` }}>
+            <MessageCircle size={20} color="#fff" strokeWidth={2.5}/>
+          </div>
+          <div>
+            <p style={{ margin:"0 0 1px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>bulsa. AI</p>
+            <p style={{ margin:0, fontSize:11, color:C.green, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>● Online · knows your finances</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+        {messages.map(msg => (
+          <div key={msg.id} style={{ display:"flex", flexDirection:"column", alignItems:msg.role==="user"?"flex-end":"flex-start", gap:4 }}>
+            <div style={{
+              maxWidth:"82%", padding:"11px 14px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",
+              background: msg.role==="user"
+                ? `linear-gradient(135deg,${C.accent},#0099DD)`
+                : msg.type==="error" ? `${C.coral}18` : C.surface,
+              border: msg.role==="assistant" ? `1px solid ${msg.type==="error"?C.coral+"40":C.border}` : "none",
+              boxShadow: msg.role==="user" ? `0 4px 16px ${C.accentGlow}` : "none",
+            }}>
+              <p style={{ margin:0, fontSize:13, lineHeight:1.65, color:msg.role==="user"?"#fff":C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"pre-wrap" }}>
+                {msg.text}
+              </p>
+              {msg.logged && (
+                <div style={{ marginTop:8, padding:"8px 10px", background:"rgba(255,255,255,0.15)", borderRadius:10, display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:14 }}>✅</span>
+                  <p style={{ margin:0, fontSize:12, fontWeight:800, color:msg.role==="user"?"#fff":C.green, fontFamily:"DM Sans,sans-serif" }}>
+                    Logged: {msg.logged.name} · ₱{msg.logged.amount.toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+            <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", paddingLeft:4, paddingRight:4 }}>
+              {new Date(msg.ts).toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"})}
+            </p>
+          </div>
+        ))}
+
+        {/* Typing indicator */}
+        {loading && (
+          <div style={{ display:"flex", alignItems:"flex-start" }}>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"18px 18px 18px 4px", padding:"12px 16px", display:"flex", gap:5, alignItems:"center" }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.accent, opacity:0.6, animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite` }}/>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Suggestion chips — only when no conversation yet */}
+        {messages.length <= 1 && !loading && (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginTop:6 }}>
+            {suggestions.map((s,i) => (
+              <button key={i} onClick={()=>{ setInput(s); inputRef.current?.focus(); }} className="tap-btn"
+                style={{ background:C.surface, border:`1px solid ${C.accent}35`, borderRadius:99, padding:"7px 13px", cursor:"pointer", fontSize:12, color:C.accent, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* Input */}
+      <div style={{ padding:"12px 14px", paddingBottom:`calc(12px + env(safe-area-inset-bottom))`, borderTop:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+          <div style={{ flex:1, background:C.card, border:`1.5px solid ${C.border}`, borderRadius:22, padding:"10px 16px", display:"flex", alignItems:"center" }}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }}
+              placeholder="Tanong mo ako... (e.g. Log Jollibee 180)"
+              rows={1}
+              style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", resize:"none", lineHeight:1.5, maxHeight:80, overflowY:"auto" }}
+            />
+          </div>
+          <button onClick={send} disabled={!input.trim()||loading} className="tap-btn"
+            style={{ width:46, height:46, borderRadius:"50%", border:"none", background:input.trim()&&!loading?C.gradAccent:"none", cursor:input.trim()&&!loading?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, border:`1.5px solid ${input.trim()&&!loading?C.accent+"60":C.border}`, transition:"all 0.2s" }}>
+            <Send size={18} color={input.trim()&&!loading?"#fff":C.textFaint} strokeWidth={2.5}/>
+          </button>
+        </div>
+        <p style={{ margin:"6px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>
+          Powered by Claude · your data stays on your device
+        </p>
+      </div>
     </div>
   );
 }
@@ -2593,7 +2894,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const fmt = useFmt();
   const [walletsHidden,  setWalletsHidden]  = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const [insightTab,     setInsightTab]     = useState(0);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -2824,7 +3124,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         : `${fmt(balance)} available`;
       subline  = runway
         ? `${runway.daysLeft} day${runway.daysLeft!==1?"s":""} to ${runway.label}. ${fmt(balance)} across all wallets.`
-        : `${fmt(heroStatus?.todayTotal || 0)} spent so far. Looking good.`;
+        : `${fmt(todayTotal)} spent so far. Looking good.`;
     }
     return { status, headline, subline, color, emoji, todayTotal, overLimit, nearLimit };
   })();
@@ -2847,49 +3147,60 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     <div className="screen-wrap" style={{ padding:"18px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
 
-      {/* ── SECTION 1: BANNERS ── */}
+      {/* ── BACKUP NUDGE -- only when never backed up or >14 days ago ── */}
       {(()=>{
         const daysSince = lastBackup ? Math.floor((Date.now()-new Date(lastBackup))/(1000*60*60*24)) : null;
-        const showBackup = (daysSince===null||daysSince>14) && expenses.length>0;
-        return showBackup ? (
-          <div style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}35`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:18, flexShrink:0 }}>💾</span>
+        const show = daysSince===null||daysSince>14;
+        if (!show||expenses.length===0) return null;
+        return (
+          <div style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}35`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:10, zIndex:2 }}>
+            <span style={{ fontSize:20, flexShrink:0 }}>⚠️</span>
             <div style={{ flex:1 }}>
-              <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{daysSince===null?"Never backed up":`No backup in ${daysSince} days`}</p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Cache clear = everything gone.</p>
+              <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+                {daysSince===null ? "Your data has never been backed up" : `No backup in ${daysSince} days`}
+              </p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>A cache clear will erase everything.</p>
             </div>
             <button onClick={()=>setScreen("profile")} className="tap-btn"
-              style={{ background:C.coral, border:"none", borderRadius:9, padding:"7px 12px", cursor:"pointer", fontSize:11, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>Back up</button>
+              style={{ background:C.coral, border:"none", borderRadius:9, padding:"7px 12px", cursor:"pointer", fontSize:11, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+              Back up
+            </button>
           </div>
-        ) : null;
+        );
       })()}
-      {showInstallBanner&&(
-        <div style={{ background:"linear-gradient(135deg,#0D1F35,#0A1628)", border:`1px solid ${C.gold}40`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:22, flexShrink:0 }}>📲</span>
+
+      {/* ── PWA INSTALL BANNER ── */}
+      {showInstallBanner && (
+        <div style={{ background:"linear-gradient(135deg,#0D1F35,#0A1628)", border:`1px solid ${C.gold}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, zIndex:2 }}>
+          <span style={{ fontSize:24, flexShrink:0 }}>📲</span>
           <div style={{ flex:1 }}>
-            <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
-            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Add to home screen for offline use</p>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Add to home screen for Back Tap & offline use</p>
           </div>
           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-            <button onClick={onInstall} className="tap-btn" style={{ background:C.gold, border:"none", borderRadius:9, padding:"7px 13px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>Install</button>
-            <button onClick={onDismissInstall} className="tap-btn" style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
+            <button onClick={onInstall} className="tap-btn"
+              style={{ background:C.gold, border:"none", borderRadius:9, padding:"7px 13px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
+              Install
+            </button>
+            <button onClick={onDismissInstall} className="tap-btn"
+              style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
           </div>
         </div>
       )}
 
-      {/* ── SECTION 2: HEADER ── */}
+      {/* ── HEADER ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
         <div>
           <p style={{ margin:"0 0 1px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
             {new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric"})}
           </p>
           <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1.1 }}>
-            {name?`Hey, ${name.split(" ")[0]} 👋`:"Hey there 👋"}
+            {name ? `Hey, ${name.split(" ")[0]} 👋` : "Hey there 👋"}
           </h1>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15 }}>
-            {hidden?"🙈":"👁️"}
+          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15, transition:"all 0.2s" }}>
+            {hidden ? "🙈" : "👁️"}
           </button>
           <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
             {avatar
@@ -2900,60 +3211,94 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ── SECTION 3: HERO CARD ── */}
+      {/* ══════════════════════════════════════════════════════════════════
+          HERO CARD — the ONE thing above the fold
+          Answers: "Am I okay today?"
+      ══════════════════════════════════════════════════════════════════ */}
       <div onClick={heroStatus.status==="empty"?onAdd:undefined}
-        style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`2px solid ${heroStatus.color}50`,
-          borderRadius:26, padding:"22px 20px 18px", position:"relative", overflow:"hidden", zIndex:1,
-          cursor:heroStatus.status==="empty"?"pointer":"default", boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
+        style={{ background:`linear-gradient(145deg,#0F2240,#0A1628)`,
+          border:`2px solid ${heroStatus.color}50`,
+          borderRadius:26, padding:"22px 20px 18px",
+          position:"relative", overflow:"hidden", zIndex:1,
+          cursor:heroStatus.status==="empty"?"pointer":"default",
+          boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
         <Orb x="70%" y="-10px" color={heroStatus.color} size={220} opacity={0.18}/>
+
+        {/* Status pill */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, position:"relative", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, background:`${heroStatus.color}20`, border:`1px solid ${heroStatus.color}40`, borderRadius:99, padding:"5px 12px 5px 8px" }}>
             <span style={{ fontSize:14 }}>{heroStatus.emoji}</span>
             <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:800, color:heroStatus.color, letterSpacing:"0.02em" }}>
-              {heroStatus.status==="over"?"OVER BUDGET":heroStatus.status==="tight"?"CUTTING IT CLOSE":heroStatus.status==="peligro"?"PETSA DE PELIGRO":heroStatus.status==="empty"?"GET STARTED":heroStatus.status==="zero"?"CLEAN SLATE":"YOU'RE GOOD"}
+              {heroStatus.status==="over" ? "OVER BUDGET" :
+               heroStatus.status==="tight" ? "CUTTING IT CLOSE" :
+               heroStatus.status==="peligro" ? "PETSA DE PELIGRO" :
+               heroStatus.status==="empty" ? "GET STARTED" :
+               heroStatus.status==="zero" ? "CLEAN SLATE" : "YOU'RE GOOD"}
             </span>
           </div>
+          {/* 7-day dot strip */}
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
             {Array.from({length:7},(_,i)=>{
-              const d=new Date(); d.setDate(d.getDate()-(6-i));
-              const ds=d.toDateString();
-              const sp=expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
-              const hl=expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
-              const isToday=i===6;
-              const ok=hl&&(dailyLimit<=0||sp<=dailyLimit);
-              const bad=hl&&dailyLimit>0&&sp>dailyLimit;
-              return <div key={i} style={{ width:isToday?10:6, height:isToday?10:6, borderRadius:"50%", background:bad?C.coral:ok?C.green:C.border, border:isToday?`2px solid ${heroStatus.color}`:"" }}/>;
+              const d = new Date(); d.setDate(d.getDate()-(6-i));
+              const ds = d.toDateString();
+              const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+              const hl = expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+              const isToday = i===6;
+              const ok  = hl && (dailyLimit<=0 || sp<=dailyLimit);
+              const bad = hl && dailyLimit>0 && sp>dailyLimit;
+              return <div key={i} style={{ width:isToday?10:6, height:isToday?10:6, borderRadius:"50%", background:bad?C.coral:ok?C.green:C.border, border:isToday?`2px solid ${heroStatus.color}`:""  }}/>;
             })}
           </div>
         </div>
+
+        {/* THE big number */}
         <div style={{ position:"relative", zIndex:1, marginBottom:14 }}>
           <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {heroStatus.status==="zero"||heroStatus.status==="empty"?"Today's spend":"Spent today"}
+            {heroStatus.status==="zero"||heroStatus.status==="empty" ? "Today's spend" : "Spent today"}
           </p>
           <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
             <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800,
-              color:heroStatus.overLimit?C.coral:heroStatus.nearLimit?C.gold:C.text, letterSpacing:"-0.04em", lineHeight:1 }}>
-              {hidden?"₱••••":fmt(heroStatus.todayTotal)}
+              color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : C.text,
+              letterSpacing:"-0.04em", lineHeight:1 }}>
+              {hidden ? "₱••••" : fmt(heroStatus.todayTotal)}
             </h2>
-            {todayExpsAll.length>0&&<p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}</p>}
+            {todayExpsAll.length > 0 && (
+              <p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}
+              </p>
+            )}
           </div>
         </div>
-        {(dailyLimit>0||runway)&&heroStatus.status!=="empty"&&(
+
+        {/* Progress bar — only if limit or runway is set */}
+        {(dailyLimit > 0 || runway) && heroStatus.status !== "empty" && (
           <div style={{ marginBottom:14, position:"relative", zIndex:1 }}>
             <Bar pct={todayPct} color={heroStatus.color} h={5}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
-              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{dailyLimit>0?`${fmt(dailyLimit)} daily limit`:`${fmt(runway.allowedPerDay)}/day runway`}</span>
+              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {dailyLimit > 0 ? `${fmt(dailyLimit)} daily limit` : `${fmt(runway.allowedPerDay)}/day runway`}
+              </span>
               <span style={{ fontSize:10, fontWeight:800, color:heroStatus.color, fontFamily:"DM Sans,sans-serif" }}>
-                {heroStatus.overLimit?`over by ${fmt(heroStatus.todayTotal-dailyLimit)}`:dailyLimit>0?`${fmt(dailyLimit-heroStatus.todayTotal)} left`:runway?`${fmt(runway.allowedPerDay-todaySpent)} left`:""}
+                {heroStatus.overLimit
+                  ? `over by ${fmt(heroStatus.todayTotal - dailyLimit)}`
+                  : dailyLimit > 0
+                  ? `${fmt(dailyLimit - heroStatus.todayTotal)} left`
+                  : runway ? `${fmt(runway.allowedPerDay - todaySpent)} left` : ""}
               </span>
             </div>
           </div>
         )}
+
+        {/* Headline answer */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}20`, paddingTop:12 }}>
-          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>{heroStatus.headline}</p>
+          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>
+            {heroStatus.headline}
+          </p>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:8 }}>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>{heroStatus.subline}</p>
-            {budgetStreak!==null&&budgetStreak>0&&(
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>
+              {heroStatus.subline}
+            </p>
+            {budgetStreak !== null && budgetStreak > 0 && (
               <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
                 <span style={{ fontSize:10 }}>🔥</span>
                 <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
@@ -2963,95 +3308,148 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ── SECTION 4: WALLETS — horizontal scroll ── */}
-      {wallets&&wallets.length>0&&(
-        <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
-              <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn" style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, padding:"0 2px", opacity:0.7 }}>{walletsHidden?"🙈":"👁️"}</button>
-            </div>
-            <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+      {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
+      {sharpInsight && (
+        <div style={{ background:`${sharpInsight.color}10`, border:`1.5px solid ${sharpInsight.color}35`, borderRadius:18, padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", position:"relative", overflow:"hidden", zIndex:1 }}>
+          <div style={{ width:40, height:40, borderRadius:12, background:`${sharpInsight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+            {sharpInsight.icon}
           </div>
-          <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
-            {wallets.map(w=>(
-              <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
-                style={{ background:C.card, border:`1px solid ${walletsHidden?C.border:w.color+"35"}`, borderRadius:14, padding:"12px 14px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:10, flexShrink:0, position:"relative", overflow:"hidden", minWidth:140 }}>
-                <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
-                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}><WalletIcon wallet={w} size={28}/></div>
-                <div style={{ minWidth:0 }}>
-                  <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:90 }}>{w.name}</p>
-                  <p style={{ margin:0, fontSize:14, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif", filter:walletsHidden?"blur(5px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
-                    {walletsHidden?"••••":`₱${Math.round(w.balance).toLocaleString()}`}
-                  </p>
-                </div>
-              </button>
-            ))}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"center", flexShrink:0, minWidth:110 }}>
-              <p style={{ margin:"0 0 2px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>All wallets</p>
-              <p style={{ margin:0, fontSize:14, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif", filter:walletsHidden?"blur(5px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
-                {walletsHidden?"••••":`₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
-              </p>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+              <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, fontWeight:800, color:sharpInsight.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{sharpInsight.tag}</span>
             </div>
+            <p style={{ margin:"0 0 3px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.35 }}>
+              {sharpInsight.headline}
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
+              {sharpInsight.sub}
+            </p>
           </div>
         </div>
       )}
 
-      {/* ── SECTION 5: ACTION NEEDED — one unified, deduped list ── */}
+      {/* ── UNDER-BUDGET GOAL NUDGE ── */}
+      {underBudgetAmt > 0 && goals && goals.length > 0 && (
+        <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
+      )}
+
+      {/* ── WALLET GRID ── visible at a glance, no tapping required */}
+      {wallets && wallets.length > 0 && (
+        <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
+              {/* Wallet-only hide toggle */}
+              <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn"
+                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"0 2px", opacity:0.7, lineHeight:1 }}>
+                {walletsHidden ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(wallets.length,3)},1fr)`, gap:8 }}>
+            {wallets.slice(0,3).map(w => (
+              <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
+                style={{ background:C.card, border:`1px solid ${walletsHidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
+                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}>
+                  <WalletIcon wallet={w} size={28}/>
+                </div>
+                <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em",
+                  filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s, color 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
+                  {walletsHidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
+                </p>
+              </button>
+            ))}
+            {wallets.length > 3 && (
+              <button onClick={()=>setScreen("accounts")} className="tap-btn"
+                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
+                <span style={{ fontSize:16, color:C.textSub }}>+{wallets.length - 3}</span>
+                <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>more</p>
+              </button>
+            )}
+          </div>
+          {/* Total strip */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
+            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total across all wallets</span>
+            <span style={{ fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif",
+              filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
+              {walletsHidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── PAYMENT URGENCY STRIP ── */}
       {(()=>{
-        const today2=new Date(); today2.setHours(0,0,0,0);
-        const dF=ds=>{ if(!ds) return null; const d=new Date(ds+"T00:00:00"); return isNaN(d)?null:Math.round((d-today2)/(1000*60*60*24)); };
-        const items=[];
-        // Budget overruns
-        const cyc=getPaycycle(payday||"both");
-        const cyEx=expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cyc.cycleStart&&d<=cyc.nextPayday; });
-        CATS.forEach(c=>{
-          const lim=budgets[c.id]||0; if(!lim) return;
-          const spent=cyEx.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
-          const pct=spent/lim;
-          if(pct>=1)    items.push({id:"bud-"+c.id,name:`${c.icon} ${c.label}`,sub:`Over by ${fmt(spent-lim)} this cycle`,days:-1,icon:c.icon,color:C.coral,screen:"expenses",type:"budget",amount:spent});
-          else if(pct>=0.8) items.push({id:"bud-"+c.id,name:`${c.icon} ${c.label}`,sub:`${Math.round(pct*100)}% of budget used`,days:0,icon:c.icon,color:C.gold,screen:"expenses",type:"budget",amount:spent});
-        });
-        // Subs due ≤7d
-        (subs||[]).filter(s=>s.active!==false&&s.type!=="recurring").forEach(s=>{
-          const d=daysUntil(s.dueDate); if(d>7) return;
-          items.push({id:"sub-"+s.id,name:s.name,sub:`Subscription · ${fmt(s.amount)}`,days:d,icon:s.icon||"📦",color:d<=0?C.coral:d<=3?C.gold:C.textSub,screen:"expenses",type:"sub",amount:s.amount});
-        });
-        // Recurring overdue
-        (subs||[]).filter(s=>s.active!==false&&s.type==="recurring").forEach(s=>{
-          const d=daysUntil(s.dueDate); if(d>0) return;
-          items.push({id:"rec-"+s.id,name:s.name,sub:`Recurring · ${s.amount>0?fmt(s.amount):"log amount"}`,days:d,icon:s.icon||"📋",color:C.green,screen:"expenses",type:"recurring",amount:s.amount});
-        });
-        // Loans due ≤7d
-        (loans||[]).filter(l=>{ const rem=l.payments?.length?Math.max(l.amount-l.payments.reduce((s,p)=>s+p.amount,0),0):Math.max(l.amount-(l.paid||0),0); return rem>0&&(l.dueDay||l.due); }).forEach(l=>{
-          let nD=null;
-          if(l.dueDay&&l.startDate){ const pc=l.payments?.length||0; const b=new Date(l.startDate+"T12:00:00"); nD=new Date(b.getFullYear(),b.getMonth()+pc,l.dueDay); }
-          const days=nD?Math.round((nD-today2)/(1000*60*60*24)):null;
-          if(days===null||days>7) return;
-          items.push({id:"loan-"+l.id,name:l.name,sub:`Installment · ${fmt(l.monthlyAmount||0)}`,days,icon:"🏦",color:days<=0?C.coral:days<=3?C.gold:C.textSub,screen:"loans",type:"loan",amount:l.monthlyAmount||0});
-        });
-        // Utangs I owe due ≤7d
-        (utangs||[]).filter(u=>u.direction==="iowe"&&u.dueDate).forEach(u=>{
-          const d=dF(u.dueDate); if(d===null||d>7) return;
-          items.push({id:"utang-"+u.id,name:`Pay ${u.person}`,sub:`Utang · ${fmt(u.amount)}`,days:d,icon:"🤝",color:d<=0?C.coral:d<=3?C.gold:C.textSub,screen:"utang",type:"utang",amount:u.amount});
-        });
-        // Goals approaching ≤14d
-        (goals||[]).filter(g=>!g.done&&g.deadline).forEach(g=>{
-          let d=new Date(g.deadline+"T00:00:00"); if(isNaN(d)){ const pts=g.deadline.match(/^(\w+)\s+(\d{4})$/); if(pts) d=new Date(`${pts[1]} 1 ${pts[2]}`); }
-          if(isNaN(d)) return;
-          const days=Math.round((d-today2)/(1000*60*60*24));
-          if(days>14||days<0||g.saved>=g.target) return;
-          items.push({id:"goal-"+g.id,name:`${g.emoji||"🎯"} ${g.name}`,sub:`${fmt(g.target-g.saved)} still needed`,days,icon:g.emoji||"🎯",color:C.accent,screen:"goals",type:"goal",amount:g.target-g.saved});
-        });
+        const today = new Date(); today.setHours(0,0,0,0);
+        const daysFrom = dateStr => {
+          if (!dateStr) return null;
+          const d = new Date(dateStr+"T00:00:00");
+          if (isNaN(d)) return null;
+          return Math.round((d-today)/(1000*60*60*24));
+        };
 
-        items.sort((a,b)=>a.days-b.days);
-        const overdue=items.filter(x=>x.days<0);
-        const upcoming=items.filter(x=>x.days>=0);
-        if(items.length===0) return null;
+        // ── Subs
+        const subItems = (subs||[])
+          .filter(s=>s.active!==false)
+          .map(s=>({ id:"sub-"+s.id, name:s.name, amount:s.amount, days:daysUntil(s.dueDate), icon:s.icon||"📦", color:s.color||C.gold, screen:"subs", type:"sub" }))
+          .filter(s=>s.days<=7);
 
-        const urgColor=d=>d<0?C.coral:d===0?C.gold:d<=3?C.gold:C.textSub;
-        const urgLabel=(d,type)=>{ if(type==="budget") return d<0?"Over budget":"Near limit"; if(type==="recurring") return d<0?`${Math.abs(d)}d overdue`:"Log today"; if(d<0) return `${Math.abs(d)}d overdue`; if(d===0) return "Due today"; if(d===1) return "Due tomorrow"; return `Due in ${d}d`; };
-        const typeTag=t=>({sub:"subscription",loan:"installment",utang:"utang",goal:"goal",budget:"budget",recurring:"recurring"})[t]||t;
+        // ── Loans (dueDay + startDate)
+        const loanItems = (loans||[])
+          .filter(l=>{ const rem=l.payments?.length?Math.max(l.amount-l.payments.reduce((s,p)=>s+p.amount,0),0):Math.max(l.amount-(l.paid||0),0); return rem>0&&(l.dueDay||l.due); })
+          .map(l=>{
+            let nextDue=null;
+            if (l.dueDay&&l.startDate){ const paidCount=l.payments?.length||0; const base=new Date(l.startDate+"T12:00:00"); nextDue=new Date(base.getFullYear(),base.getMonth()+paidCount,l.dueDay); }
+            const days=nextDue?Math.round((nextDue-today)/(1000*60*60*24)):null;
+            if (days===null||days>7) return null;
+            return { id:"loan-"+l.id, name:l.name, amount:l.monthlyAmount||0, days, icon:"🏦", color:l.color||C.coral, screen:"loans", type:"loan" };
+          }).filter(Boolean);
+
+        // ── Utangs I owe (entries with dueDate)
+        const utangItems = (utangs||[])
+          .filter(u=>u.direction==="iowe"&&!u.settled)
+          .flatMap(u=>(u.entries||[])
+            .filter(e=>!e.settled&&e.dueDate)
+            .map(e=>({ id:"utang-"+e.id, name:`${u.person} (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"😬", color:C.coral, screen:"utang", type:"utang" }))
+          )
+          .filter(x=>x.days!==null&&x.days<=7);
+
+        // ── Goals with parseable deadline approaching within 30 days
+        const goalItems = (goals||[])
+          .filter(g=>!g.done&&g.deadline)
+          .map(g=>{
+            // Try ISO date first, then "Mon YYYY" format
+            let d = new Date(g.deadline+"T00:00:00");
+            if (isNaN(d)){ const parts=g.deadline.match(/^(\w+)\s+(\d{4})$/); if(parts){ d=new Date(`${parts[1]} 1 ${parts[2]}`); } }
+            if (isNaN(d)) return null;
+            const days=Math.round((d-today)/(1000*60*60*24));
+            if (days>30||days<0) return null;
+            const pct=g.target>0?Math.round((g.saved/g.target)*100):0;
+            if (pct>=100) return null; // already met
+            return { id:"goal-"+g.id, name:`${g.emoji} ${g.name}`, amount:g.target-g.saved, days, icon:g.emoji||"🎯", color:g.color||C.accent, screen:"goals", type:"goal", pct };
+          }).filter(Boolean);
+
+        // ── People who owe ME, overdue only
+        const theyOweItems = (utangs||[])
+          .filter(u=>u.direction==="theyowe"&&!u.settled)
+          .flatMap(u=>(u.entries||[])
+            .filter(e=>!e.settled&&e.dueDate&&daysFrom(e.dueDate)<0)
+            .map(e=>({ id:"theyowe-"+e.id, name:`${u.person} owes you (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"🤑", color:C.green, screen:"utang", type:"theyowe" }))
+          );
+
+        const allItems  = [...subItems,...loanItems,...utangItems,...goalItems,...theyOweItems].sort((a,b)=>a.days-b.days);
+        const overdue   = allItems.filter(x=>x.days<0);
+        const upcoming  = allItems.filter(x=>x.days>=0);
+
+        if (allItems.length===0) return null;
+
+        const urgColor = d => d<0?C.coral:d===0?C.coral:d<=3?C.gold:"#6B8CAD";
+        const urgIcon  = (d,type) => { if(type==="theyowe") return "🤑"; if(type==="goal") return "🎯"; return d<0?"🚨":d===0?"🔴":d<=3?"⚠️":"📅"; };
+        const urgDayLabel = d => d<0?`${Math.abs(d)}d overdue`:d===0?"Due today":d===1?"Due tomorrow":`Due in ${d} days`;
+        const typeLabel = t => ({ sub:"subscription", loan:"installment", utang:"utang", goal:"savings goal", theyowe:"they owe you" })[t]||t;
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -3059,39 +3457,59 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:overdue.length?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
                 {overdue.length?"🚨 Needs attention":"⏰ Coming up"}
               </p>
-              {items.length>4&&<button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>}
+              {allItems.length>3&&(
+                <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
+              )}
             </div>
+
+            {/* Overdue block */}
             {overdue.length>0&&(
-              <div style={{ background:`${C.coral}0C`, border:`1.5px solid ${C.coral}45`, borderRadius:16, padding:"12px 14px", display:"flex", flexDirection:"column", gap:6 }}>
-                <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
-                  🚨 {overdue.length===1?`${overdue[0].name} — ${Math.abs(overdue[0].days)>0?Math.abs(overdue[0].days)+"d overdue":"act now"}`:`${overdue.length} things need attention`}
-                </p>
-                {overdue.map(x=>(
+              <div style={{ background:`${C.coral}0C`, border:`1.5px solid ${C.coral}50`, borderRadius:16, padding:"12px 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:overdue.length>1?8:0 }}>
+                  <span style={{ fontSize:20 }}>🚨</span>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+                      {overdue.length===1?`${overdue[0].name}`:`${overdue.length} things need attention`}
+                    </p>
+                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                      {overdue.length===1?`${Math.abs(overdue[0].days)}d overdue -- ${typeLabel(overdue[0].type)}`:"Overdue payments and reminders"}
+                    </p>
+                  </div>
+                  {overdue.length===1&&overdue[0].amount>0&&(
+                    <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(overdue[0].amount).toLocaleString()}</p>
+                  )}
+                </div>
+                {overdue.length>1&&overdue.map(x=>(
                   <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
-                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}14`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer" }}>
+                    style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}14`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer", marginTop:4 }}>
                     <span style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-                      <span>{x.icon}</span>{x.name}<span style={{ fontSize:10, color:C.coral, fontWeight:800 }}>{typeTag(x.type)}</span>
+                      <span>{x.icon}</span>{x.name}
+                      <span style={{ fontSize:10, color:C.coral, fontWeight:800 }}>{Math.abs(x.days)}d late</span>
                     </span>
-                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</span>}
+                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</span>}
                   </button>
                 ))}
               </div>
             )}
+
+            {/* Upcoming rows */}
             {upcoming.slice(0,4).map(x=>{
-              const uc=urgColor(x.days);
+              const uc = urgColor(x.days);
               return (
                 <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
                   style={{ display:"flex", alignItems:"center", gap:12, background:C.card, border:`1.5px solid ${uc}35`, borderRadius:14, padding:"11px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
                   <div style={{ width:3, height:36, borderRadius:99, background:uc, flexShrink:0 }}/>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{x.icon}</span>
+                  <span style={{ fontSize:18, flexShrink:0 }}>{urgIcon(x.days,x.type)}</span>
                   <div style={{ flex:1, minWidth:0 }}>
                     <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{x.name}</p>
-                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(x.days,x.type)}</p>
+                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgDayLabel(x.days)}</p>
                   </div>
-                  {x.amount>0&&<div style={{ textAlign:"right", flexShrink:0 }}>
-                    <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</p>
-                    <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{typeTag(x.type)}</p>
-                  </div>}
+                  {x.amount>0&&(
+                    <div style={{ textAlign:"right", flexShrink:0 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</p>
+                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{typeLabel(x.type)}</p>
+                    </div>
+                  )}
                   <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
                 </button>
               );
@@ -3100,10 +3518,64 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         );
       })()}
 
-      {/* ── SECTION 6: TODAY'S TRANSACTIONS ── */}
+      {/* ── BUDGET OVERRUN ALERTS ── */}
       {(()=>{
-        const todayExps=expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-        if(expenses.length===0) return (
+        if (!budgets || !expenses) return null;
+        const cycle    = getPaycycle(payday||"both");
+        const cycleExp = expenses.filter(e=>{
+          if (!e.ts) return false;
+          const d = new Date(e.ts);
+          return d>=cycle.cycleStart && d<=cycle.nextPayday;
+        });
+        const alerts = CATS.map(c=>{
+          const limit = budgets[c.id]||0;
+          if (!limit) return null;
+          const spent = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+          const pct   = spent/limit;
+          if (pct<0.8) return null;
+          return { ...c, spent, limit, pct, over: pct>=1 };
+        }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+
+        if (alerts.length===0) return null;
+
+        const overCount = alerts.filter(a=>a.over).length;
+        const fmt = n => "P"+Math.round(n).toLocaleString();
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:overCount?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
+                {overCount ? "🚨 Budget exceeded" : "⚠️ Budget warnings"}
+              </p>
+              <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
+            </div>
+            {alerts.slice(0,3).map(a=>(
+              <button key={a.id} onClick={()=>setScreen("expenses")} className="tap-btn"
+                style={{ display:"flex", alignItems:"center", gap:10, background:a.over?`${C.coral}0A`:`${C.gold}08`, border:`1.5px solid ${a.over?C.coral:C.gold}35`, borderRadius:14, padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
+                <div style={{ width:3, height:32, borderRadius:99, background:a.over?C.coral:C.gold, flexShrink:0 }}/>
+                <span style={{ fontSize:18, flexShrink:0 }}>{a.icon}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>
+                    <Tag color={a.over?C.coral:C.gold}>{a.over?"Over!":Math.round(a.pct*100)+"%"}</Tag>
+                  </div>
+                  <Bar pct={Math.min(a.pct*100,100)} color={a.over?C.coral:C.gold} h={3}/>
+                </div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:a.over?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(a.spent)}</p>
+                  <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>of {fmt(a.limit)}</p>
+                </div>
+                <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── 2. TODAY'S TRANSACTIONS ── */}
+      {(()=>{
+        const todayExps = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+        if (expenses.length===0) return (
           <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
         );
         return (
@@ -3117,17 +3589,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
                 <p style={{ margin:"0 0 6px", fontSize:22 }}>🌅</p>
                 <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clean slate today</p>
                 <p style={{ margin:"0 0 10px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet.</p>
-                <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log expense</button>
+                <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log first expense</button>
               </div>
             ):(
               <>
                 {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                  <Card key={e.id} style={{ padding:"12px 14px" }}>
+                  <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                       {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
                       <div style={{ flex:1 }}>
                         <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
-                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}</p>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}
@@ -3143,120 +3615,154 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         );
       })()}
 
-      {/* ── SECTION 7: SHARP INSIGHT ── below transactions, not fighting with hero ── */}
-      {sharpInsight&&(
-        <div style={{ background:`${sharpInsight.color}10`, border:`1.5px solid ${sharpInsight.color}35`, borderRadius:18, padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", zIndex:1 }}>
-          <div style={{ width:40, height:40, borderRadius:12, background:`${sharpInsight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{sharpInsight.icon}</div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, fontWeight:800, color:sharpInsight.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{sharpInsight.tag}</span>
-            <p style={{ margin:"4px 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{sharpInsight.headline}</p>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{sharpInsight.body}</p>
-          </div>
-        </div>
-      )}
+      {/* ── 3. ALERTS -- only if triggered ── */}
+      {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
 
-      {/* ── SECTION 8: FINANCIAL SNAPSHOT — 3-column ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-        <Card style={{ padding:"12px 10px", cursor:"pointer" }} onClick={()=>setScreen("loans")}>
-          <p style={{ margin:"0 0 6px", fontSize:18 }}>⊗</p>
-          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":fmt(totalDebt)}</p>
-          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Debt left</p>
-        </Card>
-        <Card style={{ padding:"12px 10px", cursor:"pointer" }} onClick={()=>setScreen("accounts")}>
-          <p style={{ margin:"0 0 6px", fontSize:18 }}>◎</p>
-          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":fmt(totalSaved)}</p>
-          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Saved</p>
-        </Card>
-        <Card style={{ padding:"12px 10px", cursor:"pointer", border:`1px solid ${iOweTotal>0?C.coral+"35":theyOweTotal>0?C.green+"35":C.border}` }} onClick={()=>setScreen("utang")}>
-          <p style={{ margin:"0 0 6px", fontSize:18 }}>🤝</p>
-          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:iOweTotal>0?C.coral:theyOweTotal>0?C.green:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":iOweTotal>0?fmt(iOweTotal):theyOweTotal>0?fmt(theyOweTotal):"—"}</p>
-          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{iOweTotal>0?"I owe":theyOweTotal>0?"They owe":"Utang"}</p>
-        </Card>
+      {/* ── DUE THIS WEEK ── */}
+      {(()=>{
+        const now  = new Date();
+        const soon = new Date(now); soon.setDate(now.getDate()+7);
+        const items = [];
+
+        // Loans
+        (loans||[]).forEach(l=>{
+          if (!l.nextDueDate) return;
+          const d = new Date(l.nextDueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"loan-"+l.id, icon:"⊗", label:l.name, sub:`Loan payment · ${fmt(l.monthlyDue||0)}`, days, color:days<=2?C.coral:C.gold, screen:"accounts", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        // Subscriptions
+        (subs||[]).filter(s=>s.active!==false).forEach(s=>{
+          if (!s.dueDate) return;
+          const d = new Date(s.dueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"sub-"+s.id, icon:s.icon||"📱", label:s.name, sub:`Subscription · ${fmt(s.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"subs", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        // Utangs I owe
+        (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled&&u.dueDate).forEach(u=>{
+          const d = new Date(u.dueDate+"T00:00:00");
+          if (d<=soon) {
+            const days = Math.ceil((d-now)/(1000*60*60*24));
+            items.push({ id:"utang-"+u.id, icon:"🤝", label:`Pay ${u.person}`, sub:`Utang · ${fmt(u.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"utang", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
+          }
+        });
+
+        if (items.length===0) return null;
+        items.sort((a,b)=>a.days-b.days);
+
+        return (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>🔔 Due this week</p>
+              <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{items.length} item{items.length!==1?"s":""}</span>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {items.map(item=>(
+                <Card key={item.id} style={{ padding:"12px 16px", border:`1px solid ${item.color}40`, background:`${item.color}07` }} onClick={()=>setScreen(item.screen)}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:38, height:38, borderRadius:11, background:`${item.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{item.icon}</div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.label}</p>
+                      <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{item.sub}</p>
+                    </div>
+                    <div style={{ background:`${item.color}20`, border:`1px solid ${item.color}40`, borderRadius:99, padding:"4px 10px" }}>
+                      <span style={{ fontSize:11, fontWeight:800, color:item.color, fontFamily:"DM Sans,sans-serif" }}>{item.tag}</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── 4. FINANCIAL SUMMARY ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
+        <Card glow onClick={()=>setScreen("accounts")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
       </div>
 
-      {/* ── SECTION 9: GOAL NUDGE ── */}
-      {underBudgetAmt>0&&goals&&goals.length>0&&(
-        <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
+      {(iOweTotal>0||theyOweTotal>0)&&(
+        <Card style={{ padding:"12px 16px", border:`1px solid ${iOweTotal>theyOweTotal?C.coral+"40":C.green+"40"}` }} onClick={()=>setScreen("utang")}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:18 }}>🤝</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang tracker</p></div>
+            <div style={{ display:"flex", gap:10 }}>
+              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>I owe {fmt(iOweTotal)}</span>}
+              {theyOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>+{fmt(theyOweTotal)}</span>}
+            </div>
+          </div>
+        </Card>
       )}
 
-      {/* ── SECTION 10: INSIGHTS TABS — streak | mood | tip (swipeable dots) ── */}
-      {(()=>{
-        const tabs=[];
-        // Streak
-        tabs.push({ key:"streak", bg:walangGastosStreak>=7?`${streakColor}0C`:C.surface, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`,
-          content:(
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
-                  <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
-                    <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
-                  </div>
+
+
+      {/* ── 7. BOTTOM INSIGHTS: STREAK + MOOD TIP ── */}
+      <div style={{ display:"flex", flexDirection:"column", gap:10, paddingTop:6, borderTop:`1px solid ${C.border}` }}>
+        <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
+
+        <Card style={{ background:walangGastosStreak>=7?`${streakColor}0C`:C.surface, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`, padding:"14px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
+                <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
+                  <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
                 </div>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
-                {walangGastosStreak>=1&&(
-                  <div style={{ marginTop:10, display:"flex", gap:4 }}>
-                    {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
-                    {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:C.border }}/>))}
-                  </div>
-                )}
               </div>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
             </div>
-          )
-        });
-        // Mood
-        if(moodLogs>=2&&stressAmt>0) tabs.push({ key:"mood", bg:`${C.coral}08`, border:`1px solid ${C.coral}28`,
-          content:(
+          </div>
+          {walangGastosStreak>=1&&(
+            <div style={{ marginTop:12, display:"flex", gap:4 }}>
+              {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
+              {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:C.border }}/>))}
+            </div>
+          )}
+        </Card>
+
+        {moodLogs>=2&&stressAmt>0&&(
+          <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} onClick={()=>setScreen("expenses")}>
             <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
               <div style={{ width:42, height:42, borderRadius:13, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>😰</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Mood Insight</p>
-                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed — {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
-                <Tag color={C.coral} onClick={()=>setScreen("expenses")}>See mood breakdown →</Tag>
+                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed -- {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
+                <Tag color={C.coral}>See mood breakdown →</Tag>
               </div>
             </div>
-          )
-        });
-        // Tip
-        if(expenses.length>=3){
-          const bCat=CATS.map(c=>({...c,total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
-          const tAll=expenses.reduce((s,e)=>s+e.amount,0);
-          const fA=bCat.find(c=>c.id==="food")?.total||0;
-          const sA=bCat.find(c=>c.id==="shopping")?.total||0;
-          const bD=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) bD[new Date(e.ts).getDay()]+=e.amount; });
-          const fri=bD[5],sat=bD[6],wkA=(bD[1]+bD[2]+bD[3]+bD[4])/4||1;
-          let tip={icon:"✅",text:"Your spending looks balanced. Keep logging to see more patterns."};
-          if(income>0&&tAll/income>0.8) tip={icon:"🚨",text:"Over 80% of income spent. Try withdrawing only what you plan to use — leave the rest in your account."};
-          else if(tAll>0&&fA/tAll>0.4) tip={icon:"🍜",text:`Food is ${Math.round((fA/tAll)*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam. Malaking tipid over a month.`};
-          else if(tAll>0&&sA/tAll>0.25) tip={icon:"🛍️",text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo."};
-          else if(fri>wkA*1.8||sat>wkA*1.8) tip={icon:"📅",text:"Weekends are where your money disappears. Set a cash allowance on Friday morning — once it's gone, it's gone."};
-          tabs.push({ key:"tip", bg:`${C.accent}07`, border:`1px solid ${C.accent}25`,
-            content:(<div style={{ display:"flex", gap:10, alignItems:"flex-start" }}><span style={{ fontSize:22, flexShrink:0 }}>{tip.icon}</span><p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p></div>)
-          });
-        }
-        if(tabs.length===0) return null;
-        const si=Math.min(insightTab,tabs.length-1);
-        const t=tabs[si];
-        return (
-          <div style={{ paddingTop:6, borderTop:`1px solid ${C.border}` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
-              {tabs.length>1&&(
-                <div style={{ display:"flex", gap:5 }}>
-                  {tabs.map((_,i)=>(
-                    <button key={i} onClick={()=>setInsightTab(i)} className="tap-btn"
-                      style={{ width:i===si?18:6, height:6, borderRadius:99, background:i===si?C.accent:C.border, border:"none", cursor:"pointer", transition:"all 0.2s", padding:0 }}/>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Card style={{ background:t.bg, border:t.border, padding:"14px 16px" }}>
-              {t.content}
+          </Card>
+        )}
+
+        {(()=>{
+          if (expenses.length<3) return null;
+          const byCat=CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+          const totalAll=expenses.reduce((s,e)=>s+e.amount,0);
+          const foodAmt=byCat.find(c=>c.id==="food")?.total||0;
+          const shopAmt=byCat.find(c=>c.id==="shopping")?.total||0;
+          const byDay2=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) byDay2[new Date(e.ts).getDay()]+=e.amount; });
+          const fri=byDay2[5],sat=byDay2[6],wkAvg=(byDay2[1]+byDay2[2]+byDay2[3]+byDay2[4])/4||1;
+          let tip={ icon:"✅", text:"Your spending looks balanced. Keep logging to see more patterns." };
+          if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use -- leave the rest in your account." };
+          else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week -- kahit simpleng ulam. Malaking tipid over a month.` };
+          else if(shopAmt/totalAll>0.25) tip={ icon:"🛍️", text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
+          else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning -- once it's gone, it's gone." };
+          return (
+            <Card style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{tip.icon}</span>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p>
+              </div>
             </Card>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
 
     </div>
   );
@@ -5940,6 +6446,7 @@ export default function Bulsa() {
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
   };
 
   return (
@@ -5954,6 +6461,16 @@ export default function Bulsa() {
           <>
             <div style={{ flex:1, overflowY:"auto" }}>{screens[screen]}</div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
+            {screen!=="chat"&&(
+              <button onClick={()=>setAddOpen(true)} className="tap-btn" style={{
+                position:"fixed", bottom:"calc(80px + env(safe-area-inset-bottom))", right:20,
+                width:52, height:52, borderRadius:"50%", border:"none",
+                background:C.gradAccent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+                boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`, zIndex:90,
+              }}>
+                <Plus size={22} strokeWidth={2.5} color="#fff"/>
+              </button>
+            )}
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
         )}
