@@ -2593,6 +2593,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const fmt = useFmt();
   const [walletsHidden,  setWalletsHidden]  = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [insightTab,     setInsightTab]     = useState(0);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
   const balance    = walletTotal !== null ? walletTotal : income - totalSpent;
@@ -2846,60 +2847,49 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     <div className="screen-wrap" style={{ padding:"18px 18px 16px", display:"flex", flexDirection:"column", gap:14, position:"relative" }}>
       <Orb x="-50px" y="-30px" color={C.accent} size={260} opacity={0.09}/>
 
-      {/* ── BACKUP NUDGE -- only when never backed up or >14 days ago ── */}
+      {/* ── SECTION 1: BANNERS ── */}
       {(()=>{
         const daysSince = lastBackup ? Math.floor((Date.now()-new Date(lastBackup))/(1000*60*60*24)) : null;
-        const show = daysSince===null||daysSince>14;
-        if (!show||expenses.length===0) return null;
-        return (
-          <div style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}35`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:10, zIndex:2 }}>
-            <span style={{ fontSize:20, flexShrink:0 }}>⚠️</span>
+        const showBackup = (daysSince===null||daysSince>14) && expenses.length>0;
+        return showBackup ? (
+          <div style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}35`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>💾</span>
             <div style={{ flex:1 }}>
-              <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
-                {daysSince===null ? "Your data has never been backed up" : `No backup in ${daysSince} days`}
-              </p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>A cache clear will erase everything.</p>
+              <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{daysSince===null?"Never backed up":`No backup in ${daysSince} days`}</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Cache clear = everything gone.</p>
             </div>
             <button onClick={()=>setScreen("profile")} className="tap-btn"
-              style={{ background:C.coral, border:"none", borderRadius:9, padding:"7px 12px", cursor:"pointer", fontSize:11, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
-              Back up
-            </button>
+              style={{ background:C.coral, border:"none", borderRadius:9, padding:"7px 12px", cursor:"pointer", fontSize:11, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>Back up</button>
           </div>
-        );
+        ) : null;
       })()}
-
-      {/* ── PWA INSTALL BANNER ── */}
-      {showInstallBanner && (
-        <div style={{ background:"linear-gradient(135deg,#0D1F35,#0A1628)", border:`1px solid ${C.gold}40`, borderRadius:16, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, zIndex:2 }}>
-          <span style={{ fontSize:24, flexShrink:0 }}>📲</span>
+      {showInstallBanner&&(
+        <div style={{ background:"linear-gradient(135deg,#0D1F35,#0A1628)", border:`1px solid ${C.gold}40`, borderRadius:14, padding:"11px 15px", display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:22, flexShrink:0 }}>📲</span>
           <div style={{ flex:1 }}>
-            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
-            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Add to home screen for Back Tap & offline use</p>
+            <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Install bulsa. on your phone</p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Add to home screen for offline use</p>
           </div>
           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-            <button onClick={onInstall} className="tap-btn"
-              style={{ background:C.gold, border:"none", borderRadius:9, padding:"7px 13px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
-              Install
-            </button>
-            <button onClick={onDismissInstall} className="tap-btn"
-              style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
+            <button onClick={onInstall} className="tap-btn" style={{ background:C.gold, border:"none", borderRadius:9, padding:"7px 13px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>Install</button>
+            <button onClick={onDismissInstall} className="tap-btn" style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
           </div>
         </div>
       )}
 
-      {/* ── HEADER ── */}
+      {/* ── SECTION 2: HEADER ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
         <div>
           <p style={{ margin:"0 0 1px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
             {new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric"})}
           </p>
           <h1 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.03em", lineHeight:1.1 }}>
-            {name ? `Hey, ${name.split(" ")[0]} 👋` : "Hey there 👋"}
+            {name?`Hey, ${name.split(" ")[0]} 👋`:"Hey there 👋"}
           </h1>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15, transition:"all 0.2s" }}>
-            {hidden ? "🙈" : "👁️"}
+          <button onClick={()=>setHidden(h=>!h)} style={{ background:hidden?`${C.accent}18`:C.surface, border:`1px solid ${hidden?C.accent+"40":C.border}`, borderRadius:99, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15 }}>
+            {hidden?"🙈":"👁️"}
           </button>
           <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer" }}>
             {avatar
@@ -2910,94 +2900,60 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          HERO CARD — the ONE thing above the fold
-          Answers: "Am I okay today?"
-      ══════════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION 3: HERO CARD ── */}
       <div onClick={heroStatus.status==="empty"?onAdd:undefined}
-        style={{ background:`linear-gradient(145deg,#0F2240,#0A1628)`,
-          border:`2px solid ${heroStatus.color}50`,
-          borderRadius:26, padding:"22px 20px 18px",
-          position:"relative", overflow:"hidden", zIndex:1,
-          cursor:heroStatus.status==="empty"?"pointer":"default",
-          boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
+        style={{ background:"linear-gradient(145deg,#0F2240,#0A1628)", border:`2px solid ${heroStatus.color}50`,
+          borderRadius:26, padding:"22px 20px 18px", position:"relative", overflow:"hidden", zIndex:1,
+          cursor:heroStatus.status==="empty"?"pointer":"default", boxShadow:`0 8px 32px ${heroStatus.color}18` }}>
         <Orb x="70%" y="-10px" color={heroStatus.color} size={220} opacity={0.18}/>
-
-        {/* Status pill */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, position:"relative", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, background:`${heroStatus.color}20`, border:`1px solid ${heroStatus.color}40`, borderRadius:99, padding:"5px 12px 5px 8px" }}>
             <span style={{ fontSize:14 }}>{heroStatus.emoji}</span>
             <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:800, color:heroStatus.color, letterSpacing:"0.02em" }}>
-              {heroStatus.status==="over" ? "OVER BUDGET" :
-               heroStatus.status==="tight" ? "CUTTING IT CLOSE" :
-               heroStatus.status==="peligro" ? "PETSA DE PELIGRO" :
-               heroStatus.status==="empty" ? "GET STARTED" :
-               heroStatus.status==="zero" ? "CLEAN SLATE" : "YOU'RE GOOD"}
+              {heroStatus.status==="over"?"OVER BUDGET":heroStatus.status==="tight"?"CUTTING IT CLOSE":heroStatus.status==="peligro"?"PETSA DE PELIGRO":heroStatus.status==="empty"?"GET STARTED":heroStatus.status==="zero"?"CLEAN SLATE":"YOU'RE GOOD"}
             </span>
           </div>
-          {/* 7-day dot strip */}
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
             {Array.from({length:7},(_,i)=>{
-              const d = new Date(); d.setDate(d.getDate()-(6-i));
-              const ds = d.toDateString();
-              const sp = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
-              const hl = expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
-              const isToday = i===6;
-              const ok  = hl && (dailyLimit<=0 || sp<=dailyLimit);
-              const bad = hl && dailyLimit>0 && sp>dailyLimit;
-              return <div key={i} style={{ width:isToday?10:6, height:isToday?10:6, borderRadius:"50%", background:bad?C.coral:ok?C.green:C.border, border:isToday?`2px solid ${heroStatus.color}`:""  }}/>;
+              const d=new Date(); d.setDate(d.getDate()-(6-i));
+              const ds=d.toDateString();
+              const sp=expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
+              const hl=expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+              const isToday=i===6;
+              const ok=hl&&(dailyLimit<=0||sp<=dailyLimit);
+              const bad=hl&&dailyLimit>0&&sp>dailyLimit;
+              return <div key={i} style={{ width:isToday?10:6, height:isToday?10:6, borderRadius:"50%", background:bad?C.coral:ok?C.green:C.border, border:isToday?`2px solid ${heroStatus.color}`:"" }}/>;
             })}
           </div>
         </div>
-
-        {/* THE big number */}
         <div style={{ position:"relative", zIndex:1, marginBottom:14 }}>
           <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {heroStatus.status==="zero"||heroStatus.status==="empty" ? "Today's spend" : "Spent today"}
+            {heroStatus.status==="zero"||heroStatus.status==="empty"?"Today's spend":"Spent today"}
           </p>
           <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
             <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:56, fontWeight:800,
-              color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : C.text,
-              letterSpacing:"-0.04em", lineHeight:1 }}>
-              {hidden ? "₱••••" : fmt(heroStatus.todayTotal)}
+              color:heroStatus.overLimit?C.coral:heroStatus.nearLimit?C.gold:C.text, letterSpacing:"-0.04em", lineHeight:1 }}>
+              {hidden?"₱••••":fmt(heroStatus.todayTotal)}
             </h2>
-            {todayExpsAll.length > 0 && (
-              <p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-                {todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}
-              </p>
-            )}
+            {todayExpsAll.length>0&&<p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}</p>}
           </div>
         </div>
-
-        {/* Progress bar — only if limit or runway is set */}
-        {(dailyLimit > 0 || runway) && heroStatus.status !== "empty" && (
+        {(dailyLimit>0||runway)&&heroStatus.status!=="empty"&&(
           <div style={{ marginBottom:14, position:"relative", zIndex:1 }}>
             <Bar pct={todayPct} color={heroStatus.color} h={5}/>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
-              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-                {dailyLimit > 0 ? `${fmt(dailyLimit)} daily limit` : `${fmt(runway.allowedPerDay)}/day runway`}
-              </span>
+              <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{dailyLimit>0?`${fmt(dailyLimit)} daily limit`:`${fmt(runway.allowedPerDay)}/day runway`}</span>
               <span style={{ fontSize:10, fontWeight:800, color:heroStatus.color, fontFamily:"DM Sans,sans-serif" }}>
-                {heroStatus.overLimit
-                  ? `over by ${fmt(heroStatus.todayTotal - dailyLimit)}`
-                  : dailyLimit > 0
-                  ? `${fmt(dailyLimit - heroStatus.todayTotal)} left`
-                  : runway ? `${fmt(runway.allowedPerDay - todaySpent)} left` : ""}
+                {heroStatus.overLimit?`over by ${fmt(heroStatus.todayTotal-dailyLimit)}`:dailyLimit>0?`${fmt(dailyLimit-heroStatus.todayTotal)} left`:runway?`${fmt(runway.allowedPerDay-todaySpent)} left`:""}
               </span>
             </div>
           </div>
         )}
-
-        {/* Headline answer */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}20`, paddingTop:12 }}>
-          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>
-            {heroStatus.headline}
-          </p>
+          <p style={{ margin:"0 0 3px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.3 }}>{heroStatus.headline}</p>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:8 }}>
-            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>
-              {heroStatus.subline}
-            </p>
-            {budgetStreak !== null && budgetStreak > 0 && (
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5, flex:1 }}>{heroStatus.subline}</p>
+            {budgetStreak!==null&&budgetStreak>0&&(
               <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"4px 10px", display:"flex", alignItems:"center", gap:4 }}>
                 <span style={{ fontSize:10 }}>🔥</span>
                 <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d streak</span>
@@ -3007,148 +2963,95 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
-      {sharpInsight && (
-        <div style={{ background:`${sharpInsight.color}10`, border:`1.5px solid ${sharpInsight.color}35`, borderRadius:18, padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", position:"relative", overflow:"hidden", zIndex:1 }}>
-          <div style={{ width:40, height:40, borderRadius:12, background:`${sharpInsight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
-            {sharpInsight.icon}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-              <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, fontWeight:800, color:sharpInsight.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{sharpInsight.tag}</span>
-            </div>
-            <p style={{ margin:"0 0 3px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.35 }}>
-              {sharpInsight.headline}
-            </p>
-            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
-              {sharpInsight.sub}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── UNDER-BUDGET GOAL NUDGE ── */}
-      {underBudgetAmt > 0 && goals && goals.length > 0 && (
-        <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
-      )}
-
-      {/* ── WALLET GRID ── visible at a glance, no tapping required */}
-      {wallets && wallets.length > 0 && (
+      {/* ── SECTION 4: WALLETS — horizontal scroll ── */}
+      {wallets&&wallets.length>0&&(
         <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>My wallets</p>
-              {/* Wallet-only hide toggle */}
-              <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn"
-                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"0 2px", opacity:0.7, lineHeight:1 }}>
-                {walletsHidden ? "🙈" : "👁️"}
-              </button>
+              <button onClick={()=>setWalletsHidden(h=>!h)} className="tap-btn" style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, padding:"0 2px", opacity:0.7 }}>{walletsHidden?"🙈":"👁️"}</button>
             </div>
             <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(wallets.length,3)},1fr)`, gap:8 }}>
-            {wallets.slice(0,3).map(w => (
+          <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
+            {wallets.map(w=>(
               <button key={w.id} onClick={()=>setScreen("accounts")} className="tap-btn"
-                style={{ background:C.card, border:`1px solid ${walletsHidden ? C.border : w.color+"30"}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", textAlign:"left", display:"flex", flexDirection:"column", gap:4, position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
-                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}>
-                  <WalletIcon wallet={w} size={28}/>
+                style={{ background:C.card, border:`1px solid ${walletsHidden?C.border:w.color+"35"}`, borderRadius:14, padding:"12px 14px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:10, flexShrink:0, position:"relative", overflow:"hidden", minWidth:140 }}>
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${w.color},${w.color}44)`, borderRadius:"14px 14px 0 0" }}/>
+                <div style={{ borderRadius:8, overflow:"hidden", width:28, height:28, flexShrink:0 }}><WalletIcon wallet={w} size={28}/></div>
+                <div style={{ minWidth:0 }}>
+                  <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:90 }}>{w.name}</p>
+                  <p style={{ margin:0, fontSize:14, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif", filter:walletsHidden?"blur(5px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
+                    {walletsHidden?"••••":`₱${Math.round(w.balance).toLocaleString()}`}
+                  </p>
                 </div>
-                <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em",
-                  filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s, color 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
-                  {walletsHidden ? "••••" : `₱${Math.round(w.balance).toLocaleString()}`}
-                </p>
               </button>
             ))}
-            {wallets.length > 3 && (
-              <button onClick={()=>setScreen("accounts")} className="tap-btn"
-                style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 10px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <span style={{ fontSize:16, color:C.textSub }}>+{wallets.length - 3}</span>
-                <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>more</p>
-              </button>
-            )}
-          </div>
-          {/* Total strip */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
-            <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Total across all wallets</span>
-            <span style={{ fontSize:13, fontWeight:800, color:walletsHidden ? C.textFaint : C.text, fontFamily:"DM Sans,sans-serif",
-              filter: walletsHidden ? "blur(6px)" : "none", transition:"filter 0.2s", userSelect: walletsHidden ? "none" : "auto" }}>
-              {walletsHidden ? "₱••••" : `₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
-            </span>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"center", flexShrink:0, minWidth:110 }}>
+              <p style={{ margin:"0 0 2px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>All wallets</p>
+              <p style={{ margin:0, fontSize:14, fontWeight:800, color:walletsHidden?C.textFaint:C.text, fontFamily:"DM Sans,sans-serif", filter:walletsHidden?"blur(5px)":"none", transition:"filter 0.2s", userSelect:walletsHidden?"none":"auto" }}>
+                {walletsHidden?"••••":`₱${Math.round(wallets.reduce((s,w)=>s+w.balance,0)).toLocaleString()}`}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── PAYMENT URGENCY STRIP ── */}
+      {/* ── SECTION 5: ACTION NEEDED — one unified, deduped list ── */}
       {(()=>{
-        const today = new Date(); today.setHours(0,0,0,0);
-        const daysFrom = dateStr => {
-          if (!dateStr) return null;
-          const d = new Date(dateStr+"T00:00:00");
-          if (isNaN(d)) return null;
-          return Math.round((d-today)/(1000*60*60*24));
-        };
+        const today2=new Date(); today2.setHours(0,0,0,0);
+        const dF=ds=>{ if(!ds) return null; const d=new Date(ds+"T00:00:00"); return isNaN(d)?null:Math.round((d-today2)/(1000*60*60*24)); };
+        const items=[];
+        // Budget overruns
+        const cyc=getPaycycle(payday||"both");
+        const cyEx=expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cyc.cycleStart&&d<=cyc.nextPayday; });
+        CATS.forEach(c=>{
+          const lim=budgets[c.id]||0; if(!lim) return;
+          const spent=cyEx.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
+          const pct=spent/lim;
+          if(pct>=1)    items.push({id:"bud-"+c.id,name:`${c.icon} ${c.label}`,sub:`Over by ${fmt(spent-lim)} this cycle`,days:-1,icon:c.icon,color:C.coral,screen:"expenses",type:"budget",amount:spent});
+          else if(pct>=0.8) items.push({id:"bud-"+c.id,name:`${c.icon} ${c.label}`,sub:`${Math.round(pct*100)}% of budget used`,days:0,icon:c.icon,color:C.gold,screen:"expenses",type:"budget",amount:spent});
+        });
+        // Subs due ≤7d
+        (subs||[]).filter(s=>s.active!==false&&s.type!=="recurring").forEach(s=>{
+          const d=daysUntil(s.dueDate); if(d>7) return;
+          items.push({id:"sub-"+s.id,name:s.name,sub:`Subscription · ${fmt(s.amount)}`,days:d,icon:s.icon||"📦",color:d<=0?C.coral:d<=3?C.gold:C.textSub,screen:"expenses",type:"sub",amount:s.amount});
+        });
+        // Recurring overdue
+        (subs||[]).filter(s=>s.active!==false&&s.type==="recurring").forEach(s=>{
+          const d=daysUntil(s.dueDate); if(d>0) return;
+          items.push({id:"rec-"+s.id,name:s.name,sub:`Recurring · ${s.amount>0?fmt(s.amount):"log amount"}`,days:d,icon:s.icon||"📋",color:C.green,screen:"expenses",type:"recurring",amount:s.amount});
+        });
+        // Loans due ≤7d
+        (loans||[]).filter(l=>{ const rem=l.payments?.length?Math.max(l.amount-l.payments.reduce((s,p)=>s+p.amount,0),0):Math.max(l.amount-(l.paid||0),0); return rem>0&&(l.dueDay||l.due); }).forEach(l=>{
+          let nD=null;
+          if(l.dueDay&&l.startDate){ const pc=l.payments?.length||0; const b=new Date(l.startDate+"T12:00:00"); nD=new Date(b.getFullYear(),b.getMonth()+pc,l.dueDay); }
+          const days=nD?Math.round((nD-today2)/(1000*60*60*24)):null;
+          if(days===null||days>7) return;
+          items.push({id:"loan-"+l.id,name:l.name,sub:`Installment · ${fmt(l.monthlyAmount||0)}`,days,icon:"🏦",color:days<=0?C.coral:days<=3?C.gold:C.textSub,screen:"loans",type:"loan",amount:l.monthlyAmount||0});
+        });
+        // Utangs I owe due ≤7d
+        (utangs||[]).filter(u=>u.direction==="iowe"&&u.dueDate).forEach(u=>{
+          const d=dF(u.dueDate); if(d===null||d>7) return;
+          items.push({id:"utang-"+u.id,name:`Pay ${u.person}`,sub:`Utang · ${fmt(u.amount)}`,days:d,icon:"🤝",color:d<=0?C.coral:d<=3?C.gold:C.textSub,screen:"utang",type:"utang",amount:u.amount});
+        });
+        // Goals approaching ≤14d
+        (goals||[]).filter(g=>!g.done&&g.deadline).forEach(g=>{
+          let d=new Date(g.deadline+"T00:00:00"); if(isNaN(d)){ const pts=g.deadline.match(/^(\w+)\s+(\d{4})$/); if(pts) d=new Date(`${pts[1]} 1 ${pts[2]}`); }
+          if(isNaN(d)) return;
+          const days=Math.round((d-today2)/(1000*60*60*24));
+          if(days>14||days<0||g.saved>=g.target) return;
+          items.push({id:"goal-"+g.id,name:`${g.emoji||"🎯"} ${g.name}`,sub:`${fmt(g.target-g.saved)} still needed`,days,icon:g.emoji||"🎯",color:C.accent,screen:"goals",type:"goal",amount:g.target-g.saved});
+        });
 
-        // ── Subs
-        const subItems = (subs||[])
-          .filter(s=>s.active!==false)
-          .map(s=>({ id:"sub-"+s.id, name:s.name, amount:s.amount, days:daysUntil(s.dueDate), icon:s.icon||"📦", color:s.color||C.gold, screen:"subs", type:"sub" }))
-          .filter(s=>s.days<=7);
+        items.sort((a,b)=>a.days-b.days);
+        const overdue=items.filter(x=>x.days<0);
+        const upcoming=items.filter(x=>x.days>=0);
+        if(items.length===0) return null;
 
-        // ── Loans (dueDay + startDate)
-        const loanItems = (loans||[])
-          .filter(l=>{ const rem=l.payments?.length?Math.max(l.amount-l.payments.reduce((s,p)=>s+p.amount,0),0):Math.max(l.amount-(l.paid||0),0); return rem>0&&(l.dueDay||l.due); })
-          .map(l=>{
-            let nextDue=null;
-            if (l.dueDay&&l.startDate){ const paidCount=l.payments?.length||0; const base=new Date(l.startDate+"T12:00:00"); nextDue=new Date(base.getFullYear(),base.getMonth()+paidCount,l.dueDay); }
-            const days=nextDue?Math.round((nextDue-today)/(1000*60*60*24)):null;
-            if (days===null||days>7) return null;
-            return { id:"loan-"+l.id, name:l.name, amount:l.monthlyAmount||0, days, icon:"🏦", color:l.color||C.coral, screen:"loans", type:"loan" };
-          }).filter(Boolean);
-
-        // ── Utangs I owe (entries with dueDate)
-        const utangItems = (utangs||[])
-          .filter(u=>u.direction==="iowe"&&!u.settled)
-          .flatMap(u=>(u.entries||[])
-            .filter(e=>!e.settled&&e.dueDate)
-            .map(e=>({ id:"utang-"+e.id, name:`${u.person} (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"😬", color:C.coral, screen:"utang", type:"utang" }))
-          )
-          .filter(x=>x.days!==null&&x.days<=7);
-
-        // ── Goals with parseable deadline approaching within 30 days
-        const goalItems = (goals||[])
-          .filter(g=>!g.done&&g.deadline)
-          .map(g=>{
-            // Try ISO date first, then "Mon YYYY" format
-            let d = new Date(g.deadline+"T00:00:00");
-            if (isNaN(d)){ const parts=g.deadline.match(/^(\w+)\s+(\d{4})$/); if(parts){ d=new Date(`${parts[1]} 1 ${parts[2]}`); } }
-            if (isNaN(d)) return null;
-            const days=Math.round((d-today)/(1000*60*60*24));
-            if (days>30||days<0) return null;
-            const pct=g.target>0?Math.round((g.saved/g.target)*100):0;
-            if (pct>=100) return null; // already met
-            return { id:"goal-"+g.id, name:`${g.emoji} ${g.name}`, amount:g.target-g.saved, days, icon:g.emoji||"🎯", color:g.color||C.accent, screen:"goals", type:"goal", pct };
-          }).filter(Boolean);
-
-        // ── People who owe ME, overdue only
-        const theyOweItems = (utangs||[])
-          .filter(u=>u.direction==="theyowe"&&!u.settled)
-          .flatMap(u=>(u.entries||[])
-            .filter(e=>!e.settled&&e.dueDate&&daysFrom(e.dueDate)<0)
-            .map(e=>({ id:"theyowe-"+e.id, name:`${u.person} owes you (${e.reason||"utang"})`, amount:e.amount, days:daysFrom(e.dueDate), icon:"🤑", color:C.green, screen:"utang", type:"theyowe" }))
-          );
-
-        const allItems  = [...subItems,...loanItems,...utangItems,...goalItems,...theyOweItems].sort((a,b)=>a.days-b.days);
-        const overdue   = allItems.filter(x=>x.days<0);
-        const upcoming  = allItems.filter(x=>x.days>=0);
-
-        if (allItems.length===0) return null;
-
-        const urgColor = d => d<0?C.coral:d===0?C.coral:d<=3?C.gold:"#6B8CAD";
-        const urgIcon  = (d,type) => { if(type==="theyowe") return "🤑"; if(type==="goal") return "🎯"; return d<0?"🚨":d===0?"🔴":d<=3?"⚠️":"📅"; };
-        const urgDayLabel = d => d<0?`${Math.abs(d)}d overdue`:d===0?"Due today":d===1?"Due tomorrow":`Due in ${d} days`;
-        const typeLabel = t => ({ sub:"subscription", loan:"installment", utang:"utang", goal:"savings goal", theyowe:"they owe you" })[t]||t;
+        const urgColor=d=>d<0?C.coral:d===0?C.gold:d<=3?C.gold:C.textSub;
+        const urgLabel=(d,type)=>{ if(type==="budget") return d<0?"Over budget":"Near limit"; if(type==="recurring") return d<0?`${Math.abs(d)}d overdue`:"Log today"; if(d<0) return `${Math.abs(d)}d overdue`; if(d===0) return "Due today"; if(d===1) return "Due tomorrow"; return `Due in ${d}d`; };
+        const typeTag=t=>({sub:"subscription",loan:"installment",utang:"utang",goal:"goal",budget:"budget",recurring:"recurring"})[t]||t;
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -3156,59 +3059,39 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
               <p style={{ margin:0, fontSize:12, fontWeight:800, color:overdue.length?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
                 {overdue.length?"🚨 Needs attention":"⏰ Coming up"}
               </p>
-              {allItems.length>3&&(
-                <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>
-              )}
+              {items.length>4&&<button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>See all →</button>}
             </div>
-
-            {/* Overdue block */}
             {overdue.length>0&&(
-              <div style={{ background:`${C.coral}0C`, border:`1.5px solid ${C.coral}50`, borderRadius:16, padding:"12px 16px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:overdue.length>1?8:0 }}>
-                  <span style={{ fontSize:20 }}>🚨</span>
-                  <div style={{ flex:1 }}>
-                    <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
-                      {overdue.length===1?`${overdue[0].name}`:`${overdue.length} things need attention`}
-                    </p>
-                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                      {overdue.length===1?`${Math.abs(overdue[0].days)}d overdue -- ${typeLabel(overdue[0].type)}`:"Overdue payments and reminders"}
-                    </p>
-                  </div>
-                  {overdue.length===1&&overdue[0].amount>0&&(
-                    <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(overdue[0].amount).toLocaleString()}</p>
-                  )}
-                </div>
-                {overdue.length>1&&overdue.map(x=>(
+              <div style={{ background:`${C.coral}0C`, border:`1.5px solid ${C.coral}45`, borderRadius:16, padding:"12px 14px", display:"flex", flexDirection:"column", gap:6 }}>
+                <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+                  🚨 {overdue.length===1?`${overdue[0].name} — ${Math.abs(overdue[0].days)>0?Math.abs(overdue[0].days)+"d overdue":"act now"}`:`${overdue.length} things need attention`}
+                </p>
+                {overdue.map(x=>(
                   <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
-                    style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}14`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer", marginTop:4 }}>
+                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:`${C.coral}14`, border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-                      <span>{x.icon}</span>{x.name}
-                      <span style={{ fontSize:10, color:C.coral, fontWeight:800 }}>{Math.abs(x.days)}d late</span>
+                      <span>{x.icon}</span>{x.name}<span style={{ fontSize:10, color:C.coral, fontWeight:800 }}>{typeTag(x.type)}</span>
                     </span>
-                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</span>}
+                    {x.amount>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</span>}
                   </button>
                 ))}
               </div>
             )}
-
-            {/* Upcoming rows */}
             {upcoming.slice(0,4).map(x=>{
-              const uc = urgColor(x.days);
+              const uc=urgColor(x.days);
               return (
                 <button key={x.id} onClick={()=>setScreen(x.screen)} className="tap-btn"
                   style={{ display:"flex", alignItems:"center", gap:12, background:C.card, border:`1.5px solid ${uc}35`, borderRadius:14, padding:"11px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
                   <div style={{ width:3, height:36, borderRadius:99, background:uc, flexShrink:0 }}/>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{urgIcon(x.days,x.type)}</span>
+                  <span style={{ fontSize:18, flexShrink:0 }}>{x.icon}</span>
                   <div style={{ flex:1, minWidth:0 }}>
                     <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{x.name}</p>
-                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgDayLabel(x.days)}</p>
+                    <p style={{ margin:0, fontSize:11, color:uc, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{urgLabel(x.days,x.type)}</p>
                   </div>
-                  {x.amount>0&&(
-                    <div style={{ textAlign:"right", flexShrink:0 }}>
-                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{"P"+Math.round(x.amount).toLocaleString()}</p>
-                      <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{typeLabel(x.type)}</p>
-                    </div>
-                  )}
+                  {x.amount>0&&<div style={{ textAlign:"right", flexShrink:0 }}>
+                    <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</p>
+                    <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{typeTag(x.type)}</p>
+                  </div>}
                   <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
                 </button>
               );
@@ -3217,64 +3100,10 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         );
       })()}
 
-      {/* ── BUDGET OVERRUN ALERTS ── */}
+      {/* ── SECTION 6: TODAY'S TRANSACTIONS ── */}
       {(()=>{
-        if (!budgets || !expenses) return null;
-        const cycle    = getPaycycle(payday||"both");
-        const cycleExp = expenses.filter(e=>{
-          if (!e.ts) return false;
-          const d = new Date(e.ts);
-          return d>=cycle.cycleStart && d<=cycle.nextPayday;
-        });
-        const alerts = CATS.map(c=>{
-          const limit = budgets[c.id]||0;
-          if (!limit) return null;
-          const spent = cycleExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0);
-          const pct   = spent/limit;
-          if (pct<0.8) return null;
-          return { ...c, spent, limit, pct, over: pct>=1 };
-        }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
-
-        if (alerts.length===0) return null;
-
-        const overCount = alerts.filter(a=>a.over).length;
-        const fmt = n => "P"+Math.round(n).toLocaleString();
-
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <p style={{ margin:0, fontSize:12, fontWeight:800, color:overCount?C.coral:C.gold, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>
-                {overCount ? "🚨 Budget exceeded" : "⚠️ Budget warnings"}
-              </p>
-              <button onClick={()=>setScreen("expenses")} style={{ background:"none", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Manage →</button>
-            </div>
-            {alerts.slice(0,3).map(a=>(
-              <button key={a.id} onClick={()=>setScreen("expenses")} className="tap-btn"
-                style={{ display:"flex", alignItems:"center", gap:10, background:a.over?`${C.coral}0A`:`${C.gold}08`, border:`1.5px solid ${a.over?C.coral:C.gold}35`, borderRadius:14, padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%" }}>
-                <div style={{ width:3, height:32, borderRadius:99, background:a.over?C.coral:C.gold, flexShrink:0 }}/>
-                <span style={{ fontSize:18, flexShrink:0 }}>{a.icon}</span>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
-                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>
-                    <Tag color={a.over?C.coral:C.gold}>{a.over?"Over!":Math.round(a.pct*100)+"%"}</Tag>
-                  </div>
-                  <Bar pct={Math.min(a.pct*100,100)} color={a.over?C.coral:C.gold} h={3}/>
-                </div>
-                <div style={{ textAlign:"right", flexShrink:0 }}>
-                  <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:a.over?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(a.spent)}</p>
-                  <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>of {fmt(a.limit)}</p>
-                </div>
-                <span style={{ color:C.textFaint, fontSize:14, flexShrink:0 }}>›</span>
-              </button>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* ── 2. TODAY'S TRANSACTIONS ── */}
-      {(()=>{
-        const todayExps = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
-        if (expenses.length===0) return (
+        const todayExps=expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+        if(expenses.length===0) return (
           <button onClick={onAdd} style={{ width:"100%", padding:"22px", borderRadius:18, border:`2px dashed ${C.accent}40`, background:C.accentGlow, color:C.accent, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log your first bulsa</button>
         );
         return (
@@ -3288,17 +3117,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
                 <p style={{ margin:"0 0 6px", fontSize:22 }}>🌅</p>
                 <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clean slate today</p>
                 <p style={{ margin:"0 0 10px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Nothing logged yet.</p>
-                <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log first expense</button>
+                <button onClick={onAdd} style={{ background:"none", border:"none", color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Log expense</button>
               </div>
             ):(
               <>
                 {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                  <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
+                  <Card key={e.id} style={{ padding:"12px 14px" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                       {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
                       <div style={{ flex:1 }}>
                         <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{e.name}</p>
-                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} - {e.time}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {m&&<span style={{ fontSize:14 }}>{m.emoji}</span>}
@@ -3314,154 +3143,120 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         );
       })()}
 
-      {/* ── 3. ALERTS -- only if triggered ── */}
-      {budgetOver>0&&(<Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}30` }} glow danger onClick={()=>setScreen("expenses")}><div style={{ display:"flex", gap:12, alignItems:"center" }}><span style={{ fontSize:22 }}>⚠️</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Over budget in {budgetOver} {budgetOver===1?"category":"categories"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap to review →</p></div></div></Card>)}
-
-      {/* ── DUE THIS WEEK ── */}
-      {(()=>{
-        const now  = new Date();
-        const soon = new Date(now); soon.setDate(now.getDate()+7);
-        const items = [];
-
-        // Loans
-        (loans||[]).forEach(l=>{
-          if (!l.nextDueDate) return;
-          const d = new Date(l.nextDueDate+"T00:00:00");
-          if (d<=soon) {
-            const days = Math.ceil((d-now)/(1000*60*60*24));
-            items.push({ id:"loan-"+l.id, icon:"⊗", label:l.name, sub:`Loan payment · ${fmt(l.monthlyDue||0)}`, days, color:days<=2?C.coral:C.gold, screen:"accounts", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
-          }
-        });
-
-        // Subscriptions
-        (subs||[]).filter(s=>s.active!==false).forEach(s=>{
-          if (!s.dueDate) return;
-          const d = new Date(s.dueDate+"T00:00:00");
-          if (d<=soon) {
-            const days = Math.ceil((d-now)/(1000*60*60*24));
-            items.push({ id:"sub-"+s.id, icon:s.icon||"📱", label:s.name, sub:`Subscription · ${fmt(s.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"subs", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
-          }
-        });
-
-        // Utangs I owe
-        (utangs||[]).filter(u=>u.direction==="iowe"&&!u.settled&&u.dueDate).forEach(u=>{
-          const d = new Date(u.dueDate+"T00:00:00");
-          if (d<=soon) {
-            const days = Math.ceil((d-now)/(1000*60*60*24));
-            items.push({ id:"utang-"+u.id, icon:"🤝", label:`Pay ${u.person}`, sub:`Utang · ${fmt(u.amount)}`, days, color:days<=2?C.coral:C.gold, screen:"utang", tag:days<=0?"Due today":days===1?"Tomorrow":`In ${days}d` });
-          }
-        });
-
-        if (items.length===0) return null;
-        items.sort((a,b)=>a.days-b.days);
-
-        return (
-          <div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>🔔 Due this week</p>
-              <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{items.length} item{items.length!==1?"s":""}</span>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {items.map(item=>(
-                <Card key={item.id} style={{ padding:"12px 16px", border:`1px solid ${item.color}40`, background:`${item.color}07` }} onClick={()=>setScreen(item.screen)}>
-                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                    <div style={{ width:38, height:38, borderRadius:11, background:`${item.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{item.icon}</div>
-                    <div style={{ flex:1 }}>
-                      <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{item.label}</p>
-                      <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{item.sub}</p>
-                    </div>
-                    <div style={{ background:`${item.color}20`, border:`1px solid ${item.color}40`, borderRadius:99, padding:"4px 10px" }}>
-                      <span style={{ fontSize:11, fontWeight:800, color:item.color, fontFamily:"DM Sans,sans-serif" }}>{item.tag}</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+      {/* ── SECTION 7: SHARP INSIGHT ── below transactions, not fighting with hero ── */}
+      {sharpInsight&&(
+        <div style={{ background:`${sharpInsight.color}10`, border:`1.5px solid ${sharpInsight.color}35`, borderRadius:18, padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", zIndex:1 }}>
+          <div style={{ width:40, height:40, borderRadius:12, background:`${sharpInsight.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{sharpInsight.icon}</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:10, fontWeight:800, color:sharpInsight.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{sharpInsight.tag}</span>
+            <p style={{ margin:"4px 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{sharpInsight.headline}</p>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{sharpInsight.body}</p>
           </div>
-        );
-      })()}
-
-      {/* ── 4. FINANCIAL SUMMARY ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card glow onClick={()=>setScreen("utang")}><span style={{ fontSize:18, color:C.coral }}>⊗</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalDebt)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Remaining debt</p></Card>
-        <Card glow onClick={()=>setScreen("accounts")}><span style={{ fontSize:18, color:C.sky }}>◎</span><p style={{ margin:"10px 0 2px", fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalSaved)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Total saved</p></Card>
-      </div>
-
-      {(iOweTotal>0||theyOweTotal>0)&&(
-        <Card style={{ padding:"12px 16px", border:`1px solid ${iOweTotal>theyOweTotal?C.coral+"40":C.green+"40"}` }} onClick={()=>setScreen("utang")}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:18 }}>🤝</span><p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Utang tracker</p></div>
-            <div style={{ display:"flex", gap:10 }}>
-              {iOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>I owe {fmt(iOweTotal)}</span>}
-              {theyOweTotal>0&&<span style={{ fontSize:12, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif" }}>+{fmt(theyOweTotal)}</span>}
-            </div>
-          </div>
-        </Card>
+        </div>
       )}
 
-
-
-      {/* ── 7. BOTTOM INSIGHTS: STREAK + MOOD TIP ── */}
-      <div style={{ display:"flex", flexDirection:"column", gap:10, paddingTop:6, borderTop:`1px solid ${C.border}` }}>
-        <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
-
-        <Card style={{ background:walangGastosStreak>=7?`${streakColor}0C`:C.surface, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`, padding:"14px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
-                <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
-                  <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
-                </div>
-              </div>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
-            </div>
-          </div>
-          {walangGastosStreak>=1&&(
-            <div style={{ marginTop:12, display:"flex", gap:4 }}>
-              {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
-              {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:5, borderRadius:99, background:C.border }}/>))}
-            </div>
-          )}
+      {/* ── SECTION 8: FINANCIAL SNAPSHOT — 3-column ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+        <Card style={{ padding:"12px 10px", cursor:"pointer" }} onClick={()=>setScreen("loans")}>
+          <p style={{ margin:"0 0 6px", fontSize:18 }}>⊗</p>
+          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":fmt(totalDebt)}</p>
+          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Debt left</p>
         </Card>
+        <Card style={{ padding:"12px 10px", cursor:"pointer" }} onClick={()=>setScreen("accounts")}>
+          <p style={{ margin:"0 0 6px", fontSize:18 }}>◎</p>
+          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":fmt(totalSaved)}</p>
+          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Saved</p>
+        </Card>
+        <Card style={{ padding:"12px 10px", cursor:"pointer", border:`1px solid ${iOweTotal>0?C.coral+"35":theyOweTotal>0?C.green+"35":C.border}` }} onClick={()=>setScreen("utang")}>
+          <p style={{ margin:"0 0 6px", fontSize:18 }}>🤝</p>
+          <p style={{ margin:"0 0 2px", fontSize:16, fontWeight:800, color:iOweTotal>0?C.coral:theyOweTotal>0?C.green:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{hidden?"••••":iOweTotal>0?fmt(iOweTotal):theyOweTotal>0?fmt(theyOweTotal):"—"}</p>
+          <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{iOweTotal>0?"I owe":theyOweTotal>0?"They owe":"Utang"}</p>
+        </Card>
+      </div>
 
-        {moodLogs>=2&&stressAmt>0&&(
-          <Card style={{ background:`${C.coral}0C`, border:`1px solid ${C.coral}28` }} onClick={()=>setScreen("expenses")}>
+      {/* ── SECTION 9: GOAL NUDGE ── */}
+      {underBudgetAmt>0&&goals&&goals.length>0&&(
+        <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
+      )}
+
+      {/* ── SECTION 10: INSIGHTS TABS — streak | mood | tip (swipeable dots) ── */}
+      {(()=>{
+        const tabs=[];
+        // Streak
+        tabs.push({ key:"streak", bg:walangGastosStreak>=7?`${streakColor}0C`:C.surface, border:`1px solid ${walangGastosStreak>=1?streakColor+"40":C.border}`,
+          content:(
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:48, height:48, borderRadius:14, background:`${streakColor}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{streakEmoji}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Walang Gastos Streak</p>
+                  <div style={{ background:`${streakColor}20`, border:`1px solid ${streakColor}40`, borderRadius:99, padding:"3px 10px" }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:streakColor, fontFamily:"DM Sans,sans-serif" }}>{walangGastosStreak}d</span>
+                  </div>
+                </div>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}>{streakMsg}</p>
+                {walangGastosStreak>=1&&(
+                  <div style={{ marginTop:10, display:"flex", gap:4 }}>
+                    {Array.from({length:Math.min(walangGastosStreak,7)}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:streakColor, opacity:0.3+(i/7)*0.7 }}/>))}
+                    {walangGastosStreak<7&&Array.from({length:7-walangGastosStreak}).map((_,i)=>(<div key={i} style={{ flex:1, height:4, borderRadius:99, background:C.border }}/>))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        });
+        // Mood
+        if(moodLogs>=2&&stressAmt>0) tabs.push({ key:"mood", bg:`${C.coral}08`, border:`1px solid ${C.coral}28`,
+          content:(
             <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
               <div style={{ width:42, height:42, borderRadius:13, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>😰</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Mood Insight</p>
-                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed -- {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
-                <Tag color={C.coral}>See mood breakdown →</Tag>
+                <p style={{ margin:"0 0 8px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.55 }}><strong style={{ color:C.coral }}>{fmt(stressAmt)}</strong> spent while stressed — {Math.round((stressAmt/totalSpent)*100)}% of your total.</p>
+                <Tag color={C.coral} onClick={()=>setScreen("expenses")}>See mood breakdown →</Tag>
               </div>
             </div>
-          </Card>
-        )}
-
-        {(()=>{
-          if (expenses.length<3) return null;
-          const byCat=CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
-          const totalAll=expenses.reduce((s,e)=>s+e.amount,0);
-          const foodAmt=byCat.find(c=>c.id==="food")?.total||0;
-          const shopAmt=byCat.find(c=>c.id==="shopping")?.total||0;
-          const byDay2=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) byDay2[new Date(e.ts).getDay()]+=e.amount; });
-          const fri=byDay2[5],sat=byDay2[6],wkAvg=(byDay2[1]+byDay2[2]+byDay2[3]+byDay2[4])/4||1;
-          let tip={ icon:"✅", text:"Your spending looks balanced. Keep logging to see more patterns." };
-          if(totalAll>0&&totalAll/income>0.8) tip={ icon:"🚨", text:"You've spent over 80% of your income. Try withdrawing only what you plan to use -- leave the rest in your account." };
-          else if(foodAmt/totalAll>0.4) tip={ icon:"🍜", text:`Food is ${Math.round((foodAmt/totalAll)*100)}% of your spending. Try cooking 2x a week -- kahit simpleng ulam. Malaking tipid over a month.` };
-          else if(shopAmt/totalAll>0.25) tip={ icon:"🛍️", text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo." };
-          else if(fri>wkAvg*1.8||sat>wkAvg*1.8) tip={ icon:"📅", text:"Weekends are where your money disappears. Set a cash allowance on Friday morning -- once it's gone, it's gone." };
-          return (
-            <Card style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}>
-              <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                <span style={{ fontSize:20, flexShrink:0 }}>{tip.icon}</span>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p>
-              </div>
+          )
+        });
+        // Tip
+        if(expenses.length>=3){
+          const bCat=CATS.map(c=>({...c,total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+          const tAll=expenses.reduce((s,e)=>s+e.amount,0);
+          const fA=bCat.find(c=>c.id==="food")?.total||0;
+          const sA=bCat.find(c=>c.id==="shopping")?.total||0;
+          const bD=Array(7).fill(0); expenses.forEach(e=>{ if(e.ts) bD[new Date(e.ts).getDay()]+=e.amount; });
+          const fri=bD[5],sat=bD[6],wkA=(bD[1]+bD[2]+bD[3]+bD[4])/4||1;
+          let tip={icon:"✅",text:"Your spending looks balanced. Keep logging to see more patterns."};
+          if(income>0&&tAll/income>0.8) tip={icon:"🚨",text:"Over 80% of income spent. Try withdrawing only what you plan to use — leave the rest in your account."};
+          else if(tAll>0&&fA/tAll>0.4) tip={icon:"🍜",text:`Food is ${Math.round((fA/tAll)*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam. Malaking tipid over a month.`};
+          else if(tAll>0&&sA/tAll>0.25) tip={icon:"🛍️",text:"Wait 48 hours before any purchase over ₱500. Madalas, mawawala na yung gusto mo."};
+          else if(fri>wkA*1.8||sat>wkA*1.8) tip={icon:"📅",text:"Weekends are where your money disappears. Set a cash allowance on Friday morning — once it's gone, it's gone."};
+          tabs.push({ key:"tip", bg:`${C.accent}07`, border:`1px solid ${C.accent}25`,
+            content:(<div style={{ display:"flex", gap:10, alignItems:"flex-start" }}><span style={{ fontSize:22, flexShrink:0 }}>{tip.icon}</span><p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{tip.text}</p></div>)
+          });
+        }
+        if(tabs.length===0) return null;
+        const si=Math.min(insightTab,tabs.length-1);
+        const t=tabs[si];
+        return (
+          <div style={{ paddingTop:6, borderTop:`1px solid ${C.border}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Insights</p>
+              {tabs.length>1&&(
+                <div style={{ display:"flex", gap:5 }}>
+                  {tabs.map((_,i)=>(
+                    <button key={i} onClick={()=>setInsightTab(i)} className="tap-btn"
+                      style={{ width:i===si?18:6, height:6, borderRadius:99, background:i===si?C.accent:C.border, border:"none", cursor:"pointer", transition:"all 0.2s", padding:0 }}/>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Card style={{ background:t.bg, border:t.border, padding:"14px 16px" }}>
+              {t.content}
             </Card>
-          );
-        })()}
-      </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
