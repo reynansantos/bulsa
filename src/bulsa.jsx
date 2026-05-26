@@ -268,6 +268,27 @@ function WalletIcon({ wallet, size=22 }) {
 const SEED_LOANS = [];
 const SEED_GOALS = [];
 
+// ─── BULSA LOGO ────────────────────────────────────────────────────────────
+// Matches the actual app icon: orange rounded square + white serif "b"
+function BulsaLogo({ size = 64, radius }) {
+  const r = radius ?? Math.round(size * 0.22);
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" rx={r ?? 22} fill="#F26B2B"/>
+      {/* Serif lowercase "b" — matches the actual icon */}
+      <text
+        x="50" y="76"
+        textAnchor="middle"
+        fill="white"
+        fontSize="72"
+        fontWeight="700"
+        fontFamily="Georgia, 'Times New Roman', serif"
+        letterSpacing="-2"
+      >b</text>
+    </svg>
+  );
+}
+
 const fmt    = n  => "₱" + Math.round(n).toLocaleString();
 const useFmt = () => { const h = useHide(); return n => h ? mask : fmt(n); };
 const catOf  = id => CATS.find(c => c.id === id) || CATS[7];
@@ -2469,31 +2490,8 @@ RULES:
 
 // ─── ONBOARDING ────────────────────────────────────────────────────────────
 
-function BulsaLogo({ size=48 }) {
-  const r = Math.round(size * 0.224);
-  const p = size * 0.18; // padding inside the box
-  const w = size - p * 2;
-  // Pocket shape: rectangle with a rounded U cutout at the top
-  const cx = size / 2;
-  const top = p + w * 0.08;
-  const bot = size - p;
-  const pw  = w * 0.72; // pocket width
-  const ph  = w * 0.58; // pocket height
-  const pr  = pw * 0.38; // corner radius of pocket arc
-  const px  = cx - pw / 2;
-  const py  = top + w * 0.16;
-  return (
-    <div style={{ width:size, height:size, borderRadius:r, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 20px ${C.accentGlow}`, flexShrink:0 }}>
-      <svg width={size*0.62} height={size*0.62} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Outer pocket body */}
-        <rect x="4" y="10" width="32" height="24" rx="5" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
-        {/* Pocket top flap / opening arc */}
-        <path d="M13 10 Q13 4 20 4 Q27 4 27 10" stroke="rgba(255,255,255,0.9)" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
-        {/* Coin slot line */}
-        <line x1="14" y1="22" x2="26" y2="22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    </div>
-  );
+function BulsaLogoOnboard({ size=48 }) {
+  return <BulsaLogo size={size}/>;
 }
 
 function Onboarding({ onDone }) {
@@ -6398,12 +6396,9 @@ function LoginScreen({ onLogin, loading, error }) {
 
         {/* Logo */}
         <div style={{ textAlign:"center" }}>
-          <div style={{
-            width:80, height:80, borderRadius:24, background:C.gradAccent,
-            display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:36, marginBottom:16, boxShadow:`0 8px 32px ${C.accentGlow}`,
-            margin:"0 auto 16px",
-          }}>💰</div>
+          <div style={{ margin:"0 auto 16px", width:80, height:80 }}>
+            <BulsaLogo size={80}/>
+          </div>
           <h1 style={{ margin:"0 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:36, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa.</h1>
           <p style={{ margin:0, fontSize:15, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your money. Finally under control.</p>
         </div>
@@ -6619,8 +6614,8 @@ export default function Bulsa() {
         theme_color: "#0A1628",
         orientation: "portrait",
         icons: [
-          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23F59E0B'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23111'%3E💰%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
-          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23F59E0B'/%3E%3Ctext x='256' y='340' font-size='300' text-anchor='middle' fill='%23111'%3E💰%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" },
+          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%23F26B2B'/%3E%3Ctext x='96' y='148' font-size='138' text-anchor='middle' fill='white' font-weight='700' font-family='Georgia,serif'%3Eb%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+          { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23F26B2B'/%3E%3Ctext x='256' y='395' font-size='368' text-anchor='middle' fill='white' font-weight='700' font-family='Georgia,serif'%3Eb%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" },
         ],
         shortcuts: [
           { name: "Add Expense", short_name: "Add", description: "Quickly log an expense", url: "/?action=add", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='20' fill='%23F59E0B'/%3E%3Ctext x='48' y='65' font-size='55' text-anchor='middle' fill='%23111'%3E+%3C/text%3E%3C/svg%3E", sizes: "96x96" }] },
@@ -6757,7 +6752,7 @@ export default function Bulsa() {
       <div style={{ background:C.bg, height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center" }}>
         <GlobalStyles/>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
-          <div style={{ width:56, height:56, borderRadius:16, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>💰</div>
+          <BulsaLogo size={56}/>
           <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, color:C.textSub, animation:"pulse 1.5s ease infinite" }}>Loading bulsa…</p>
         </div>
       </div>
