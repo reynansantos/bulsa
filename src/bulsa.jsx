@@ -2181,7 +2181,7 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 // ─── CHAT SCREEN ────────────────────────────────────────────────────────────
 
-function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name }) {
+function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name, initialMessage="" }) {
   const fmt = useFmt();
   const [messages, setMessages] = useState([
     {
@@ -2200,6 +2200,18 @@ function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans,
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [messages]);
+
+  // Auto-send when arriving from home screen quick-log field
+  useEffect(() => {
+    if (!initialMessage.trim()) return;
+    setInput(initialMessage);
+    // Small delay so the component is fully mounted before firing
+    const t = setTimeout(() => {
+      setInput(initialMessage);
+      inputRef.current?.focus();
+    }, 120);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build full financial context snapshot for Claude
   const buildContext = () => {
@@ -2949,10 +2961,11 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, onQuickLog, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
   const fmt = useFmt();
   const [walletsHidden,  setWalletsHidden]  = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [quickLogInput, setQuickLogInput]  = useState("");
   const [activeInsight,  setActiveInsight]  = useState(0);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
@@ -3382,22 +3395,38 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ── QUICK LOG SHORTCUT ── the most important action ── */}
-      <button onClick={onAdd} className="tap-btn" style={{
-        width:"100%", background:C.card, border:`1.5px dashed ${C.accent}50`,
-        borderRadius:16, padding:"13px 18px", cursor:"pointer",
-        display:"flex", alignItems:"center", gap:12, zIndex:1,
-        transition:"border-color 0.2s, background 0.2s",
-      }}>
-        <div style={{ width:36, height:36, borderRadius:11, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
-          <span style={{ fontSize:18 }}>+</span>
+      {/* ── QUICK LOG FIELD ── type to chat, tap + for manual form ── */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", zIndex:1 }}>
+        <div style={{ flex:1, background:C.card, border:`1.5px solid ${C.border}`, borderRadius:16, padding:"0 16px", display:"flex", alignItems:"center", gap:10, transition:"border-color 0.2s" }}
+          onFocus={e=>e.currentTarget.style.borderColor=C.accent+"80"}
+          onBlur={e=>e.currentTarget.style.borderColor=C.border}>
+          <span style={{ fontSize:16, flexShrink:0 }}>💬</span>
+          <input
+            value={quickLogInput}
+            onChange={e=>setQuickLogInput(e.target.value)}
+            onKeyDown={e=>{
+              if (e.key==="Enter" && quickLogInput.trim()) {
+                onQuickLog && onQuickLog(quickLogInput.trim());
+                setQuickLogInput("");
+              }
+            }}
+            placeholder='Log an expense... "Jollibee 180"'
+            style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", padding:"13px 0", caretColor:C.accent }}
+          />
+          {quickLogInput.trim() && (
+            <button
+              onClick={()=>{ onQuickLog&&onQuickLog(quickLogInput.trim()); setQuickLogInput(""); }}
+              className="tap-btn"
+              style={{ background:C.gradAccent, border:"none", borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+              Send →
+            </button>
+          )}
         </div>
-        <div style={{ textAlign:"left" }}>
-          <p style={{ margin:"0 0 1px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>Tap to log an expense</p>
-        </div>
-        <div style={{ marginLeft:"auto", color:C.accent, fontSize:18, opacity:0.6 }}>›</div>
-      </button>
+        <button onClick={onAdd} className="tap-btn"
+          style={{ width:46, height:46, borderRadius:14, background:C.gradAccent, border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+          <span style={{ fontSize:20, color:"#fff", fontWeight:800, lineHeight:1 }}>+</span>
+        </button>
+      </div>
 
       {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
       {sharpInsight && (
@@ -3683,7 +3712,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
             <>
               {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>onDetail&&onDetail(e)}>
+                <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                     {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
                     <div style={{ flex:1 }}>
@@ -6471,9 +6500,8 @@ export default function Bulsa() {
   // ── App state (localStorage as local cache) ───────────────────────────────
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
-  const [addOpen,     setAddOpen]     = useState(false);
-  const [homeDetail,   setHomeDetail]   = useState(null);
-  const [homeEditExp,  setHomeEditExp]  = useState(null);
+  const [addOpen,      setAddOpen]      = useState(false);
+  const [quickLogText, setQuickLogText] = useState("");
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
   const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
   const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
@@ -6720,10 +6748,6 @@ export default function Bulsa() {
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
-  const handleHomeEdit     = useCallback(exp => { setHomeDetail(null); setTimeout(()=>setHomeEditExp(exp), 300); }, []);
-  const handleHomeSaveEdit = useCallback(updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e)), []);
-  const handleHomeDelete   = useCallback(id => { setExpenses(prev=>prev.filter(e=>e.id!==id)); setHomeDetail(null); }, []);
-  const handleHomeAddPhoto = useCallback((id, photo) => { setExpenses(prev=>prev.map(e=>e.id===id?{...e,photo}:e)); setHomeDetail(prev=>prev&&prev.id===id?{...prev,photo}:prev); }, []);
   const handleDeductWallet = useCallback((walletId, amount) => {
     setWallets(prev => prev.map(w =>
       w.id === walletId ? { ...w, balance: Math.max(w.balance - amount, 0) } : w
@@ -6739,7 +6763,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onDetail={setHomeDetail} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={(txt)=>{ setQuickLogText(txt); setScreen("chat"); }} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -6749,7 +6773,7 @@ export default function Bulsa() {
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
-    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
+    chat:     <ChatScreen key={quickLogText||"chat"} expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name} initialMessage={quickLogText}/>,
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -6817,8 +6841,6 @@ export default function Bulsa() {
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
-            {homeDetail&&<ExpenseDetail expense={homeDetail} onClose={()=>setHomeDetail(null)} onEdit={handleHomeEdit} onDelete={handleHomeDelete} onAddPhoto={handleHomeAddPhoto}/>}
-            {homeEditExp&&<AddExpenseSheet editExpense={homeEditExp} onClose={()=>setHomeEditExp(null)} onSave={handleHomeSaveEdit} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
         )}
       </div>
