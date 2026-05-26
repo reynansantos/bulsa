@@ -2837,6 +2837,15 @@ function Onboarding({ onDone }) {
         style={{ background:step===0&&!name.trim()?C.border:C.gradAccent, color:"#fff", border:"none", borderRadius:16, padding:"18px 0", fontSize:16, fontWeight:800, fontFamily:"DM Sans,sans-serif", cursor:step===0&&!name.trim()?"not-allowed":"pointer", zIndex:1, width:"100%", marginTop:16, boxShadow:step===0&&!name.trim()?"none":`0 8px 32px ${C.accentGlow}`, transition:"all 0.2s", flexShrink:0 }}>
         {step === TOTAL_STEPS - 1 ? "Open bulsa →" : step === 2 && wallets.length === 0 ? "Skip for now →" : "Continue →"}
       </button>
+
+      {/* Try without account — only on step 0 */}
+      {step === 0 && (
+        <button
+          onClick={()=>onDone({ name:"", income:0, wallets:[], payday:"15th30th" })}
+          style={{ background:"none", border:"none", color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:600, cursor:"pointer", marginTop:10, padding:"6px 0", zIndex:1, textDecoration:"underline", textUnderlineOffset:3 }}>
+          Try without setting up →
+        </button>
+      )}
     </div>
   );
 }
@@ -6907,7 +6916,7 @@ export default function Bulsa() {
         {/* Sync status pill */}
         {syncStatus !== "idle" && (
           <div style={{
-            position:"fixed", top:12, left:"50%", transform:"translateX(-50%)",
+            position:"fixed", top:"calc(12px + env(safe-area-inset-top))", left:"50%", transform:"translateX(-50%)",
             background: syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.surface,
             border:`1px solid ${syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.border}`,
             borderRadius:99, padding:"5px 14px", zIndex:999,
