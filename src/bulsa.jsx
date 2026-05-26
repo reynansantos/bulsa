@@ -3683,7 +3683,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
             <>
               {todayExps.slice(0,4).map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (
-                <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>{}}>
+                <Card key={e.id} style={{ padding:"12px 14px" }} onClick={()=>onDetail&&onDetail(e)}>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                     {e.photo?<img src={e.photo} alt={e.name} style={{ width:42, height:42, borderRadius:12, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:42, height:42, borderRadius:12, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{c.icon}</div>}
                     <div style={{ flex:1 }}>
@@ -5922,7 +5922,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budg
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday, onSignOut, user, guestMode=false, onGuestUpgrade }) {
+function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
@@ -6372,24 +6372,8 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 
       <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
 
-      {/* Guest mode — upgrade nudge */}
-      {guestMode && (
-        <div style={{ background:`${C.accent}10`, border:`1.5px solid ${C.accent}40`, borderRadius:16, padding:"16px" }}>
-          <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-            💾 Your data is device-only
-          </p>
-          <p style={{ margin:"0 0 12px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Sign in with Google to back up your expenses and access them from any device. Free, always.
-          </p>
-          <button onClick={onGuestUpgrade} className="tap-btn"
-            style={{ width:"100%", background:C.gradAccent, border:"none", borderRadius:12, padding:"12px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-            Sign in to sync →
-          </button>
-        </div>
-      )}
-
       {/* Sign out */}
-      {onSignOut && !guestMode && (
+      {onSignOut && (
         <button onClick={onSignOut} className="tap-btn"
           style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:12, padding:"11px", color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
           {user?.displayName ? `Sign out (${user.displayName})` : "Sign out"}
@@ -6400,7 +6384,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 }
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
-function LoginScreen({ onLogin, loading, error, onGuest }) {
+function LoginScreen({ onLogin, loading, error }) {
   return (
     <div style={{
       background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
@@ -6465,31 +6449,8 @@ function LoginScreen({ onLogin, loading, error, onGuest }) {
           )}
 
           <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Synced to your Google account. No ads. No selling your data.
-          </p>
-
-          {/* Divider */}
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ flex:1, height:1, background:C.border }}/>
-            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or</span>
-            <div style={{ flex:1, height:1, background:C.border }}/>
-          </div>
-
-          {/* Guest / Try without account */}
-          <button onClick={onGuest} className="tap-btn"
-            style={{
-              width:"100%", padding:"15px 24px", borderRadius:16,
-              background:"none", border:`1.5px solid ${C.border}`,
-              cursor:"pointer", display:"flex", alignItems:"center",
-              justifyContent:"center", gap:10,
-            }}>
-            <span style={{ fontSize:18 }}>👀</span>
-            <span style={{ fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>
-              Try without account
-            </span>
-          </button>
-          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Stays on this device only. Sign in later to back up and sync.
+            Your data is synced to your Google account and stays private.
+            No ads. No selling your data.
           </p>
         </div>
 
@@ -6506,12 +6467,13 @@ export default function Bulsa() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError,   setLoginError]   = useState("");
   const [syncStatus,   setSyncStatus]   = useState("idle"); // idle | saving | saved | error
-  const [guestMode,    setGuestMode]    = useState(() => localStorage.getItem("bulsa_guest_mode") === "true");
 
   // ── App state (localStorage as local cache) ───────────────────────────────
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
-  const [addOpen,   setAddOpen]   = useState(false);
+  const [addOpen,     setAddOpen]     = useState(false);
+  const [homeDetail,   setHomeDetail]   = useState(null);
+  const [homeEditExp,  setHomeEditExp]  = useState(null);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
   const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
   const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
@@ -6601,7 +6563,7 @@ export default function Bulsa() {
 
   // Trigger save whenever any key data changes
   useEffect(() => {
-    if (user && !guestMode) saveToFirestore();
+    if (user) saveToFirestore();
   }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
@@ -6623,17 +6585,6 @@ export default function Bulsa() {
   const handleSignOut = async () => {
     await signOut(auth);
     setUser(null);
-  };
-
-  const handleGuestMode = () => {
-    localStorage.setItem("bulsa_guest_mode", "true");
-    setGuestMode(true);
-  };
-
-  const handleGuestUpgrade = () => {
-    // Clear guest flag — after Google login they get full sync
-    localStorage.removeItem("bulsa_guest_mode");
-    setGuestMode(false);
   };
 
   // ── PWA install prompt ────────────────────────────────────────────────────
@@ -6769,6 +6720,10 @@ export default function Bulsa() {
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
+  const handleHomeEdit     = useCallback(exp => { setHomeDetail(null); setTimeout(()=>setHomeEditExp(exp), 300); }, []);
+  const handleHomeSaveEdit = useCallback(updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e)), []);
+  const handleHomeDelete   = useCallback(id => { setExpenses(prev=>prev.filter(e=>e.id!==id)); setHomeDetail(null); }, []);
+  const handleHomeAddPhoto = useCallback((id, photo) => { setExpenses(prev=>prev.map(e=>e.id===id?{...e,photo}:e)); setHomeDetail(prev=>prev&&prev.id===id?{...prev,photo}:prev); }, []);
   const handleDeductWallet = useCallback((walletId, amount) => {
     setWallets(prev => prev.map(w =>
       w.id === walletId ? { ...w, balance: Math.max(w.balance - amount, 0) } : w
@@ -6784,7 +6739,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onDetail={setHomeDetail} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -6793,7 +6748,7 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user} guestMode={guestMode} onGuestUpgrade={async()=>{ handleGuestUpgrade(); await handleGoogleLogin(); }}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
     chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
   };
 
@@ -6811,8 +6766,8 @@ export default function Bulsa() {
   }
 
   // ── Not logged in ────────────────────────────────────────────────────────
-  if (!user && !guestMode) {
-    return <LoginScreen onLogin={handleGoogleLogin} loading={loginLoading} error={loginError} onGuest={handleGuestMode}/>;
+  if (!user) {
+    return <LoginScreen onLogin={handleGoogleLogin} loading={loginLoading} error={loginError}/>;
   }
 
   // ── Logged in ────────────────────────────────────────────────────────────
@@ -6862,6 +6817,8 @@ export default function Bulsa() {
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+            {homeDetail&&<ExpenseDetail expense={homeDetail} onClose={()=>setHomeDetail(null)} onEdit={handleHomeEdit} onDelete={handleHomeDelete} onAddPhoto={handleHomeAddPhoto}/>}
+            {homeEditExp&&<AddExpenseSheet editExpense={homeEditExp} onClose={()=>setHomeEditExp(null)} onSave={handleHomeSaveEdit} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
           </>
         )}
       </div>
