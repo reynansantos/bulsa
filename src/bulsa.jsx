@@ -6207,7 +6207,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 }
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
-function LoginScreen({ onLogin, loading, error }) {
+function LoginScreen({ onLogin, onGuest, loading, error }) {
   return (
     <div style={{
       background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
@@ -6243,8 +6243,9 @@ function LoginScreen({ onLogin, loading, error }) {
           ))}
         </div>
 
-        {/* Google Sign-In button */}
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+        {/* Buttons */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
+          {/* Google Sign-In */}
           <button onClick={onLogin} disabled={loading} className="tap-btn"
             style={{
               width:"100%", padding:"16px 24px", borderRadius:16,
@@ -6253,7 +6254,6 @@ function LoginScreen({ onLogin, loading, error }) {
               boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
               transition:"opacity 0.2s",
             }}>
-            {/* Google "G" SVG mark */}
             <svg width="22" height="22" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -6265,6 +6265,27 @@ function LoginScreen({ onLogin, loading, error }) {
             </span>
           </button>
 
+          {/* Divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, height:1, background:C.border }}/>
+            <span style={{ fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or</span>
+            <div style={{ flex:1, height:1, background:C.border }}/>
+          </div>
+
+          {/* Guest button */}
+          <button onClick={onGuest} className="tap-btn"
+            style={{
+              width:"100%", padding:"15px 24px", borderRadius:16,
+              background:"none", border:`1.5px solid ${C.border}`,
+              cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+              transition:"border-color 0.2s",
+            }}>
+            <span style={{ fontSize:18 }}>👤</span>
+            <span style={{ fontSize:15, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              Continue as Guest
+            </span>
+          </button>
+
           {error && (
             <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
               {error}
@@ -6272,8 +6293,8 @@ function LoginScreen({ onLogin, loading, error }) {
           )}
 
           <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Your data is synced to your Google account and stays private.
-            No ads. No selling your data.
+            Google sync keeps your data safe across devices.<br/>
+            Guest mode saves locally on this device only.
           </p>
         </div>
 
@@ -6382,9 +6403,9 @@ export default function Bulsa() {
     }, 1200);
   }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
 
-  // Trigger save whenever any key data changes
+  // Trigger save whenever any key data changes (skip for guests — localStorage only)
   useEffect(() => {
-    if (user) saveToFirestore();
+    if (user && !user.isGuest) saveToFirestore();
   }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
@@ -6581,9 +6602,15 @@ export default function Bulsa() {
     );
   }
 
+  // ── Guest login ──────────────────────────────────────────────────────────
+  const handleGuestLogin = () => {
+    // Set a local guest user — no Firebase, no sync, data stays in localStorage
+    setUser({ uid:"guest", isGuest:true, displayName:"Guest", email:null });
+  };
+
   // ── Not logged in ────────────────────────────────────────────────────────
   if (!user) {
-    return <LoginScreen onLogin={handleGoogleLogin} loading={loginLoading} error={loginError}/>;
+    return <LoginScreen onLogin={handleGoogleLogin} onGuest={handleGuestLogin} loading={loginLoading} error={loginError}/>;
   }
 
   // ── Logged in ────────────────────────────────────────────────────────────
@@ -6594,8 +6621,21 @@ export default function Bulsa() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
+        {/* Guest mode banner */}
+        {user?.isGuest && (
+          <div style={{ background:`${C.gold}12`, borderBottom:`1px solid ${C.gold}30`, padding:"8px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexShrink:0 }}>
+            <p style={{ margin:0, fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+              👤 Guest mode — data saved on this device only
+            </p>
+            <button onClick={handleGoogleLogin} className="tap-btn"
+              style={{ background:"none", border:`1px solid ${C.gold}50`, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:11, fontWeight:800, color:C.gold, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+              Sign in
+            </button>
+          </div>
+        )}
+
         {/* Sync status pill */}
-        {syncStatus !== "idle" && (
+        {!user?.isGuest && syncStatus !== "idle" && (
           <div style={{
             position:"fixed", top:12, left:"50%", transform:"translateX(-50%)",
             background: syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.surface,
