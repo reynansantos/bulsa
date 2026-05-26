@@ -1063,6 +1063,9 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 
   const [aiPreview,  setAiPreview]  = useState(null); // parsed result awaiting confirm
   const [aiRetrying, setAiRetrying] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);  // receipt scan in progress
+  const [ocrError,   setOcrError]   = useState("");
+  const receiptRef = useRef(null);
 
   const applyParsed = (parsed) => {
     if (parsed.amount > 0)                                       setAmount(String(parsed.amount));
@@ -1164,6 +1167,95 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
     setAiRetrying(false);
   };
 
+  // ── Receipt OCR via Claude vision ──────────────────────────────────────────
+  const parseReceiptWithAI = async (base64DataUrl) => {
+    setOcrLoading(true);
+    setOcrError("");
+    setAiPreview(null);
+    setAiInput("");
+
+    // Strip the data:image/...;base64, prefix — Claude API needs raw base64
+    const base64 = base64DataUrl.split(",")[1];
+    const mediaType = base64DataUrl.match(/data:(image\/\w+);/)?.[1] || "image/jpeg";
+
+    const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+    const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
+
+    try {
+      const res = await Promise.race([
+        fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 200,
+            system: `You are a Filipino receipt scanner. Extract the total amount and merchant/item name from the receipt image. Return ONLY a raw JSON object, no markdown, no explanation.
+Categories: ${catList}
+Moods: ${moodList}
+Shape: {"name":"string","amount":number,"catId":"string","moodId":null,"note":"string|null"}
+Rules: name=merchant or main item (capitalize), amount=TOTAL amount paid (number only, 0 if unclear), catId=best match, moodId=null for receipts.
+If the receipt is unclear or not a receipt, return {"name":"","amount":0,"catId":"other","moodId":null,"note":null}`,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+                { type: "text",  text: "Extract the expense from this receipt." }
+              ]
+            }]
+          })
+        }),
+        new Promise((_,reject) => setTimeout(()=>reject(new Error("timeout")), 15000))
+      ]);
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.type === "error") throw new Error(data.error?.message || "API error");
+
+      const raw   = data.content?.[0]?.text || "";
+      const clean = raw.replace(/```[\w]*
+?/g,"").replace(/```/g,"").trim();
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("no JSON");
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      parsed.amount = parseFloat(parsed.amount) || 0;
+      if (!CATS.find(c=>c.id===parsed.catId)) parsed.catId = "other";
+      parsed.moodId = null;
+      parsed.fromReceipt = true;
+
+      if (parsed.amount === 0 && !parsed.name) {
+        setOcrError("Hindi mabasahan ang resibo. Try taking a clearer photo, or type the expense instead.");
+        setOcrLoading(false);
+        return;
+      }
+
+      setAiPreview({ ...parsed, usedFallback: false });
+    } catch(e) {
+      setOcrError(`Scan failed: ${e.message || "unknown error"}. Try again or type it manually.`);
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const handleReceiptFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      // Use larger maxWidth for OCR — need text to be readable
+      const compressed = await compressImage(f, 1200, 0.85);
+      await parseReceiptWithAI(compressed);
+    } catch {
+      setOcrError("Could not read the image. Please try again.");
+      setOcrLoading(false);
+    }
+    // Reset file input so same file can be re-selected
+    if (receiptRef.current) receiptRef.current.value = "";
+  };
+
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
   // Auto-focus name field when reaching step 1
   useEffect(()=>{ if (step===1) setTimeout(()=>nameRef.current?.focus(), 80); }, [step]);
@@ -1253,6 +1345,46 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
               {/* AI describe mode */}
               {aiMode&&(
                 <div style={{ marginBottom:16 }}>
+                  {/* Hidden receipt file input */}
+                  <input ref={receiptRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={handleReceiptFile}/>
+
+                  {/* Receipt scan button */}
+                  {!aiPreview && (
+                    <button
+                      onClick={()=>receiptRef.current?.click()}
+                      disabled={ocrLoading || !isOnline}
+                      className="tap-btn"
+                      style={{ width:"100%", marginBottom:10, padding:"13px", borderRadius:14,
+                        border:`1.5px dashed ${ocrLoading?C.accent+"60":!isOnline?C.border:C.accent+"50"}`,
+                        background: ocrLoading?`${C.accent}08`:C.card,
+                        cursor: ocrLoading||!isOnline?"not-allowed":"pointer",
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+                        opacity: !isOnline ? 0.5 : 1,
+                      }}>
+                      <span style={{ fontSize:22 }}>{ocrLoading?"⏳":"📸"}</span>
+                      <div style={{ textAlign:"left" }}>
+                        <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:ocrLoading?C.accent:C.text, fontFamily:"DM Sans,sans-serif" }}>
+                          {ocrLoading ? "Reading receipt…" : "Scan a receipt"}
+                        </p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                          {!isOnline ? "Needs internet connection" : "Camera or gallery — AI reads it for you"}
+                        </p>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* OCR error */}
+                  {ocrError && <p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{ocrError}</p>}
+
+                  {/* Divider between scan and type */}
+                  {!aiPreview && !ocrLoading && (
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                      <div style={{ flex:1, height:1, background:C.border }}/>
+                      <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or type it</span>
+                      <div style={{ flex:1, height:1, background:C.border }}/>
+                    </div>
+                  )}
+
                   {/* Input row */}
                   {!isOnline&&<p style={{ margin:"0 0 8px", fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>📵 Offline — using smart local parser. Works the same, just no AI.</p>}
                   <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":!isOnline?C.gold+"50":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
@@ -1288,7 +1420,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
                   {aiPreview&&!aiError&&(
                     <div style={{ background:`${C.green}0E`, border:`1.5px solid ${C.green}40`, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
                       <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-                        {aiPreview.usedFallback ? "Quick parse -- does this look right?" : "AI parsed -- confirm?"}
+                        {aiPreview.fromReceipt ? "📸 Receipt scanned — confirm?" : aiPreview.usedFallback ? "Quick parse — does this look right?" : "AI parsed — confirm?"}
                       </p>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                         {[
@@ -6772,24 +6904,20 @@ export default function Bulsa() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
-        {/* Sync status pill — sits above nav bar, clear of Dynamic Island */}
+        {/* Sync status pill */}
         {syncStatus !== "idle" && (
           <div style={{
-            position:"fixed",
-            bottom:`calc(98px + env(safe-area-inset-bottom))`,
-            left:"50%", transform:"translateX(-50%)",
+            position:"fixed", top:12, left:"50%", transform:"translateX(-50%)",
             background: syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.surface,
-            border:`1px solid ${syncStatus==="error" ? C.coral+"80" : syncStatus==="saved" ? C.green+"80" : C.border}`,
-            borderRadius:99, padding:"6px 16px", zIndex:999,
-            display:"flex", alignItems:"center", gap:6,
-            boxShadow:"0 4px 16px rgba(0,0,0,0.35)",
+            border:`1px solid ${syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.border}`,
+            borderRadius:99, padding:"5px 14px", zIndex:999,
+            display:"flex", alignItems:"center", gap:6, boxShadow:"0 2px 12px rgba(0,0,0,0.3)",
             animation:"fadeIn 0.2s ease",
-            whiteSpace:"nowrap",
           }}>
-            <span style={{ fontSize:11 }}>
+            <span style={{ fontSize:10 }}>
               {syncStatus==="saving" ? "⏳" : syncStatus==="saved" ? "✅" : "❌"}
             </span>
-            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:700,
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:700,
               color: syncStatus==="error" ? "#fff" : syncStatus==="saved" ? "#111" : C.text }}>
               {syncStatus==="saving" ? "Syncing…" : syncStatus==="saved" ? "Saved to cloud" : "Sync failed"}
             </span>
