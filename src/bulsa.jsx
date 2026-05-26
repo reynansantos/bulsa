@@ -2181,7 +2181,7 @@ function NavBar({ screen, setScreen, onAdd }) {
 
 // ─── CHAT SCREEN ────────────────────────────────────────────────────────────
 
-function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name, initialMessage="" }) {
+function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans, utangs, goals, budgets, subs, payday, dailyLimit, name }) {
   const fmt = useFmt();
   const [messages, setMessages] = useState([
     {
@@ -2200,18 +2200,6 @@ function ChatScreen({ expenses, setExpenses, income, wallets, setWallets, loans,
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [messages]);
-
-  // Auto-send when arriving from home screen quick-log field
-  useEffect(() => {
-    if (!initialMessage.trim()) return;
-    setInput(initialMessage);
-    // Small delay so the component is fully mounted before firing
-    const t = setTimeout(() => {
-      setInput(initialMessage);
-      inputRef.current?.focus();
-    }, 120);
-    return () => clearTimeout(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build full financial context snapshot for Claude
   const buildContext = () => {
@@ -2961,11 +2949,10 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, onQuickLog, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
   const fmt = useFmt();
   const [walletsHidden,  setWalletsHidden]  = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const [quickLogInput, setQuickLogInput]  = useState("");
   const [activeInsight,  setActiveInsight]  = useState(0);
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
@@ -3395,38 +3382,22 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       </div>
 
-      {/* ── QUICK LOG FIELD ── type to chat, tap + for manual form ── */}
-      <div style={{ display:"flex", gap:8, alignItems:"center", zIndex:1 }}>
-        <div style={{ flex:1, background:C.card, border:`1.5px solid ${C.border}`, borderRadius:16, padding:"0 16px", display:"flex", alignItems:"center", gap:10, transition:"border-color 0.2s" }}
-          onFocus={e=>e.currentTarget.style.borderColor=C.accent+"80"}
-          onBlur={e=>e.currentTarget.style.borderColor=C.border}>
-          <span style={{ fontSize:16, flexShrink:0 }}>💬</span>
-          <input
-            value={quickLogInput}
-            onChange={e=>setQuickLogInput(e.target.value)}
-            onKeyDown={e=>{
-              if (e.key==="Enter" && quickLogInput.trim()) {
-                onQuickLog && onQuickLog(quickLogInput.trim());
-                setQuickLogInput("");
-              }
-            }}
-            placeholder='Log an expense... "Jollibee 180"'
-            style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontFamily:"DM Sans,sans-serif", padding:"13px 0", caretColor:C.accent }}
-          />
-          {quickLogInput.trim() && (
-            <button
-              onClick={()=>{ onQuickLog&&onQuickLog(quickLogInput.trim()); setQuickLogInput(""); }}
-              className="tap-btn"
-              style={{ background:C.gradAccent, border:"none", borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
-              Send →
-            </button>
-          )}
+      {/* ── QUICK LOG SHORTCUT ── the most important action ── */}
+      <button onClick={onAdd} className="tap-btn" style={{
+        width:"100%", background:C.card, border:`1.5px dashed ${C.accent}50`,
+        borderRadius:16, padding:"13px 18px", cursor:"pointer",
+        display:"flex", alignItems:"center", gap:12, zIndex:1,
+        transition:"border-color 0.2s, background 0.2s",
+      }}>
+        <div style={{ width:36, height:36, borderRadius:11, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+          <span style={{ fontSize:18 }}>+</span>
         </div>
-        <button onClick={onAdd} className="tap-btn"
-          style={{ width:46, height:46, borderRadius:14, background:C.gradAccent, border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
-          <span style={{ fontSize:20, color:"#fff", fontWeight:800, lineHeight:1 }}>+</span>
-        </button>
-      </div>
+        <div style={{ textAlign:"left" }}>
+          <p style={{ margin:"0 0 1px", fontFamily:"DM Sans,sans-serif", fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>Tap to log an expense</p>
+        </div>
+        <div style={{ marginLeft:"auto", color:C.accent, fontSize:18, opacity:0.6 }}>›</div>
+      </button>
 
       {/* ── SHARP INSIGHT CARD ── one proactive observation ── */}
       {sharpInsight && (
@@ -6500,8 +6471,7 @@ export default function Bulsa() {
   // ── App state (localStorage as local cache) ───────────────────────────────
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
-  const [addOpen,      setAddOpen]      = useState(false);
-  const [quickLogText, setQuickLogText] = useState("");
+  const [addOpen,   setAddOpen]   = useState(false);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
   const [budgets,   setBudgets]   = useLocalStorage("bulsa_budgets", DEFAULT_BUDGETS);
   const [loans,     setLoans]     = useLocalStorage("bulsa_loans", SEED_LOANS);
@@ -6763,7 +6733,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={(txt)=>{ setQuickLogText(txt); setScreen("chat"); }} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -6773,7 +6743,7 @@ export default function Bulsa() {
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
-    chat:     <ChatScreen key={quickLogText||"chat"} expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name} initialMessage={quickLogText}/>,
+    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -6802,20 +6772,24 @@ export default function Bulsa() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
-        {/* Sync status pill */}
+        {/* Sync status pill — sits above nav bar, clear of Dynamic Island */}
         {syncStatus !== "idle" && (
           <div style={{
-            position:"fixed", top:12, left:"50%", transform:"translateX(-50%)",
+            position:"fixed",
+            bottom:`calc(98px + env(safe-area-inset-bottom))`,
+            left:"50%", transform:"translateX(-50%)",
             background: syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.surface,
-            border:`1px solid ${syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.border}`,
-            borderRadius:99, padding:"5px 14px", zIndex:999,
-            display:"flex", alignItems:"center", gap:6, boxShadow:"0 2px 12px rgba(0,0,0,0.3)",
+            border:`1px solid ${syncStatus==="error" ? C.coral+"80" : syncStatus==="saved" ? C.green+"80" : C.border}`,
+            borderRadius:99, padding:"6px 16px", zIndex:999,
+            display:"flex", alignItems:"center", gap:6,
+            boxShadow:"0 4px 16px rgba(0,0,0,0.35)",
             animation:"fadeIn 0.2s ease",
+            whiteSpace:"nowrap",
           }}>
-            <span style={{ fontSize:10 }}>
+            <span style={{ fontSize:11 }}>
               {syncStatus==="saving" ? "⏳" : syncStatus==="saved" ? "✅" : "❌"}
             </span>
-            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:700,
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, fontWeight:700,
               color: syncStatus==="error" ? "#fff" : syncStatus==="saved" ? "#111" : C.text }}>
               {syncStatus==="saving" ? "Syncing…" : syncStatus==="saved" ? "Saved to cloud" : "Sync failed"}
             </span>
