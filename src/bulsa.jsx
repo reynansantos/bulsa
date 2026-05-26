@@ -1216,8 +1216,7 @@ If the receipt is unclear or not a receipt, return {"name":"","amount":0,"catId"
       if (data.type === "error") throw new Error(data.error?.message || "API error");
 
       const raw   = data.content?.[0]?.text || "";
-      const clean = raw.replace(/```[\w]*
-?/g,"").replace(/```/g,"").trim();
+      const clean = raw.replace(/```[\w]*/g,"").replace(/```/g,"").replace(/\n/g,"").trim();
       const jsonMatch = clean.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("no JSON");
 
@@ -6618,17 +6617,8 @@ export default function Bulsa() {
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
-            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
-              {screen==="home"    && screens.home}
-              {screen==="expenses"&& screens.expenses}
-              {screen==="loans"   && screens.loans}
-              {screen==="goals"   && screens.goals}
-              {screen==="wallets" && screens.wallets}
-              {screen==="subs"    && screens.subs}
-              {screen==="utang"   && screens.utang}
-              {screen==="accounts"&& screens.accounts}
-              {screen==="survive" && screens.survive}
-              {screen==="profile" && screens.profile}
+            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
+
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
