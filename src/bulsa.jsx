@@ -2288,18 +2288,18 @@ function NavBar({ screen, setScreen, onAdd }) {
       display:"flex", justifyContent:"space-around", alignItems:"center",
       padding:`10px 8px calc(16px + env(safe-area-inset-bottom))`,
       background:C.surface, borderTop:`1px solid ${C.border}`,
-      position:"sticky", bottom:0, zIndex:100,
+      flexShrink:0, zIndex:100,
     }}>
       <NavIcon icon={Home}          active={screen==="home"}      label="Home"     onClick={()=>setScreen("home")}/>
       <NavIcon icon={Receipt}       active={screen==="expenses"}   label="Expenses" onClick={()=>setScreen("expenses")}/>
 
-      {/* Center + button — the core action, always here */}
+      {/* Center + button — no negative margin, stays inside navbar */}
       <button onClick={onAdd} className="tap-btn" style={{
         width:54, height:54, borderRadius:"50%", border:"none",
         background:C.gradAccent, color:"#fff", cursor:"pointer",
         display:"flex", alignItems:"center", justifyContent:"center",
         boxShadow:`0 6px 24px ${C.accentGlow}, 0 2px 8px rgba(0,0,0,0.4)`,
-        marginTop:-22, flexShrink:0,
+        flexShrink:0,
       }}>
         <Plus size={24} strokeWidth={2.5} color="#fff"/>
       </button>
@@ -2310,8 +2310,6 @@ function NavBar({ screen, setScreen, onAdd }) {
   );
 }
 
-
-// ─── CHAT SCREEN ────────────────────────────────────────────────────────────
 
 // ─── ONBOARDING ────────────────────────────────────────────────────────────
 
