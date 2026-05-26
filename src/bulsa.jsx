@@ -1,6 +1,33 @@
 import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
 import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat, MessageCircle, Send } from "lucide-react";
 
+// ─── FIREBASE ──────────────────────────────────────────────────────────────
+import { initializeApp }                                          from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc }                     from "firebase/firestore";
+
+// ─── FIREBASE CONFIG ───────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyAhhtYATWqo9m7yxRcfVPCkf3vLTJ8uLvo",
+  authDomain:        "bulsa-42de2.firebaseapp.com",
+  projectId:         "bulsa-42de2",
+  storageBucket:     "bulsa-42de2.firebasestorage.app",
+  messagingSenderId: "1018194840612",
+  appId:             "1:1018194840612:web:0afbce4ed0afb7d312dcb1",
+};
+const firebaseApp    = initializeApp(firebaseConfig);
+const auth           = getAuth(firebaseApp);
+const db             = getFirestore(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+
+// ─── FIRESTORE KEYS (what we save per user) ────────────────────────────────
+// Avatar is intentionally excluded — it's base64 and would bloat the document.
+// It stays in localStorage only.
+const FIRESTORE_FIELDS = [
+  "name","income","dailyLimit","payday","incomeSources","budgets",
+  "expenses","wallets","loans","goals","utangs","subs",
+];
+
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
 const useHide = () => useContext(HideCtx);
@@ -6346,6 +6373,93 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
       </div>
 
       <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
+
+      {/* Sign out */}
+      {onSignOut && (
+        <button onClick={onSignOut} className="tap-btn"
+          style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:12, padding:"11px", color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
+          {user?.displayName ? `Sign out (${user.displayName})` : "Sign out"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
+function LoginScreen({ onLogin, loading, error }) {
+  return (
+    <div style={{
+      background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
+      justifyContent:"center", padding:"0 24px",
+    }}>
+      <GlobalStyles/>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+      <div style={{ width:"100%", maxWidth:360, display:"flex", flexDirection:"column", alignItems:"center", gap:32, animation:"fadeIn 0.4s ease" }}>
+
+        {/* Logo */}
+        <div style={{ textAlign:"center" }}>
+          <div style={{
+            width:80, height:80, borderRadius:24, background:C.gradAccent,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:36, marginBottom:16, boxShadow:`0 8px 32px ${C.accentGlow}`,
+            margin:"0 auto 16px",
+          }}>💰</div>
+          <h1 style={{ margin:"0 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:36, fontWeight:800, color:C.text, letterSpacing:"-0.04em" }}>bulsa.</h1>
+          <p style={{ margin:0, fontSize:15, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your money. Finally under control.</p>
+        </div>
+
+        {/* Value props */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
+          {[
+            ["💸","Track every piso","Log expenses in seconds with AI chat"],
+            ["📅","Petsa de Peligro","Know exactly how long your money lasts"],
+            ["🤝","Utang tracker","Never forget who owes you — or who you owe"],
+          ].map(([icon, title, sub])=>(
+            <div key={title} style={{ display:"flex", alignItems:"center", gap:12, background:C.surface, borderRadius:14, padding:"12px 16px", border:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:22, flexShrink:0 }}>{icon}</span>
+              <div>
+                <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{title}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Google Sign-In button */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+          <button onClick={onLogin} disabled={loading} className="tap-btn"
+            style={{
+              width:"100%", padding:"16px 24px", borderRadius:16,
+              background:"#fff", border:"none", cursor:loading?"wait":"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+              boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
+              transition:"opacity 0.2s",
+            }}>
+            {/* Google "G" SVG mark */}
+            <svg width="22" height="22" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span style={{ fontSize:15, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
+              {loading ? "Signing in…" : "Continue with Google"}
+            </span>
+          </button>
+
+          {error && (
+            <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+              {error}
+            </p>
+          )}
+
+          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+            Your data is synced to your Google account and stays private.
+            No ads. No selling your data.
+          </p>
+        </div>
+
+      </div>
     </div>
   );
 }
@@ -6353,6 +6467,13 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 // ─── ROOT ──────────────────────────────────────────────────────────────────
 
 export default function Bulsa() {
+  // ── Auth state ────────────────────────────────────────────────────────────
+  const [user,       setUser]       = useState(undefined); // undefined = loading, null = logged out
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError,   setLoginError]   = useState("");
+  const [syncStatus,   setSyncStatus]   = useState("idle"); // idle | saving | saved | error
+
+  // ── App state (localStorage as local cache) ───────────────────────────────
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
@@ -6374,7 +6495,102 @@ export default function Bulsa() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
-  // Capture the beforeinstallprompt event (Android Chrome)
+  // ── Firebase auth listener ────────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        // Load data from Firestore for this user
+        try {
+          const docRef  = doc(db, "users", firebaseUser.uid, "bulsa", "data");
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const d = docSnap.data();
+            // Hydrate all state from Firestore (cloud wins over localStorage on login)
+            if (d.name          !== undefined) setName(d.name);
+            if (d.income        !== undefined) setIncome(d.income);
+            if (d.dailyLimit    !== undefined) setDailyLimit(d.dailyLimit);
+            if (d.payday        !== undefined) setPayday(d.payday);
+            if (d.incomeSources !== undefined) setIncomeSources(d.incomeSources);
+            if (d.budgets       !== undefined) setBudgets(d.budgets);
+            if (d.expenses      !== undefined) setExpenses(d.expenses);
+            if (d.wallets       !== undefined) setWallets(d.wallets);
+            if (d.loans         !== undefined) setLoans(d.loans);
+            if (d.goals         !== undefined) setGoals(d.goals);
+            if (d.utangs        !== undefined) setUtangs(d.utangs);
+            if (d.subs          !== undefined) setSubs(d.subs);
+            if (d.onboarded     !== undefined) setOnboarded(d.onboarded);
+          }
+          // New user — Firestore doc doesn't exist yet; localStorage is used
+        } catch (err) {
+          console.warn("Firestore load failed, using local data:", err);
+        }
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // ── Debounced Firestore save ───────────────────────────────────────────────
+  // Runs 1.2s after the last state change to avoid hammering Firestore
+  const saveTimer = useRef(null);
+  const saveToFirestore = useCallback(() => {
+    if (!auth.currentUser) return;
+    clearTimeout(saveTimer.current);
+    setSyncStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const docRef = doc(db, "users", auth.currentUser.uid, "bulsa", "data");
+        await setDoc(docRef, {
+          name, income, dailyLimit, payday,
+          incomeSources: incomeSources || [],
+          budgets:   budgets  || {},
+          expenses:  expenses || [],
+          wallets:   wallets  || [],
+          loans:     loans    || [],
+          goals:     goals    || [],
+          utangs:    utangs   || [],
+          subs:      subs     || [],
+          onboarded,
+          syncedAt: new Date().toISOString(),
+        }, { merge: true });
+        setSyncStatus("saved");
+        setTimeout(() => setSyncStatus("idle"), 2000);
+      } catch (err) {
+        console.warn("Firestore save failed:", err);
+        setSyncStatus("error");
+      }
+    }, 1200);
+  }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
+
+  // Trigger save whenever any key data changes
+  useEffect(() => {
+    if (user) saveToFirestore();
+  }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
+
+  // ── Google Sign-In ────────────────────────────────────────────────────────
+  const handleGoogleLogin = async () => {
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged above handles the rest
+    } catch (err) {
+      if (err.code !== "auth/popup-closed-by-user") {
+        setLoginError("Sign-in failed. Please try again.");
+      }
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    setUser(null);
+  };
+
+  // ── PWA install prompt ────────────────────────────────────────────────────
   useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
     window.addEventListener("beforeinstallprompt", handler);
@@ -6417,24 +6633,21 @@ export default function Bulsa() {
       const link = Object.assign(document.createElement("link"), { rel:"manifest", href:url });
       document.head.appendChild(link);
     }
-    // Theme color
     if (!document.querySelector('meta[name="theme-color"]')) {
       const meta = Object.assign(document.createElement("meta"), { name:"theme-color", content:"#0A1628" });
       document.head.appendChild(meta);
     }
-    // Apple PWA meta
     const appleProps = [
-      ["apple-mobile-web-app-capable",          "yes"],
-      ["apple-mobile-web-app-status-bar-style", "black-translucent"],
-      ["apple-mobile-web-app-title",            "bulsa."],
-      ["mobile-web-app-capable",                "yes"],
+      ["apple-mobile-web-app-capable","yes"],
+      ["apple-mobile-web-app-status-bar-style","black-translucent"],
+      ["apple-mobile-web-app-title","bulsa."],
+      ["mobile-web-app-capable","yes"],
     ];
     appleProps.forEach(([name, content]) => {
       if (!document.querySelector(`meta[name="${name}"]`)) {
         document.head.appendChild(Object.assign(document.createElement("meta"), { name, content }));
       }
     });
-    // Register service worker for offline support
     if ("serviceWorker" in navigator) {
       const swCode = `
         const CACHE = "bulsa-v${Date.now()}";
@@ -6461,28 +6674,22 @@ export default function Bulsa() {
     }
   }, []);
 
-  // ── URL action handler (Back Tap / Quick Tap / Shortcuts) ───────────────
+  // ── URL action handler ──────────────────────────────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const action = params.get("action");
     const amount = params.get("amount");
-    const cat    = params.get("cat"); // optional category hint
-
+    const cat    = params.get("cat");
     if (action === "add" && onboarded) {
-      // Pre-fill amount if provided, then open the sheet
       if (amount) {
-        // Store in sessionStorage so AddExpenseSheet can read it on open
         sessionStorage.setItem("bulsa_prefill_amount", amount);
         if (cat) sessionStorage.setItem("bulsa_prefill_cat", cat);
       }
-      // Small delay so the app finishes mounting first
       setTimeout(() => setAddOpen(true), 120);
-      // Clean URL so Back Tap doesn't re-trigger on re-open
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [onboarded]);
 
-  // Check for due-soon subs on mount and send notifications
   useEffect(()=>{
     if (typeof Notification === "undefined" || Notification?.permission!=="granted") return;
     const activeSubs = subs.filter(s=>s.active!==false);
@@ -6494,9 +6701,6 @@ export default function Bulsa() {
     });
   }, []);
 
-  // ── PWA swipe-back fix ──────────────────────────────────────────────────
-  // Push a history entry on every screen change so Safari's swipe-back
-  // navigates within the app instead of closing it.
   const navigateTo = useCallback((newScreen) => {
     if (newScreen === "home") {
       history.pushState({ screen:"home" }, "");
@@ -6507,24 +6711,15 @@ export default function Bulsa() {
   }, []);
 
   useEffect(() => {
-    // Seed initial history entry so there's always one to go back to
     history.replaceState({ screen:"home" }, "");
-
     const onPop = (e) => {
       const s = e.state?.screen;
-      if (s) {
-        setScreen(s);
-      } else {
-        // No state means we've gone back past our seed -- re-push it
-        history.pushState({ screen:"home" }, "");
-        setScreen("home");
-      }
+      if (s) { setScreen(s); }
+      else { history.pushState({ screen:"home" }, ""); setScreen("home"); }
     };
-
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  // ────────────────────────────────────────────────────────────────────────
 
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
@@ -6545,31 +6740,68 @@ export default function Bulsa() {
   const screens = {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
-    // legacy deep routes (still reachable from HomeScreen quick links)
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>,
-    // new combined screens
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
     chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
   };
 
+  // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
+  if (user === undefined) {
+    return (
+      <div style={{ background:C.bg, height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <GlobalStyles/>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
+          <div style={{ width:56, height:56, borderRadius:16, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>💰</div>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:14, color:C.textSub, animation:"pulse 1.5s ease infinite" }}>Loading bulsa…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Not logged in ────────────────────────────────────────────────────────
+  if (!user) {
+    return <LoginScreen onLogin={handleGoogleLogin} loading={loginLoading} error={loginError}/>;
+  }
+
+  // ── Logged in ────────────────────────────────────────────────────────────
   return (
     <HideCtx.Provider value={hidden}>
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
+
+        {/* Sync status pill */}
+        {syncStatus !== "idle" && (
+          <div style={{
+            position:"fixed", top:12, left:"50%", transform:"translateX(-50%)",
+            background: syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.surface,
+            border:`1px solid ${syncStatus==="error" ? C.coral : syncStatus==="saved" ? C.green : C.border}`,
+            borderRadius:99, padding:"5px 14px", zIndex:999,
+            display:"flex", alignItems:"center", gap:6, boxShadow:"0 2px 12px rgba(0,0,0,0.3)",
+            animation:"fadeIn 0.2s ease",
+          }}>
+            <span style={{ fontSize:10 }}>
+              {syncStatus==="saving" ? "⏳" : syncStatus==="saved" ? "✅" : "❌"}
+            </span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:11, fontWeight:700,
+              color: syncStatus==="error" ? "#fff" : syncStatus==="saved" ? "#111" : C.text }}>
+              {syncStatus==="saving" ? "Syncing…" : syncStatus==="saved" ? "Saved to cloud" : "Sync failed"}
+            </span>
+          </div>
+        )}
+
         {!onboarded?(
           <Onboarding onDone={handleOnboardDone}/>
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-              {/* Floating AI Chat bubble — visible on all screens except chat */}
               {screen!=="chat"&&(
                 <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
                   position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
