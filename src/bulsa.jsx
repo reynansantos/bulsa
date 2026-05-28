@@ -3134,33 +3134,47 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </div>
         </div>
 
-        {/* THE big number */}
+        {/* THE big number — always shows what's LEFT, not what's spent */}
         <div style={{ position:"relative", zIndex:1, marginBottom:14 }}>
           <p style={{ margin:"0 0 2px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-            {heroStatus.status==="zero" ? "Available to spend today"
-             : heroStatus.status==="empty" ? "Today's spend"
-             : "Spent today"}
+            {heroStatus.status==="over"  ? "Over budget by"
+             : heroStatus.status==="empty" ? "Log your first expense"
+             : "Left to spend today"}
           </p>
-          <div style={{ display:"flex", alignItems:"flex-end", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:10, marginBottom:6 }}>
             <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:46, fontWeight:800,
-              color: heroStatus.status==="zero" ? heroStatus.color
-                   : heroStatus.overLimit ? C.coral
-                   : heroStatus.nearLimit ? C.gold
-                   : C.text,
+              color: heroStatus.overLimit ? C.coral : heroStatus.nearLimit ? C.gold : heroStatus.color,
               letterSpacing:"-0.03em", lineHeight:1 }}>
               {hidden ? "₱••••"
-               : heroStatus.status==="zero"
-                 ? fmt(runway?.allowedPerDay || dailyLimit || 0)
-                 : fmt(heroStatus.todayTotal)}
+               : heroStatus.status==="over"
+                 ? fmt(Math.abs(heroStatus.todayTotal - (dailyLimit || runway?.allowedPerDay || 0)))
+                 : heroStatus.status==="empty"
+                 ? "₱0"
+                 : fmt(Math.max((runway?.allowedPerDay || dailyLimit || 0) - todaySpent, 0))}
             </h2>
-            {heroStatus.status==="zero" && (runway?.allowedPerDay || dailyLimit) ? (
-              <p style={{ margin:"0 0 8px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>daily budget</p>
-            ) : todayExpsAll.length > 0 ? (
-              <p style={{ margin:"0 0 8px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-                {todayExpsAll.length} item{todayExpsAll.length!==1?"s":""}
+            {(runway || dailyLimit > 0) && heroStatus.status !== "empty" && heroStatus.status !== "over" && (
+              <p style={{ margin:"0 0 9px", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                of {fmt(runway?.allowedPerDay || dailyLimit)}/day
               </p>
-            ) : null}
+            )}
           </div>
+          {/* Secondary row: spent today + days-to-payday pill */}
+          {heroStatus.status !== "empty" && (
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {todaySpent > 0 && (
+                <p style={{ margin:0, fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                  ₱{fmt(todaySpent)} spent
+                </p>
+              )}
+              {runway && (
+                <div style={{ background:`${heroStatus.color}22`, border:`1px solid ${heroStatus.color}40`, borderRadius:99, padding:"3px 10px" }}>
+                  <span style={{ fontSize:11, fontWeight:800, color:heroStatus.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"0.02em" }}>
+                    {runway.daysLeft}d to {runway.label}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Progress bar — only if limit or runway is set */}
@@ -3185,7 +3199,13 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         {/* Compact bottom row — subline + streaks inline */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${heroStatus.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.4, flex:1 }}>
-            {heroStatus.subline}
+            {heroStatus.status==="over"
+              ? heroStatus.subline
+              : heroStatus.status==="peligro"
+              ? heroStatus.subline
+              : runway
+              ? `${fmt(runway.allowedPerDay * runway.daysLeft)} total left this cycle`
+              : heroStatus.subline}
           </p>
           <div style={{ display:"flex", gap:5, flexShrink:0 }}>
             {walangGastosStreak >= 1 && (
