@@ -3418,6 +3418,147 @@ function morningBriefSub(expenses, income, dailyLimit, runway, name) {
 
 // ─── EXPENSES ──────────────────────────────────────────────────────────────
 
+// ─── INSIGHTS TAB ──────────────────────────────────────────────────────────
+
+function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
+  const fmt = useFmt();
+  const [editLimit, setEditLimit] = useState(false);
+  const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
+  const byDay = Array(7).fill(0);
+  expenses.forEach(e=>{ if(e.ts) byDay[new Date(e.ts).getDay()] += e.amount; });
+  const maxDay = Math.max(...byDay,1);
+  const peakDayIdx = byDay.indexOf(Math.max(...byDay));
+  const byCat = CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+  const todayStr = new Date().toDateString();
+  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
+  const dailyPct = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
+  const dailyOver = dailyLimit>0 && todaySpent>dailyLimit;
+  const dailyColor = dailyOver ? C.coral : dailyLimit>0&&dailyPct>80 ? C.gold : C.green;
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
+  const thisWeek = expenses.filter(e=>e.ts&&new Date(e.ts)>=weekStart);
+  const weekTotal = thisWeek.reduce((s,e)=>s+e.amount,0);
+  const weekByDay = Array(7).fill(0);
+  thisWeek.forEach(e=>{ if(e.ts) weekByDay[new Date(e.ts).getDay()]+=e.amount; });
+  const weekMaxDay = Math.max(...weekByDay,1);
+  const weekPeakIdx = weekByDay.indexOf(Math.max(...weekByDay));
+  const tips = [];
+  const foodAmt = byCat.find(c=>c.id==="food")?.total||0;
+  const shopAmt = byCat.find(c=>c.id==="shopping")?.total||0;
+  const foodPct = totalSpent ? foodAmt/totalSpent : 0;
+  const shopPct = totalSpent ? shopAmt/totalSpent : 0;
+  const fri = byDay[5], sat = byDay[6], weekdayAvg = (byDay[1]+byDay[2]+byDay[3]+byDay[4])/4||1;
+  if (expenses.length===0) { tips.push({ icon:"💡", tip:"Start logging to unlock your personal insights. Kahit 5 entries lang, makikita mo na ang pattern mo." }); }
+  else {
+    if (income>0 && totalSpent/income>0.8) tips.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Withdraw only what you plan to spend — leave the rest in your account.` });
+    if (foodPct>0.4) tips.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam lang. Malaking tipid over a month.` });
+    if (shopPct>0.25) tips.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule — wait 2 days before buying anything over ₱500.` });
+    if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) tips.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning — once it's gone, it's gone." });
+    if (dailyLimit>0&&todaySpent>dailyLimit*0.9) tips.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight — those small orders add up fast.` });
+    if (tips.length===0) tips.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging — mas magiging clear ang pattern mo over time." });
+  }
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div><SLabel>Daily Spending Limit</SLabel>
+        <Card style={{ border:`1px solid ${dailyLimit>0?(dailyOver?C.coral+"50":C.green+"40"):C.border}` }}>
+          {dailyLimit>0?(
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                <div><p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{dailyOver?"Over limit today":"Today's spending"}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{fmt(todaySpent)} of {fmt(dailyLimit)} limit</p></div>
+                <div style={{ textAlign:"right" }}><p style={{ margin:"0 0 6px", fontSize:22, fontWeight:800, color:dailyColor, fontFamily:"DM Sans,sans-serif" }}>{Math.round(dailyPct)}%</p><button onClick={()=>{ setLimitInput(String(dailyLimit)); setEditLimit(true); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"5px 12px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>✏️ Edit</button></div>
+              </div>
+              <Bar pct={dailyPct} color={dailyColor} h={7}/>
+              {dailyOver&&<p style={{ margin:"10px 0 0", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>🚨 Over by {fmt(todaySpent-dailyLimit)} today</p>}
+            </div>
+          ):(
+            <div style={{ textAlign:"center", padding:"12px 0 8px" }}>
+              <p style={{ margin:"0 0 4px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>No daily limit set</p>
+              <p style={{ margin:"0 0 14px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Set a limit to know when to stop spending.</p>
+              <button onClick={()=>{ setLimitInput(""); setEditLimit(true); }} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"10px 24px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Set daily limit</button>
+            </div>
+          )}
+          {editLimit&&(
+            <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><span style={{ fontSize:18, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>₱</span><input autoFocus type="text" inputMode="decimal" placeholder="e.g. 500" value={limitInput} onChange={e=>setLimitInput(e.target.value.replace(/[^0-9]/g,""))} style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:10, padding:"10px 12px", color:C.text, fontSize:18, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent }}/></div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>{[300,500,800,1000,1500,2000].map(q=>(<button key={q} onClick={()=>setLimitInput(String(q))} style={{ background:limitInput===String(q)?C.accentGlow:C.card, border:`1px solid ${limitInput===String(q)?C.accent+"55":C.border}`, color:limitInput===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>₱{q.toLocaleString()}</button>))}</div>
+              <div style={{ display:"flex", gap:8 }}><Btn variant="outline" onClick={()=>setEditLimit(false)}>Cancel</Btn><Btn onClick={()=>{ setDailyLimit(+limitInput||0); setEditLimit(false); }}>Save limit</Btn></div>
+            </div>
+          )}
+        </Card>
+      </div>
+      <div><SLabel>This Week</SLabel>
+        <Card>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}><div><p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(weekTotal)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week · {thisWeek.length} transactions</p></div>{weekTotal>0&&weekPeakIdx>=0&&<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Highest spend</p><Tag color={C.coral}>{DAYS[weekPeakIdx]}</Tag></div>}</div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:60 }}>{DAYS.map((d,i)=>{ const v=weekByDay[i]; const h=weekMaxDay>0?Math.max((v/weekMaxDay)*56,v>0?6:2):2; return (<div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}><div style={{ width:"100%", height:h, borderRadius:"4px 4px 0 0", background:i===weekPeakIdx&&v>0?C.coral:v>0?C.accent+"60":C.border, transition:"height 0.6s ease" }}/><span style={{ fontSize:9, fontWeight:i===weekPeakIdx&&v>0?800:500, color:i===weekPeakIdx&&v>0?C.coral:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span></div>);})}</div>
+          {weekTotal===0&&<p style={{ margin:"8px 0 0", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>No expenses logged this week yet.</p>}
+        </Card>
+      </div>
+      {expenses.filter(e=>e.ts).length>0&&(<div><SLabel>Your Most Expensive Day (all time)</SLabel><Card><div style={{ display:"flex", alignItems:"flex-end", gap:4, height:80, marginBottom:8 }}>{DAYS.map((d,i)=>{ const v=byDay[i]; const barH=maxDay>0?Math.max((v/maxDay)*72,v>0?8:2):2; return (<div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}><div style={{ width:"100%", height:barH, borderRadius:"4px 4px 0 0", background:i===peakDayIdx&&v>0?C.accent:v>0?C.accent+"45":C.border, transition:"height 0.7s ease", boxShadow:i===peakDayIdx&&v>0?`0 0 12px ${C.accentGlow}`:undefined }}/><span style={{ fontSize:9, fontWeight:i===peakDayIdx&&v>0?800:500, color:i===peakDayIdx&&v>0?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span></div>);}  )}</div>{byDay[peakDayIdx]>0&&<p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>You spend the most on <strong style={{ color:C.accent }}>{DAYS[peakDayIdx]}</strong> — {fmt(byDay[peakDayIdx])} total.</p>}</Card></div>)}
+      {byCat.length>0&&(<div><SLabel>Spend by Category (all time)</SLabel><Card>{byCat.map((c,i)=>(<div key={c.id} style={{ marginBottom:i<byCat.length-1?14:0 }}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}><div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:16 }}>{c.icon}</span><span style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{c.label}</span>{i===0&&<Tag color={c.color}>Top</Tag>}</div><div style={{ textAlign:"right" }}><span style={{ fontSize:13, fontWeight:800, color:c.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(c.total)}</span><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}> · {totalSpent?Math.round((c.total/totalSpent)*100):0}%</span></div></div><Bar pct={totalSpent?(c.total/totalSpent)*100:0} color={c.color} h={5}/></div>))}</Card></div>)}
+      <div><SLabel>💡 Tips for You</SLabel><div style={{ display:"flex", flexDirection:"column", gap:10 }}>{tips.map((t,i)=>(<Card key={i} style={{ background:`${C.accent}07`, border:`1px solid ${C.accent}25`, padding:"14px 16px" }}><div style={{ display:"flex", gap:10, alignItems:"flex-start" }}><span style={{ fontSize:20, flexShrink:0 }}>{t.icon}</span><p style={{ margin:0, fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.65 }}>{t.tip}</p></div></Card>))}</div></div>
+    </div>
+  );
+}
+
+// ─── EXPENSE LIST VIEW ──────────────────────────────────────────────────────
+
+function ExpenseListView({ expenses, onDetail, fmt }) {
+  const [period, setPeriod] = useState("day");
+  const now = new Date();
+  const todayStr = now.toDateString();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const filtered = expenses.filter(e => {
+    if (!e.ts) return period==="month";
+    const d = new Date(e.ts);
+    if (period==="day")  return d.toDateString()===todayStr;
+    if (period==="week") return d>=weekStart;
+    return d>=monthStart;
+  }).sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0));
+  const total = filtered.reduce((s,e)=>s+e.amount,0);
+  const periodLabel = period==="day" ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"}) : period==="week" ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}` : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
+  const fmtL = n => "₱"+Math.round(n).toLocaleString();
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>{[["day","Today"],["week","This Week"],["month","This Month"]].map(([v,l])=>(<button key={v} onClick={()=>setPeriod(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:period===v?C.card:"none", color:period===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>))}</div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodLabel}</span><div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{filtered.length} item{filtered.length!==1?"s":""}</span><span style={{ fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(total)}</span></div></div>
+      {filtered.length===0&&(<div style={{ textAlign:"center", padding:"52px 0 36px" }}><div style={{ width:72, height:72, borderRadius:22, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 14px" }}>👛</div><p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{period==="day"?"Nothing logged today":period==="week"?"Nothing this week yet":"Nothing this month yet"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log an expense.</p></div>)}
+      {filtered.length>0&&(period==="day"?(
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{filtered.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div>
+      ):(()=>{
+        const groups = {};
+        filtered.forEach(e=>{ const key=e.ts?new Date(e.ts).toDateString():"Unknown"; if(!groups[key]) groups[key]=[]; groups[key].push(e); });
+        return (<div style={{ display:"flex", flexDirection:"column", gap:14 }}>{Object.entries(groups).map(([dateStr,exps])=>{ const d=dateStr!=="Unknown"?new Date(dateStr):null; const isToday=d?.toDateString()===todayStr; const label=isToday?"Today":d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"})||"Unknown"; const dayTotal=exps.reduce((s,e)=>s+e.amount,0); return (<div key={dateStr}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}><span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{label}</span><span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(dayTotal)}</span></div><div style={{ display:"flex", flexDirection:"column", gap:8 }}>{exps.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div></div>); })}</div>);
+      })())}
+    </div>
+  );
+}
+
+// ─── SPENDING DONUT ─────────────────────────────────────────────────────────
+
+function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
+  const [hovered, setHovered] = useState(null);
+  const data = expenses || [];
+  const total = data.reduce((s,e)=>s+e.amount,0);
+  const segments = CATS.map(c=>{ const amt=data.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return { ...c, amount:amt, pct:total>0?amt/total:0 }; }).filter(s=>s.amount>0).sort((a,b)=>b.amount-a.amount);
+  if (segments.length===0) return (<div style={{ textAlign:"center", padding:"40px 0" }}><p style={{ margin:0, fontSize:13, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>No expenses to chart yet.</p></div>);
+  const SIZE=220,CX=110,CY=110,R=80,INNER=52,GAP=0.018;
+  let cursor=-Math.PI/2;
+  const arcs = segments.map(seg=>{ const sweep=seg.pct*Math.PI*2-GAP; const start=cursor+GAP/2; const end=start+sweep; const x1=CX+R*Math.cos(start),y1=CY+R*Math.sin(start); const x2=CX+R*Math.cos(end),y2=CY+R*Math.sin(end); const xi1=CX+INNER*Math.cos(start),yi1=CY+INNER*Math.sin(start); const xi2=CX+INNER*Math.cos(end),yi2=CY+INNER*Math.sin(end); const large=sweep>Math.PI?1:0; const path=`M${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} L${xi2} ${yi2} A${INNER} ${INNER} 0 ${large} 0 ${xi1} ${yi1} Z`; cursor=end+GAP/2; return { ...seg, path }; });
+  const hov = hovered ? arcs.find(a=>a.id===hovered) : null;
+  const fmtD = n => "₱"+Math.round(n).toLocaleString();
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <div style={{ display:"flex", justifyContent:"center" }}><svg width={SIZE} height={SIZE} style={{ overflow:"visible" }}>{arcs.map(a=>{ const isHov=hovered===a.id; const scale=isHov?1.045:1; return (<path key={a.id} d={a.path} fill={a.color} opacity={hovered&&!isHov?0.35:1} style={{ cursor:"pointer", transformOrigin:`${CX}px ${CY}px`, transform:`scale(${scale})`, transition:"all 0.15s" }} onMouseEnter={()=>setHovered(a.id)} onMouseLeave={()=>setHovered(null)} onClick={()=>setHovered(hovered===a.id?null:a.id)}/>);})} {hov?(<><text x={CX} y={CY-10} textAnchor="middle" fill={hov.color} fontSize="13" fontWeight="800" fontFamily="DM Sans,sans-serif">{hov.icon} {hov.label}</text><text x={CX} y={CY+8} textAnchor="middle" fill={hov.color} fontSize="16" fontWeight="800" fontFamily="DM Sans,sans-serif">{fmtD(hov.amount)}</text><text x={CX} y={CY+24} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="DM Sans,sans-serif">{Math.round(hov.pct*100)}% of spending</text></>):(<><text x={CX} y={CY-6} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="DM Sans,sans-serif">Total spent</text><text x={CX} y={CY+14} textAnchor="middle" fill={C.text} fontSize="18" fontWeight="800" fontFamily="DM Sans,sans-serif">{fmtD(total)}</text></>)}</svg></div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{arcs.map(a=>{ const limit=budgets[a.id]||0; const over=limit>0&&a.amount>limit; const warn=limit>0&&!over&&a.amount/limit>=0.8; return (<button key={a.id} className="tap-btn" onClick={()=>setHovered(hovered===a.id?null:a.id)} style={{ display:"flex", alignItems:"center", gap:10, background:hovered===a.id?`${a.color}12`:C.card, border:`1px solid ${over?a.color+"60":hovered===a.id?a.color+"40":C.border}`, borderRadius:12, padding:"10px 12px", cursor:"pointer", textAlign:"left", width:"100%", transition:"all 0.15s" }}><div style={{ width:10, height:10, borderRadius:3, background:a.color, flexShrink:0 }}/><span style={{ fontSize:16, flexShrink:0 }}>{a.icon}</span><div style={{ flex:1, minWidth:0 }}><div style={{ display:"flex", alignItems:"center", gap:6 }}><p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{a.label}</p>{over&&<Tag color={C.coral}>Over!</Tag>}{warn&&<Tag color={C.gold}>Near limit</Tag>}</div>{limit>0&&(<div style={{ marginTop:4 }}><Bar pct={Math.min((a.amount/limit)*100,100)} color={over?C.coral:warn?C.gold:a.color} h={3}/></div>)}</div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:over?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmtD(a.amount)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{Math.round(a.pct*100)}%</p></div></button>);})}</div>
+    </div>
+  );
+}
+
+// ─── EXPENSES SCREEN ────────────────────────────────────────────────────────
+
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday }) {
   const fmt = useFmt();
   const [view,      setView]     = useState("list");
