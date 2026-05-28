@@ -140,8 +140,6 @@ const CATS = [
   { id:"subs",      label:"Subscriptions",  icon:"📱", color:C.gold },
   { id:"health",    label:"Health",         icon:"💪", color:C.mint },
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
-  { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F472B6" },
-  { id:"travel",    label:"Travel",         icon:"✈️", color:"#A78BFA" },
   { id:"bills",     label:"Bills",          icon:"🧾", color:C.textSub },
   { id:"other",     label:"Other",          icon:"✦",  color:C.textSub },
 ];
@@ -158,7 +156,7 @@ const LOAN_COLORS = [C.accent, C.sky, C.gold, C.rose, C.mint, C.lime, C.textSub]
 const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮","👶","🌏","💊","🎸","⚽","🏋️","🍕"];
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
-const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, skincare:1500, travel:3000, bills:3000, other:1000 };
+const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, bills:3000, other:1000 };
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
@@ -729,12 +727,31 @@ function WalletAdjustSheet({ wallet, onSave, onClose }) {
 
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
-function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
+function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWalletId=null, onFocusClear }) {
   const fmt = useFmt();
   const [sheet,        setSheet]        = useState(null);
-  const [adjustSheet,  setAdjustSheet]  = useState(null); // wallet being adjusted
+  const [adjustSheet,  setAdjustSheet]  = useState(null);
   const [confirm,      setConfirm]      = useState(null);
   const [histOpen,     setHistOpen]     = useState({});
+  const cardRefs = useRef({});
+
+  const total = wallets.reduce((s,w) => s + w.balance, 0);
+
+  // Auto-open history + scroll + highlight focused wallet
+  useEffect(() => {
+    if (!focusWalletId) return;
+    // Open adjustment history for the focused wallet
+    setHistOpen(prev => ({ ...prev, [focusWalletId]: true }));
+    // Scroll to the focused wallet card after a short delay (let render settle)
+    setTimeout(() => {
+      const el = cardRefs.current[focusWalletId];
+      if (el) {
+        el.scrollIntoView({ behavior:"smooth", block:"center" });
+        // Clear focus after scroll so it doesn't re-trigger
+        setTimeout(() => onFocusClear?.(), 1200);
+      }
+    }, 120);
+  }, [focusWalletId]);
 
   const total = wallets.reduce((s,w) => s + w.balance, 0);
 
@@ -821,7 +838,9 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
         </div>
       ) : (
         wallets.map((w, idx) => (
-          <Card key={w.id} glow animDelay={idx*50}>
+          <div key={w.id} ref={el => { if(el) cardRefs.current[w.id] = el; }}>
+          <Card glow animDelay={idx*50}
+            style={{ border: focusWalletId===w.id ? `2px solid ${w.color}` : undefined, transition:"border 0.3s", boxShadow: focusWalletId===w.id ? `0 0 0 3px ${w.color}25` : undefined }}>
             <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
               <div style={{ width:50, height:50, borderRadius:16, overflow:"hidden", flexShrink:0 }}>
                 <WalletIcon wallet={w} size={50}/>
@@ -881,6 +900,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false }) {
               </div>
             )}
           </Card>
+          </div>
         ))
       )}
 
@@ -1005,10 +1025,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const [showMore,  setShowMore]  = useState(isEdit); // mood/wallet expanded by default when editing
-
-  // ── Required field validation ──────────────────────────────────────────────
-  const [nameTouched, setNameTouched] = useState(false);
+  const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
 
   // AI
   const [aiMode,    setAiMode]    = useState(!isEdit);
@@ -1053,8 +1070,6 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
       { id:"bills",     kw:["load","bill","bills","electric","meralco","water","maynilad","internet","wifi","pldt","globe","smart","netflix","spotify","subscription","rent","bayad"] },
       { id:"shopping",  kw:["lazada","shopee","shein","ukay","clothes","shirt","shoes","bag","shop","bought","purchase"] },
       { id:"health",    kw:["gamot","medicine","pharmacy","mercury","rose","clinic","hospital","doctor","checkup","vitamins"] },
-      { id:"skincare",  kw:["skincare","skin care","facial","toner","serum","moisturizer","sunscreen","spf","snail white","cetaphil","erha","cosrx","ordinary","niacinamide","retinol","face wash","cleanse","cleanser","sheet mask","mask","laneige","innisfree","ponds","nivea","beauty","makeup","lipstick","foundation","blush"] },
-      { id:"travel",    kw:["cebu pacific","airasia","pal","philippine airlines","booking","hotel","airbnb","ferry","bus ticket","palawan","boracay","siargao","baguio","davao","iloilo","bacolod","pasahe","pasport","passport","visa","travel","trip","flight","ticket","resort","pension","hostel"] },
     ];
     let cid = "other";
     for (const cat of catMap) { if (cat.kw.some(kw=>rest.includes(kw)||txt.includes(kw))) { cid=cat.id; break; } }
@@ -1097,7 +1112,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 Categories: ${catList}
 Moods: ${moodList}
 Shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null"}
-Rules: name=merchant or item name capitalized, amount=number only (0 if missing), best catId match (skincare for beauty/skin products, travel for flights/hotels/trips), moodId from emotional keywords or null.`,
+Rules: name=merchant capitalized, amount=number only (0 if missing), best catId match, moodId from emotional keywords or null.`,
               messages:[{ role:"user", content:aiInput.trim() }]
             })
           }),
@@ -1153,7 +1168,7 @@ Rules: name=merchant or item name capitalized, amount=number only (0 if missing)
   const addGItem = () => { if (!gInput.trim()) return; setGItems(p=>[...p,gInput.trim()]); setGInput(""); };
   const QUICK = [50,100,150,200,500,1000];
   const cat   = catOf(isGrocery?"grocery":catId);
-  const canSave = amount && +amount>0 && name.trim().length>0;
+  const canSave = amount && +amount>0;
   const selectedWallet = wallets?.find(w=>w.id===walletId);
   const insufficient   = selectedWallet && +amount>selectedWallet.balance;
   const FF = "DM Sans,sans-serif";
@@ -1286,73 +1301,43 @@ Rules: name=merchant or item name capitalized, amount=number only (0 if missing)
               </div>
             </div>
 
-            {/* ── NAME — required, always visible ── */}
-            <div style={{ marginBottom:14 }}>
-              <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
-                Name <span style={{ color:C.coral, fontWeight:800 }}>*</span>
-              </p>
-              <input
-                value={name}
-                onChange={e=>{ setName(e.target.value); setNameTouched(true); }}
-                onKeyDown={e=>e.key==="Enter"&&canSave&&save()}
-                placeholder={isGrocery?"e.g. SM Supermarket run...":`e.g. Jollibee, Grab, ${cat.label}...`}
-                style={{
-                  width:"100%", background:C.card,
-                  border:`1.5px solid ${nameTouched&&!name.trim()?C.coral:name.trim()?C.accent+"60":C.border}`,
-                  borderRadius:12, padding:"12px 14px", color:C.text, fontSize:15, fontWeight:600,
-                  outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s",
-                }}
-              />
-              {nameTouched&&!name.trim()&&(
-                <p style={{ margin:"5px 0 0", fontSize:11, color:C.coral, fontFamily:FF }}>Pangalan ng gastos ay kailangan.</p>
-              )}
-            </div>
-
-            {/* ── DATE — always visible, defaults to today ── */}
-            <div style={{ marginBottom:16 }}>
-              <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Date</p>
-              <div style={{ display:"flex", alignItems:"center", gap:8, background:C.card, border:`1px solid ${expDate!==today?C.accent+"60":C.border}`, borderRadius:12, padding:"10px 14px", transition:"border 0.18s" }}>
-                <span style={{ fontSize:15 }}>📅</span>
-                <input
-                  type="date"
-                  value={expDate}
-                  max={today}
-                  onChange={e=>setExpDate(e.target.value||today)}
-                  style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF }}
-                />
-                {expDate!==today&&(
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <Tag color={C.accent}>Backdated</Tag>
-                    <button onClick={()=>setExpDate(today)} style={{ background:"none", border:"none", color:C.textFaint, fontSize:16, cursor:"pointer", padding:0, lineHeight:1 }}>×</button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── GROCERY ITEMS — only if grocery toggle ── */}
-            {isGrocery&&(
-              <div style={{ marginBottom:14 }}>
-                <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Items in this haul</p>
-                <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                  <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter" onKeyDown={e=>e.key==="Enter"&&addGItem()}
-                    style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.lime }}/>
-                  <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
-                </div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
-                  {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:FF, fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
-                  {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:FF }}>Type and press Enter or +</p>}
-                </div>
-              </div>
-            )}
-
-            {/* ── OPTIONAL: MOOD + WALLET ── */}
+            {/* ── OPTIONAL DETAILS — name, mood, wallet ── */}
             {!showMore ? (
               <button onClick={()=>setShowMore(true)}
                 style={{ background:"none", border:"none", color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:FF, padding:"0 0 14px", display:"flex", alignItems:"center", gap:5, width:"100%" }}>
-                <span style={{ color:C.accent }}>+</span> Add mood & wallet
+                <span style={{ color:C.accent }}>+</span> Add name, mood, wallet
               </button>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:4 }}>
+
+                {/* Name */}
+                <div>
+                  <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                    Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                  </p>
+                  <input
+                    value={name} onChange={e=>setName(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&save()}
+                    placeholder={isGrocery?"e.g. SM Supermarket run...":`e.g. Jollibee, Grab, ${cat.label}...`}
+                    style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
+                  />
+                </div>
+
+                {/* Grocery items */}
+                {isGrocery&&(
+                  <div>
+                    <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Items in this haul</p>
+                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                      <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter" onKeyDown={e=>e.key==="Enter"&&addGItem()}
+                        style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.lime }}/>
+                      <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
+                      {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:FF, fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
+                      {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:FF }}>Type and press Enter or +</p>}
+                    </div>
+                  </div>
+                )}
 
                 {/* Mood */}
                 <div>
@@ -1374,9 +1359,7 @@ Rules: name=merchant or item name capitalized, amount=number only (0 if missing)
                 {/* Wallet picker */}
                 {wallets&&wallets.length>0&&(
                   <div>
-                    <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
-                      Pay from <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
-                    </p>
+                    <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
                         <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
@@ -1390,17 +1373,28 @@ Rules: name=merchant or item name capitalized, amount=number only (0 if missing)
                   </div>
                 )}
 
+                {/* Backdate */}
+                {expDate!==today&&(
+                  <div style={{ display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
+                    <span style={{ fontSize:14 }}>📅</span>
+                    <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)} style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF }}/>
+                    <Tag color={C.accent}>Backdated</Tag>
+                  </div>
+                )}
+                {expDate===today&&(
+                  <button onClick={()=>setExpDate("")} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11, fontFamily:FF, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:5 }}>
+                    📅 Backdate this expense
+                  </button>
+                )}
+                {expDate===""&&(
+                  <input type="date" autoFocus value={expDate} max={today} onChange={e=>setExpDate(e.target.value||today)} style={{ width:"100%", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", color:C.text, fontSize:14, fontWeight:700, fontFamily:FF, outline:"none", boxSizing:"border-box" }}/>
+                )}
               </div>
             )}
 
             {/* Save */}
-            <Btn
-              onClick={()=>{ setNameTouched(true); if(canSave) save(); }}
-              style={{ opacity:canSave?1:0.5, marginTop:showMore?18:8 }}>
-              {isEdit ? "Save changes ✓"
-               : !amount||+amount<=0 ? "Enter an amount first"
-               : !name.trim() ? "Add a name para ma-save"
-               : `Save ${fmt(+amount)} ✓`}
+            <Btn onClick={save} style={{ opacity:canSave?1:0.4, marginTop:showMore?18:0 }}>
+              {isEdit ? "Save changes ✓" : canSave ? `Save ${fmt(+amount)} ✓` : "Enter an amount"}
             </Btn>
           </div>
           )}
@@ -2985,7 +2979,7 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap }) {
   const fmt = useFmt();
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
@@ -3265,13 +3259,15 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </div>
           <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
             {wallets.map(w=>(
-              <div key={w.id} style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1px solid ${w.color}30`, borderRadius:99, padding:"6px 12px" }}>
+              <button key={w.id} onClick={()=>onWalletTap&&onWalletTap(w.id)} className="tap-btn"
+                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer" }}>
                 <div style={{ width:18, height:18, borderRadius:5, overflow:"hidden", flexShrink:0 }}><WalletIcon wallet={w} size={18}/></div>
                 <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.text }}>{w.name}</span>
                 <span style={{ fontFamily:FF, fontSize:12, color:hidden?C.textFaint:w.color, fontWeight:800, filter:hidden?"blur(5px)":"none", transition:"filter 0.2s" }}>
                   {hidden ? "••••" : fmt(w.balance)}
                 </span>
-              </div>
+                <span style={{ fontSize:10, color:C.textFaint }}>›</span>
+              </button>
             ))}
           </div>
         </div>
@@ -4647,11 +4643,10 @@ function LoansScreen({ loans, setLoans, setScreen, embedded=false, wallets=[], i
 
 // ─── ACCOUNTS SCREEN (Wallets + Goals combined) ────────────────────────────
 
-function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScreen }) {
-  const [tab, setTab] = useState("wallets"); // "wallets" | "goals"
+function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScreen, focusWalletId=null, onFocusClear }) {
+  const [tab, setTab] = useState("wallets");
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <BackBtn onClick={()=>setScreen("home")}/>
@@ -4659,8 +4654,6 @@ function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScree
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Wallets & savings goals</p>
         </div>
       </div>
-
-      {/* Tab switcher */}
       <div style={{ display:"flex", background:C.surface, borderRadius:14, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
         {[["wallets","💰 Wallets"],["goals","🎯 Goals & Savings"]].map(([v,l])=>(
           <button key={v} onClick={()=>setTab(v)} className="tap-btn"
@@ -4671,9 +4664,7 @@ function AccountsScreen({ wallets, setWallets, goals, setGoals, income, setScree
             }}>{l}</button>
         ))}
       </div>
-
-      {/* Embedded screens -- no header, no back btn */}
-      {tab === "wallets" && <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen} embedded/>}
+      {tab === "wallets" && <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen} embedded focusWalletId={focusWalletId} onFocusClear={onFocusClear}/>}
       {tab === "goals"   && <GoalsScreen   goals={goals}     setGoals={setGoals}     income={income} setScreen={setScreen} embedded/>}
     </div>
   );
@@ -5622,8 +5613,9 @@ export default function Bulsa() {
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
   const [subs,      setSubs]      = useLocalStorage("bulsa_subs", []);
   const [lastBackup]              = useLocalStorage("bulsa_last_backup", null);
-  const [hidden,    setHidden]    = useState(false);
-  const [installPrompt, setInstallPrompt] = useState(null);
+  const [hidden,         setHidden]         = useState(false);
+  const [focusWalletId,  setFocusWalletId]  = useState(null);
+  const [installPrompt,  setInstallPrompt]  = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   // ── Firebase auth listener ────────────────────────────────────────────────
@@ -5868,15 +5860,20 @@ export default function Bulsa() {
     setOnboarded(true);
   };
 
+  const handleWalletTap = (walletId) => {
+    setFocusWalletId(walletId);
+    setScreen("accounts");
+  };
+
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
     subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>,
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
-    accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
+    accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
     profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
     chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
