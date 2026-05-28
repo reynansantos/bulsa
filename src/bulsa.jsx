@@ -989,20 +989,12 @@ function GoalSheet({ goal, onSave, onClose }) {
 
 function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets, onDeductWallet }) {
   const isEdit = !!editExpense;
+  const fmt = useFmt();
 
-  // Read URL prefill from sessionStorage (set by Back Tap / Shortcut handler)
-  const prefillAmount = !isEdit ? (sessionStorage.getItem("bulsa_prefill_amount") || "") : "";
-  const prefillCat    = !isEdit ? (sessionStorage.getItem("bulsa_prefill_cat")    || "food") : "food";
-  if (prefillAmount) {
-    sessionStorage.removeItem("bulsa_prefill_amount");
-    sessionStorage.removeItem("bulsa_prefill_cat");
-  }
-
-  // ── State ──
-  const [step,      setStep]      = useState(prefillAmount ? 0 : 0); // 0 = amount+category, 1 = name+mood
-  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : prefillAmount);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : "");
   const [name,      setName]      = useState(isEdit ? editExpense.name : "");
-  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : prefillCat);
+  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : "food");
   const [moodId,    setMoodId]    = useState(isEdit ? editExpense.moodId : null);
   const [walletId,  setWalletId]  = useState(isEdit ? (editExpense.walletId||null) : (wallets?.length ? wallets[0].id : null));
   const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
@@ -1011,13 +1003,17 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const nameRef = useRef(null);
+  const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
 
+  // AI
   const [aiMode,    setAiMode]    = useState(!isEdit);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
   const [isOnline,  setIsOnline]  = useState(navigator.onLine);
+  const [aiFilled,  setAiFilled]  = useState(false); // true after AI auto-fills
+
+  const amountRef = useRef(null);
   const aiInputRef = useRef(null);
 
   useEffect(() => {
@@ -1028,177 +1024,132 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  useEffect(()=>{ if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80); }, [aiMode]);
+  useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
 
-  // Local regex fallback -- runs when API is unavailable
+  // Auto-focus on open
+  useEffect(()=>{
+    if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80);
+    else        setTimeout(()=>amountRef.current?.focus(),  80);
+  }, []);
+
+  // Local regex fallback
   const parseLocally = (input) => {
     const txt = input.toLowerCase().trim();
-    // Amount: look for a number (with optional comma/peso sign)
     const amtMatch = txt.match(/[₱p]?\s*(\d[\d,]*(?:\.\d+)?)/);
-    const amount   = amtMatch ? parseFloat(amtMatch[1].replace(/,/g,"")) : 0;
-    // Remove amount from text to isolate name/mood
-    const rest     = txt.replace(/[₱p]?\s*\d[\d,]*(?:\.\d+)?/, " ").replace(/\s+/g," ").trim();
-    // Mood keywords
-    const moodMap  = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
-    let moodId = null;
-    for (const [kw,id] of Object.entries(moodMap)) { if (rest.includes(kw)) { moodId=id; break; } }
-    // Category keywords
+    const amt = amtMatch ? parseFloat(amtMatch[1].replace(/,/g,"")) : 0;
+    const rest = txt.replace(/[₱p]?\s*\d[\d,]*(?:\.\d+)?/, " ").replace(/\s+/g," ").trim();
+    const moodMap = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
+    let mid = null;
+    for (const [kw,id] of Object.entries(moodMap)) { if (rest.includes(kw)) { mid=id; break; } }
     const catMap = [
-      { id:"food",      kw:["jollibee","mcdo","mcdonald","kfc","mang inasal","chowking","greenwich","bk","burger","pizza","meryenda","ulam","kain","food","eat","lunch","dinner","breakfast","coffee","milk tea","milktea","boba","7/11","711","711","ministop","lawson","sm food","kfc"] },
-      { id:"transport", kw:["grab","angkas","mrt","lrt","bus","jeep","jeepney","tricycle","trike","uber","taxi","transport","fare","gas","petrol","fuel","commute"] },
-      { id:"grocery",   kw:["grocery","groceries","palengke","market","sm","robinsons","puregold","alfamart","indomaret","shopwise","waltermart"] },
+      { id:"food",      kw:["jollibee","mcdo","mcdonald","kfc","mang inasal","chowking","greenwich","burger","pizza","meryenda","ulam","kain","food","eat","lunch","dinner","breakfast","coffee","milk tea","milktea","boba","711","ministop","lawson"] },
+      { id:"transport", kw:["grab","angkas","mrt","lrt","bus","jeep","jeepney","tricycle","trike","taxi","transport","fare","gas","petrol","fuel","commute"] },
+      { id:"grocery",   kw:["grocery","groceries","palengke","market","sm","robinsons","puregold","alfamart","shopwise","waltermart"] },
       { id:"bills",     kw:["load","bill","bills","electric","meralco","water","maynilad","internet","wifi","pldt","globe","smart","netflix","spotify","subscription","rent","bayad"] },
       { id:"shopping",  kw:["lazada","shopee","shein","ukay","clothes","shirt","shoes","bag","shop","bought","purchase"] },
       { id:"health",    kw:["gamot","medicine","pharmacy","mercury","rose","clinic","hospital","doctor","checkup","vitamins"] },
-      { id:"other",     kw:[] },
     ];
-    let catId = "other";
-    for (const cat of catMap) { if (cat.kw.some(kw=>rest.includes(kw)||txt.includes(kw))) { catId=cat.id; break; } }
-    // Name: take up to first 3 words of rest, strip mood keywords
+    let cid = "other";
+    for (const cat of catMap) { if (cat.kw.some(kw=>rest.includes(kw)||txt.includes(kw))) { cid=cat.id; break; } }
     const moodWords = Object.keys(moodMap);
     const nameWords = rest.split(" ").filter(w=>w.length>1&&!moodWords.includes(w)&&!/^\d/.test(w)).slice(0,3);
-    const name = nameWords.join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || "";
-    return { name, amount, catId, moodId, note:null, fromLocal:true };
+    const nm = nameWords.join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || "";
+    return { name:nm, amount:amt, catId:cid, moodId:mid };
   };
 
-  const [aiPreview,  setAiPreview]  = useState(null); // parsed result awaiting confirm
-  const [aiRetrying, setAiRetrying] = useState(false);
-
+  // Auto-fill fields directly — no confirm card
   const applyParsed = (parsed) => {
-    if (parsed.amount > 0)                                       setAmount(String(parsed.amount));
-    if (parsed.name)                                             setName(parsed.name);
-    if (parsed.catId  && CATS.find(c=>c.id===parsed.catId))     setCatId(parsed.catId);
-    if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId))   setMoodId(parsed.moodId);
-    if (parsed.note)                                             setNote?.(parsed.note);
+    if (parsed.amount > 0)                               setAmount(String(parsed.amount));
+    if (parsed.name)                                     setName(parsed.name);
+    if (parsed.catId && CATS.find(c=>c.id===parsed.catId)) setCatId(parsed.catId);
+    if (parsed.moodId && MOODS.find(m=>m.id===parsed.moodId)) { setMoodId(parsed.moodId); setShowMore(true); }
+    setAiFilled(true);
+    setShowMore(true);
   };
 
-  const confirmPreview = () => {
-    if (!aiPreview) return;
-    applyParsed(aiPreview);
-    setAiMode(false);
-    setAiInput("");
-    setAiPreview(null);
-    setAiError("");
-  };
-
-  const parseWithAI = async (isRetry=false) => {
+  const parseWithAI = async () => {
     if (!aiInput.trim()) return;
-    if (isRetry) setAiRetrying(true); else setAiLoading(true);
+    setAiLoading(true);
     setAiError("");
-    setAiPreview(null);
-
+    setAiFilled(false);
     let parsed = null;
-    let usedFallback = false;
-
-    // Skip API when offline — use local parser instantly
     if (!navigator.onLine) {
       parsed = parseLocally(aiInput);
-      usedFallback = true;
-      setAiLoading(false); setAiRetrying(false);
-      if (!parsed.amount && !parsed.name) {
-        setAiError("Couldn't find an amount. Try: \"jollibee 120\" or \"grab 85 stressed\"");
-        return;
-      }
-      setAiPreview(parsed);
-      return;
-    }
-
-    try {
-      const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
-      const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
-
-      const res = await Promise.race([
-        fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model:      "claude-haiku-4-5-20251001", // faster + cheaper for parsing
-            max_tokens: 150,
-            system: `You are a Filipino expense parser. Return ONLY a raw JSON object, no markdown, no explanation.
+    } else {
+      try {
+        const catList  = CATS.map(c=>`${c.id} (${c.label})`).join(", ");
+        const moodList = MOODS.map(m=>`${m.id} (${m.label})`).join(", ");
+        const res = await Promise.race([
+          fetch("https://api.anthropic.com/v1/messages", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({
+              model:"claude-haiku-4-5-20251001",
+              max_tokens:120,
+              system:`Filipino expense parser. Return ONLY raw JSON, no markdown.
 Categories: ${catList}
 Moods: ${moodList}
-Shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null","note":"string|null"}
-Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best match, moodId=emotional word or null.`,
-            messages: [{ role:"user", content: aiInput.trim() }]
-          })
-        }),
-        new Promise((_,reject) => setTimeout(()=>reject(new Error("timeout")), 8000))
-      ]);
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      if (data.type === "error") throw new Error(data.error?.message || "API error");
-
-      const raw   = data.content?.[0]?.text || "";
-      const clean = raw.replace(/```[\w]*\n?/g,"").replace(/```/g,"").trim();
-      // Try to extract JSON even if there's surrounding text
-      const jsonMatch = clean.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("no JSON in response");
-      parsed = JSON.parse(jsonMatch[0]);
-
-    } catch(e) {
-      // Any failure -- silently fall back to local parser
-      usedFallback = true;
-      parsed = parseLocally(aiInput);
+Shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null"}
+Rules: name=merchant capitalized, amount=number only (0 if missing), best catId match, moodId from emotional keywords or null.`,
+              messages:[{ role:"user", content:aiInput.trim() }]
+            })
+          }),
+          new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),6000))
+        ]);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.type==="error") throw new Error("API error");
+        const raw = data.content?.[0]?.text||"";
+        const jsonMatch = raw.replace(/```[\w]*\n?/g,"").replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("no JSON");
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch { parsed = parseLocally(aiInput); }
     }
-
-    // Validate and sanitize
-    if (!parsed || typeof parsed !== "object") {
-      parsed = parseLocally(aiInput);
-      usedFallback = true;
-    }
+    if (!parsed || typeof parsed!=="object") parsed = parseLocally(aiInput);
     parsed.amount = parseFloat(parsed.amount)||0;
-    if (!CATS.find(c=>c.id===parsed.catId))  parsed.catId  = parseLocally(aiInput).catId;
+    if (!CATS.find(c=>c.id===parsed.catId)) parsed.catId = parseLocally(aiInput).catId;
     if (!MOODS.find(m=>m.id===parsed.moodId)) parsed.moodId = null;
-
-    if (parsed.amount === 0 && !parsed.name) {
-      setAiError("Couldn't find an amount. Try: \"jollibee 120\" or \"grab 85 stressed\"");
-      setAiLoading(false); setAiRetrying(false);
+    if (parsed.amount===0 && !parsed.name) {
+      setAiError('Couldn\'t parse that. Try "jollibee 120" or "grab 85 stressed"');
+      setAiLoading(false);
       return;
     }
-
-    // Show preview for confirmation instead of silently filling
-    setAiPreview({ ...parsed, usedFallback });
+    applyParsed(parsed);
+    setAiMode(false); // switch to manual view showing filled fields
     setAiLoading(false);
-    setAiRetrying(false);
   };
-
-  useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
-  // Auto-focus name field when reaching step 1
-  useEffect(()=>{ if (step===1) setTimeout(()=>nameRef.current?.focus(), 80); }, [step]);
 
   const close = () => { setVis(false); setTimeout(onClose, 300); };
 
   const save = () => {
-    if (!amount || +amount <= 0) return;
-    const d  = new Date(expDate + "T" + new Date().toTimeString().slice(0,8));
-    const h  = d.getHours(), mn = d.getMinutes().toString().padStart(2,"0");
-    const isToday = expDate === today;
+    if (!amount || +amount<=0) return;
+    const d = new Date(expDate+"T"+new Date().toTimeString().slice(0,8));
+    const h=d.getHours(), mn=d.getMinutes().toString().padStart(2,"0");
+    const isToday = expDate===today;
     onSave({
       id:    isEdit ? editExpense.id : uid(),
-      name:  name.trim() || catOf(isGrocery ? "grocery" : catId).label,
+      name:  name.trim() || catOf(isGrocery?"grocery":catId).label,
       amount: +amount,
-      catId:  isGrocery ? "grocery" : catId,
+      catId:  isGrocery?"grocery":catId,
       moodId,
-      photo:  isEdit ? editExpense.photo : null, // photo added post-save from detail
+      photo:  isEdit ? editExpense.photo : null,
       groceryItems: gItems,
       walletId,
-      date:  isToday ? "Today" : new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
+      date:  isToday?"Today":new Date(expDate+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"}),
       time:  `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
-      ts:    new Date(expDate + "T" + (isToday ? new Date().toTimeString().slice(0,8) : "12:00:00")).toISOString()
+      ts:    new Date(expDate+"T"+(isToday?new Date().toTimeString().slice(0,8):"12:00:00")).toISOString()
     });
     if (walletId && onDeductWallet && !isEdit) onDeductWallet(walletId, +amount);
     close();
   };
 
   const addGItem = () => { if (!gInput.trim()) return; setGItems(p=>[...p,gInput.trim()]); setGInput(""); };
-  const QUICK = [50, 100, 150, 200, 500, 1000];
-  const cat   = catOf(isGrocery ? "grocery" : catId);
-
-  const canProceed = amount && +amount > 0;
+  const QUICK = [50,100,150,200,500,1000];
+  const cat   = catOf(isGrocery?"grocery":catId);
+  const canSave = amount && +amount>0;
   const selectedWallet = wallets?.find(w=>w.id===walletId);
-  const insufficient   = selectedWallet && +amount > selectedWallet.balance;
+  const insufficient   = selectedWallet && +amount>selectedWallet.balance;
+  const FF = "DM Sans,sans-serif";
 
   return (
     <>
@@ -1210,302 +1161,220 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), catId=best 
         borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`,
         borderBottom:"none", zIndex:201,
         transition:"transform 0.34s cubic-bezier(0.32,0.72,0,1)",
-        maxHeight:"92vh", overflowY:"auto"
+        maxHeight:"94vh", overflowY:"auto"
       }}>
-        {/* Handle */}
-        <div style={{ display:"flex", justifyContent:"center", paddingTop:14, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
+        {/* Handle + header */}
+        <div style={{ display:"flex", justifyContent:"center", paddingTop:14, position:"sticky", top:0, background:C.surface, zIndex:2 }}>
           <div style={{ width:36, height:4, borderRadius:99, background:C.border }}/>
         </div>
 
-        <div style={{ padding:"12px 22px 40px" }}>
-          {/* Header row */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              {/* 2-dot progress */}
-              {[0,1].map(i=>(
-                <div key={i} style={{ width:i===step?20:6, height:6, borderRadius:99, background:i===step?C.accent:i<step?C.green+"90":C.border, transition:"all 0.28s cubic-bezier(0.34,1.56,0.64,1)" }}/>
-              ))}
-              <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:600 }}>
-                {step===0 ? (isEdit?"Edit amount":"How much?") : (isEdit?"Edit details":"What was it?")}
-              </span>
-            </div>
+        <div style={{ padding:"10px 22px 44px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+            <p style={{ margin:0, fontSize:18, fontWeight:800, color:C.text, fontFamily:FF }}>
+              {isEdit ? "Edit expense" : "Log expense"}
+            </p>
             <button onClick={close} style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
           </div>
 
-          {/* ── STEP 0: Amount + Category ── */}
-          {step === 0 && (
-            <div>
-              {/* AI quick-log toggle */}
-              {!isEdit&&(
-                <div style={{ marginBottom:16 }}>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>setAiMode(true)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${aiMode?C.accent+"60":C.border}`, background:aiMode?`${C.accent}12`:C.card, color:aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", position:"relative" }}>
-                      {isOnline ? "✨ Just describe it" : "✍️ Describe it"}
-                      {!isOnline&&<span style={{ position:"absolute", top:-6, right:-4, background:C.gold, color:"#111", fontSize:9, fontWeight:800, borderRadius:99, padding:"2px 5px", fontFamily:"DM Sans,sans-serif" }}>OFFLINE</span>}
-                    </button>
-                    <button onClick={()=>setAiMode(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${!aiMode?C.accent+"60":C.border}`, background:!aiMode?`${C.accent}12`:C.card, color:!aiMode?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                      🔢 Manual
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* AI describe mode */}
-              {aiMode&&(
-                <div style={{ marginBottom:16 }}>
-                  {/* Input row */}
-                  {!isOnline&&<p style={{ margin:"0 0 8px", fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>📵 Offline — using smart local parser. Works the same, just no AI.</p>}
-                  <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${aiPreview?C.green+"60":!isOnline?C.gold+"50":C.accent+"50"}`, borderRadius:14, padding:"12px 14px", marginBottom:8, transition:"border-color 0.2s" }}>
-                    <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading||aiRetrying?"⏳":isOnline?"✨":"✍️"}</span>
-                    <input
-                      ref={aiInputRef}
-                      value={aiInput}
-                      onChange={e=>{ setAiInput(e.target.value); setAiPreview(null); setAiError(""); }}
-                      onKeyDown={e=>e.key==="Enter"&&!aiLoading&&!aiRetrying&&parseWithAI()}
-                      placeholder="jollibee 120 stressed..."
-                      style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
-                    />
-                    {aiInput&&!aiLoading&&!aiRetrying&&(
-                      <button onClick={()=>{ setAiInput(""); setAiPreview(null); setAiError(""); }}
-                        style={{ background:"none", border:"none", color:C.textFaint, cursor:"pointer", fontSize:16, padding:0 }}>x</button>
-                    )}
-                  </div>
-
-                  {/* Example chips -- hide after preview */}
-                  {!aiPreview&&(
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-                      {["jollibee 120","grab 85 stressed","load 99","sm 450 masaya","mercury gamot 250"].map(s=>(
-                        <button key={s} onClick={()=>{ setAiInput(s); setAiPreview(null); }}
-                          style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"4px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif" }}>{s}</button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Error */}
-                  {aiError&&<p style={{ margin:"0 0 10px", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{aiError}</p>}
-
-                  {/* Preview confirmation */}
-                  {aiPreview&&!aiError&&(
-                    <div style={{ background:`${C.green}0E`, border:`1.5px solid ${C.green}40`, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
-                      <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.green, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-                        {aiPreview.usedFallback ? "Quick parse -- does this look right?" : "AI parsed -- confirm?"}
-                      </p>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                        {[
-                          ["Amount",   aiPreview.amount>0 ? `P${aiPreview.amount}` : "not found"],
-                          ["Name",     aiPreview.name || "--"],
-                          ["Category", CATS.find(c=>c.id===aiPreview.catId)?.label || aiPreview.catId],
-                          ["Mood",     MOODS.find(m=>m.id===aiPreview.moodId)?.label || "none"],
-                        ].map(([l,v])=>(
-                          <div key={l} style={{ background:C.surface, borderRadius:8, padding:"6px 10px" }}>
-                            <p style={{ margin:"0 0 2px", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{l}</p>
-                            <p style={{ margin:0, fontSize:13, fontWeight:800, color:aiPreview.amount===0&&l==="Amount"?C.coral:C.text, fontFamily:"DM Sans,sans-serif" }}>{v}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ display:"flex", gap:8, marginTop:10 }}>
-                        <button onClick={()=>{ setAiPreview(null); setAiError(""); }} className="tap-btn"
-                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                          Edit input
-                        </button>
-                        <button onClick={()=>parseWithAI(true)} disabled={aiRetrying} className="tap-btn"
-                          style={{ flex:1, padding:"9px", borderRadius:10, border:`1px solid ${C.accent}40`, background:`${C.accent}12`, color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", opacity:aiRetrying?0.5:1 }}>
-                          {aiRetrying ? "Retrying..." : "Retry AI"}
-                        </button>
-                        <button onClick={confirmPreview} className="tap-btn"
-                          style={{ flex:2, padding:"9px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.green},#16A34A)`, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                          Use this
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Parse button -- only show before preview */}
-                  {!aiPreview&&(
-                    <Btn onClick={()=>parseWithAI(false)} disabled={!aiInput.trim()||aiLoading}
-                      style={{ opacity:!aiInput.trim()||aiLoading?0.5:1 }}>
-                      {aiLoading ? "Parsing..." : "Parse →"}
-                    </Btn>
-                  )}
-                </div>
-              )}
-              {/* Manual amount input -- hidden in AI mode */}
-              {!aiMode&&(<>
-              {/* Big amount input */}
-              <div style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:14 }}>
-                <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:32, fontWeight:800, color:C.textSub, lineHeight:1 }}>₱</span>
+          {/* ── AI QUICK-LOG ── only for new expenses ── */}
+          {!isEdit && aiMode && (
+            <div style={{ marginBottom:18 }}>
+              <div style={{ display:"flex", gap:8, alignItems:"center", background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:14, padding:"13px 14px", marginBottom:8 }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>{aiLoading?"⏳":isOnline?"✨":"✍️"}</span>
                 <input
-                  autoFocus={!aiMode} type="text" inputMode="decimal" placeholder="0" value={amount}
-                  onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
-                  onKeyDown={e=>e.key==="Enter" && canProceed && setStep(1)}
-                  style={{ background:"none", border:"none", outline:"none", fontFamily:"DM Sans,sans-serif", fontWeight:800, fontSize:52, color:amount?C.text:C.textFaint, width:"100%", caretColor:C.accent, lineHeight:1, padding:"4px 0", WebkitAppearance:"none" }}
+                  ref={aiInputRef}
+                  value={aiInput}
+                  onChange={e=>{ setAiInput(e.target.value); setAiError(""); }}
+                  onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
+                  placeholder={isOnline?"jollibee 120 stressed...":"describe it (offline mode)"}
+                  style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:FF, fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
                 />
-              </div>
-
-              {/* Quick amounts -- fixed set */}
-              <div style={{ marginBottom:10 }}>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                  {QUICK.map(q=>(
-                    <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
-                      style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
-                      ₱{q.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Additive pills -- tap to add on top of current amount */}
-              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:16 }}>
-                <span style={{ fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>Add</span>
-                {[20, 50, 100, 500].map(q=>(
-                  <button key={q} onClick={()=>setAmount(prev=>String((+prev||0)+q))} className="tap-btn"
-                    style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}35`, color:C.lime, borderRadius:99, padding:"6px 13px", cursor:"pointer", fontSize:13, fontWeight:800, fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
-                    +₱{q}
-                  </button>
-                ))}
-                {+amount > 0 && (
-                  <button onClick={()=>setAmount("0")} className="tap-btn"
-                    style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:99, padding:"6px 10px", cursor:"pointer", fontSize:11, fontWeight:800, fontFamily:"DM Sans,sans-serif", marginLeft:"auto", flexShrink:0 }}>
-                    ✕
+                {aiInput&&!aiLoading&&(
+                  <button onClick={()=>parseWithAI()} style={{ background:C.accent, border:"none", borderRadius:9, padding:"5px 12px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:FF, flexShrink:0 }}>
+                    {aiLoading?"...":"→"}
                   </button>
                 )}
               </div>
-
-              {/* Category grid -- inline, no next button needed */}
-              <div style={{ marginBottom:14 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                  <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Category</p>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Grocery mode</span>
-                    <Toggle on={isGrocery} setOn={v=>{ setIsGrocery(v); if(v) setCatId("grocery"); }} color={C.lime}/>
-                  </div>
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:7 }}>
-                  {CATS.filter(c=>c.id!=="grocery").map(c=>(
-                    <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }}
-                      style={{ background:!isGrocery&&catId===c.id?c.color+"1E":C.card, border:`1.5px solid ${!isGrocery&&catId===c.id?c.color+"70":C.border}`, borderRadius:14, padding:"10px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:5, cursor:"pointer", transition:"all 0.13s" }}>
-                      <span style={{ fontSize:20 }}>{c.icon}</span>
-                      <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
-                    </button>
+              {!aiLoading&&!aiError&&(
+                <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:6 }}>
+                  {["jollibee 120","grab 85","load 99","sm 450 masaya","gamot 250"].map(s=>(
+                    <button key={s} onClick={()=>setAiInput(s)} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:99, padding:"3px 10px", cursor:"pointer", fontSize:11, fontFamily:FF }}>{s}</button>
                   ))}
                 </div>
-              </div>
-
-              {/* Wallet picker */}
-              {wallets && wallets.length > 0 && (
-                <div style={{ marginBottom:14 }}>
-                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Pay from</p>
-                  <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-                    {wallets.map(w => {
-                      const sel = walletId===w.id;
-                      const insuf = sel && +amount > w.balance;
-                      return (
-                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif", color:sel?(insuf?C.coral:w.color):C.textSub }}>
-                          <WalletIcon wallet={w} size={18}/><span>{w.name}</span>
-                          <span style={{ fontSize:10, opacity:0.75 }}>{fmt(w.balance)}</span>
-                          {insuf&&<span>⚠️</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {insufficient && <p style={{ margin:"7px 0 0", fontSize:12, color:C.coral, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>⚠️ Not enough in {selectedWallet.name}</p>}
-                </div>
               )}
-
-              {/* Backdate -- collapsed by default, expand if needed */}
-              {expDate !== today && (
-                <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
-                  <span style={{ fontSize:14 }}>📅</span>
-                  <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)} style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}/>
-                  <Tag color={C.accent}>Backdated</Tag>
-                </div>
-              )}
-              {expDate === today && (
-                <button onClick={()=>setExpDate("")} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11, fontFamily:"DM Sans,sans-serif", cursor:"pointer", padding:"0 0 12px", display:"flex", alignItems:"center", gap:5 }}>
-                  <span>📅</span> Backdate this expense
-                </button>
-              )}
-              {expDate === "" && (
-                <div style={{ marginBottom:14 }}>
-                  <input type="date" autoFocus value={expDate} max={today} onChange={e=>setExpDate(e.target.value||today)} style={{ width:"100%", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", color:C.text, fontSize:14, fontWeight:700, fontFamily:"DM Sans,sans-serif", outline:"none", boxSizing:"border-box" }}/>
-                </div>
-              )}
-
-              <Btn onClick={()=>canProceed&&setStep(1)} style={{ opacity:canProceed?1:0.4 }}>Next →</Btn>
-              </>)}
+              {aiError&&<p style={{ margin:"0 0 8px", fontSize:12, color:C.coral, fontFamily:FF }}>{aiError}</p>}
+              <button onClick={()=>setAiMode(false)} style={{ background:"none", border:"none", color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:FF, padding:0 }}>
+                Switch to manual →
+              </button>
             </div>
           )}
 
-          {/* ── STEP 1: Name (optional) + Grocery items + Mood ── */}
-          {step === 1 && (
-            <div>
-              {/* Preview pill showing amount + category */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, background:cat.color+"14", border:`1px solid ${cat.color}35`, borderRadius:12, padding:"10px 14px", marginBottom:20 }}>
-                <span style={{ fontSize:20 }}>{cat.icon}</span>
-                <span style={{ fontSize:16, fontWeight:800, color:cat.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(+amount)}</span>
-                <span style={{ fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{cat.label}</span>
-                <button onClick={()=>setStep(0)} style={{ marginLeft:"auto", background:"none", border:"none", color:C.textSub, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>← Edit</button>
-              </div>
+          {/* ── AMOUNT — always visible ── */}
+          {(!aiMode || isEdit) && (
+          <div>
+            {/* AI toggle pill (only for new) */}
+            {!isEdit && (
+              <button onClick={()=>{ setAiMode(true); setTimeout(()=>aiInputRef.current?.focus(),80); }}
+                style={{ background:`${C.accent}0E`, border:`1px solid ${C.accent}30`, borderRadius:99, padding:"5px 14px", fontSize:12, fontWeight:700, color:C.accent, cursor:"pointer", fontFamily:FF, marginBottom:14, display:"flex", alignItems:"center", gap:6 }}>
+                <span>{isOnline?"✨":"✍️"}</span> Describe it instead
+              </button>
+            )}
 
-              {/* Name -- optional */}
-              <div style={{ marginBottom:16 }}>
-                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
-                  Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>-- optional</span>
-                </p>
-                <input
-                  ref={nameRef}
-                  value={name} onChange={e=>setName(e.target.value)}
-                  placeholder={isGrocery ? "e.g. SM Supermarket run..." : `e.g. Jollibee, Grab, ${cat.label}...`}
-                  onKeyDown={e=>e.key==="Enter"&&save()}
-                  style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"13px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
-                />
-                <p style={{ margin:"5px 0 0", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Leave blank -- will save as "{cat.label}"</p>
-              </div>
-
-              {/* Grocery items -- only when grocery mode */}
-              {isGrocery && (
-                <div style={{ marginBottom:16 }}>
-                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>Items in this haul</p>
-                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                    <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter"
-                      onKeyDown={e=>e.key==="Enter"&&addGItem()}
-                      style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"11px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:"DM Sans,sans-serif", caretColor:C.lime }}/>
-                    <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
-                  </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
-                    {gItems.map((item,i)=>(
-                      <span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:700, cursor:"pointer" }}>{item} ×</span>
-                    ))}
-                    {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>Type and press Enter or +</p>}
-                  </div>
-                </div>
+            {/* Big amount field */}
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:C.card, border:`1.5px solid ${canSave?C.accent+"60":C.border}`, borderRadius:16, padding:"14px 18px", marginBottom:10, transition:"border-color 0.18s" }}>
+              <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:FF }}>₱</span>
+              <input
+                ref={amountRef}
+                value={amount}
+                onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
+                onKeyDown={e=>e.key==="Enter"&&canSave&&save()}
+                inputMode="decimal"
+                placeholder="0"
+                style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:FF, fontSize:32, fontWeight:800, color:C.text, caretColor:C.accent, minWidth:0 }}
+              />
+              {aiFilled&&amount&&(
+                <span style={{ fontSize:11, color:C.accent, fontFamily:FF, fontWeight:700, background:`${C.accent}15`, borderRadius:99, padding:"2px 8px", flexShrink:0 }}>✨ AI</span>
               )}
+            </div>
 
-              {/* Mood -- inline emoji row */}
-              <div style={{ marginBottom:22 }}>
-                <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:"DM Sans,sans-serif" }}>
-                  Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>-- optional</span>
-                  {moodLogsCount<2 && <span style={{ color:C.rose, fontWeight:700 }}> - {2-moodLogsCount} more to unlock insights</span>}
-                </p>
-                <div style={{ display:"flex", gap:8 }}>
-                  {MOODS.map(m=>(
-                    <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} style={{
-                      flex:1, padding:"12px 4px 10px", borderRadius:14,
-                      border:`2px solid ${moodId===m.id?m.color:C.border}`,
-                      background:moodId===m.id?m.color+"18":C.card,
-                      display:"flex", flexDirection:"column", alignItems:"center", gap:5,
-                      cursor:"pointer", transition:"all 0.13s"
-                    }}>
-                      <span style={{ fontSize:26 }}>{m.emoji}</span>
-                      <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.label}</span>
-                    </button>
-                  ))}
+            {/* Quick amount pills */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:6 }}>
+              {QUICK.map(q=>(
+                <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
+                  style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"6px 13px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:FF }}>
+                  ₱{q.toLocaleString()}
+                </button>
+              ))}
+            </div>
+
+            {/* +add pills */}
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:18 }}>
+              <span style={{ fontSize:10, fontWeight:800, color:C.textFaint, fontFamily:FF, textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>+ Add</span>
+              {[20,50,100,500].map(q=>(
+                <button key={q} onClick={()=>setAmount(p=>String((+p||0)+q))} className="tap-btn"
+                  style={{ background:`${C.lime}12`, border:`1px solid ${C.lime}35`, color:C.lime, borderRadius:99, padding:"5px 11px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:FF }}>
+                  +{q}
+                </button>
+              ))}
+              {+amount>0&&<button onClick={()=>setAmount("")} className="tap-btn" style={{ background:`${C.coral}12`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:99, padding:"5px 10px", cursor:"pointer", fontSize:11, fontWeight:800, fontFamily:FF, marginLeft:"auto" }}>✕</button>}
+            </div>
+
+            {/* Category grid */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Category</p>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:11, color:C.textSub, fontFamily:FF }}>Grocery</span>
+                  <Toggle on={isGrocery} setOn={v=>{ setIsGrocery(v); if(v) setCatId("grocery"); }} color={C.lime}/>
                 </div>
               </div>
-
-              {/* Save */}
-              <Btn onClick={save}>Save ✓</Btn>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+                {CATS.filter(c=>c.id!=="grocery").map(c=>(
+                  <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
+                    style={{ background:!isGrocery&&catId===c.id?c.color+"1E":C.card, border:`1.5px solid ${!isGrocery&&catId===c.id?c.color+"70":C.border}`, borderRadius:13, padding:"9px 4px 7px", display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
+                    <span style={{ fontSize:20 }}>{c.icon}</span>
+                    <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:FF, lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* ── OPTIONAL DETAILS — name, mood, wallet ── */}
+            {!showMore ? (
+              <button onClick={()=>setShowMore(true)}
+                style={{ background:"none", border:"none", color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:FF, padding:"0 0 14px", display:"flex", alignItems:"center", gap:5, width:"100%" }}>
+                <span style={{ color:C.accent }}>+</span> Add name, mood, wallet
+              </button>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:4 }}>
+
+                {/* Name */}
+                <div>
+                  <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                    Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                  </p>
+                  <input
+                    value={name} onChange={e=>setName(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&save()}
+                    placeholder={isGrocery?"e.g. SM Supermarket run...":`e.g. Jollibee, Grab, ${cat.label}...`}
+                    style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
+                  />
+                </div>
+
+                {/* Grocery items */}
+                {isGrocery&&(
+                  <div>
+                    <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Items in this haul</p>
+                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                      <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter" onKeyDown={e=>e.key==="Enter"&&addGItem()}
+                        style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.lime }}/>
+                      <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
+                      {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:FF, fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
+                      {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:FF }}>Type and press Enter or +</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Mood */}
+                <div>
+                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                    Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                    {moodLogsCount<2&&<span style={{ color:C.rose, fontWeight:700 }}> · {2-moodLogsCount} more to unlock insights</span>}
+                  </p>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {MOODS.map(m=>(
+                      <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} className="tap-btn"
+                        style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
+                        <span style={{ fontSize:24 }}>{m.emoji}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Wallet picker */}
+                {wallets&&wallets.length>0&&(
+                  <div>
+                    <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
+                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
+                          <WalletIcon wallet={w} size={16}/><span>{w.name}</span>
+                          <span style={{ fontSize:10, opacity:0.7 }}>{fmt(w.balance)}</span>
+                          {insuf&&<span>⚠️</span>}
+                        </button>
+                      );})}
+                    </div>
+                    {insufficient&&<p style={{ margin:"6px 0 0", fontSize:12, color:C.coral, fontWeight:700, fontFamily:FF }}>⚠️ Not enough in {selectedWallet.name}</p>}
+                  </div>
+                )}
+
+                {/* Backdate */}
+                {expDate!==today&&(
+                  <div style={{ display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
+                    <span style={{ fontSize:14 }}>📅</span>
+                    <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)} style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF }}/>
+                    <Tag color={C.accent}>Backdated</Tag>
+                  </div>
+                )}
+                {expDate===today&&(
+                  <button onClick={()=>setExpDate("")} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11, fontFamily:FF, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:5 }}>
+                    📅 Backdate this expense
+                  </button>
+                )}
+                {expDate===""&&(
+                  <input type="date" autoFocus value={expDate} max={today} onChange={e=>setExpDate(e.target.value||today)} style={{ width:"100%", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", color:C.text, fontSize:14, fontWeight:700, fontFamily:FF, outline:"none", boxSizing:"border-box" }}/>
+                )}
+              </div>
+            )}
+
+            {/* Save */}
+            <Btn onClick={save} style={{ opacity:canSave?1:0.4, marginTop:showMore?18:0 }}>
+              {isEdit ? "Save changes ✓" : canSave ? `Save ${fmt(+amount)} ✓` : "Enter an amount"}
+            </Btn>
+          </div>
           )}
         </div>
       </div>
