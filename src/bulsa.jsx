@@ -753,8 +753,6 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
     }, 120);
   }, [focusWalletId]);
 
-  const total = wallets.reduce((s,w) => s + w.balance, 0);
-
   const saveWallet = w => {
     setWallets(prev => prev.find(x=>x.id===w.id) ? prev.map(x=>x.id===w.id?w:x) : [...prev,w]);
     setSheet(null);
