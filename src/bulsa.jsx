@@ -4760,7 +4760,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
-  const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
+  const savePct    = income > 0 ? Math.max(Math.round(((income-totalSpent)/income)*100),0) : 0;
 
   const SOURCE_TYPES = [
     { id:"salary",     label:"Salary",     emoji:"💼" },
