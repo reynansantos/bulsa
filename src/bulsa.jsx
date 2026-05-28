@@ -5049,7 +5049,7 @@ function SurviveScreen({ expenses, income, loans, goals, payday, setScreen, budg
 
 // ─── PROFILE ───────────────────────────────────────────────────────────────
 
-function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday }) {
+function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, name, setName, avatar, setAvatar, expenses, setExpenses, loans, setLoans, goals, setGoals, utangs, setUtangs, wallets, setWallets, budgets, setBudgets, subs, setSubs, dailyLimit, setDailyLimit, setScreen, payday, setPayday, onSignOut, user, guestMode=false, onGuestUpgrade }) {
   const fmt = useFmt();
   const [editIncome,  setEditIncome]  = useState(false);
   const [editName,    setEditName]    = useState(false);
@@ -5067,7 +5067,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
   const moodLogs   = expenses.filter(e=>e.moodId).length;
   const photoLogs  = expenses.filter(e=>e.photo).length;
-  const savePct    = Math.max(Math.round(((income-totalSpent)/income)*100),0);
+  const savePct    = income > 0 ? Math.max(Math.round(((income-totalSpent)/income)*100), 0) : 0;
 
   const SOURCE_TYPES = [
     { id:"salary",     label:"Salary",     emoji:"💼" },
@@ -5499,8 +5499,19 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 
       <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
 
-      {/* Sign out */}
-      {onSignOut && (
+      {/* Guest upgrade nudge */}
+      {guestMode && (
+        <div style={{ background:`${C.accent}10`, border:`1.5px solid ${C.accent}40`, borderRadius:16, padding:"16px" }}>
+          <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>💾 Your data is device-only</p>
+          <p style={{ margin:"0 0 12px", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Sign in with Google to back up and sync across devices. Free, always.</p>
+          <button onClick={onGuestUpgrade} className="tap-btn"
+            style={{ width:"100%", background:C.gradAccent, border:"none", borderRadius:12, padding:"12px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            Sign in to sync →
+          </button>
+        </div>
+      )}
+      {/* Sign out — only for logged-in users */}
+      {onSignOut && !guestMode && (
         <button onClick={onSignOut} className="tap-btn"
           style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:12, padding:"11px", color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
           {user?.displayName ? `Sign out (${user.displayName})` : "Sign out"}
@@ -5875,8 +5886,8 @@ export default function Bulsa() {
     utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
     accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>,
     survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
-    chat:     <ChatScreen expenses={expenses} setExpenses={setExpenses} income={income} wallets={wallets} setWallets={setWallets} loans={loans} utangs={utangs} goals={goals} budgets={budgets} subs={subs} payday={payday} dailyLimit={dailyLimit} name={name}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user} guestMode={guestMode} onGuestUpgrade={async()=>{ handleGuestUpgrade(); await handleGoogleLogin(); }}/>,
+
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -5930,17 +5941,7 @@ export default function Bulsa() {
         ):(
           <>
             <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-              {screen!=="chat"&&(
-                <button onClick={()=>setScreen("chat")} className="tap-btn" style={{
-                  position:"fixed", bottom:"calc(90px + env(safe-area-inset-bottom))", right:18,
-                  width:50, height:50, borderRadius:"50%", border:`2px solid ${C.accent}50`,
-                  background:C.surface, cursor:"pointer",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  boxShadow:`0 4px 18px rgba(0,0,0,0.35)`, zIndex:89,
-                }}>
-                  <MessageCircle size={20} strokeWidth={2.5} color={C.accent}/>
-                </button>
-              )}
+
             </div>
             <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
             {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
