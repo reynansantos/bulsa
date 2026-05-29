@@ -140,6 +140,8 @@ const CATS = [
   { id:"subs",      label:"Subscriptions",  icon:"📱", color:C.gold },
   { id:"health",    label:"Health",         icon:"💪", color:C.mint },
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
+  { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F9A8D4" },
+  { id:"travel",    label:"Travel",         icon:"✈️", color:"#38BDF8" },
   { id:"bills",     label:"Bills",          icon:"🧾", color:C.textSub },
   { id:"other",     label:"Other",          icon:"✦",  color:C.textSub },
 ];
@@ -156,7 +158,7 @@ const LOAN_COLORS = [C.accent, C.sky, C.gold, C.rose, C.mint, C.lime, C.textSub]
 const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮","👶","🌏","💊","🎸","⚽","🏋️","🍕"];
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
-const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, bills:3000, other:1000 };
+const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, skincare:2000, travel:5000, bills:3000, other:1000 };
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
@@ -1068,6 +1070,8 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
       { id:"bills",     kw:["load","bill","bills","electric","meralco","water","maynilad","internet","wifi","pldt","globe","smart","netflix","spotify","subscription","rent","bayad"] },
       { id:"shopping",  kw:["lazada","shopee","shein","ukay","clothes","shirt","shoes","bag","shop","bought","purchase"] },
       { id:"health",    kw:["gamot","medicine","pharmacy","mercury","rose","clinic","hospital","doctor","checkup","vitamins"] },
+      { id:"skincare",  kw:["skincare","moisturizer","sunscreen","serum","toner","cleanser","cerave","cosrx","snail","retinol","face","skin","lotion","niacinamide","aztec","beauty","makeup","lipstick","blush","foundation","laneige","the ordinary","innisfree","some by mi"] },
+      { id:"travel",    kw:["airline","airfare","cebu pacific","pal","air asia","philippine airlines","hotel","airbnb","booking","agoda","trip","travel","pasalubong","palawan","boracay","siargao","batanes","bohol","ferry","bus ticket","bus fare"] },
     ];
     let cid = "other";
     for (const cat of catMap) { if (cat.kw.some(kw=>rest.includes(kw)||txt.includes(kw))) { cid=cat.id; break; } }
