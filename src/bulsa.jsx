@@ -142,8 +142,8 @@ const CATS = [
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
   { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F9A8D4" },
   { id:"travel",    label:"Travel",         icon:"✈️", color:"#38BDF8" },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:C.textSub },
-  { id:"other",     label:"Other",          icon:"✦",  color:C.textSub },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
+  { id:"other",     label:"Other",          icon:"✦",  color:"#A78BFA" },
 ];
 
 const MOODS = [
@@ -159,6 +159,9 @@ const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
 const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, skincare:2000, travel:5000, bills:3000, other:1000 };
+
+// ─── HAPTICS ───────────────────────────────────────────────────────────────
+const haptic = (ms=10) => { try { navigator.vibrate?.(ms); } catch {} };
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
@@ -1025,10 +1028,10 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
+  const [showMore,  setShowMore]  = useState(true);
 
   // AI
-  const [aiMode,    setAiMode]    = useState(!isEdit);
+  const [aiMode,    setAiMode]    = useState(false);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
@@ -1147,6 +1150,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
 
   const save = () => {
     if (!amount || +amount<=0) return;
+    haptic(14);
     const d = new Date(expDate+"T"+new Date().toTimeString().slice(0,8));
     const h=d.getHours(), mn=d.getMinutes().toString().padStart(2,"0");
     const isToday = expDate===today;
@@ -1294,7 +1298,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
                 {CATS.filter(c=>c.id!=="grocery").map(c=>(
-                  <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
+                  <button key={c.id} onClick={()=>{ haptic(); setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
                     style={{ background:!isGrocery&&catId===c.id?c.color+"1E":C.card, border:`1.5px solid ${!isGrocery&&catId===c.id?c.color+"70":C.border}`, borderRadius:13, padding:"9px 4px 7px", display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
                     <span style={{ fontSize:20 }}>{c.icon}</span>
                     <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:FF, lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
@@ -1349,7 +1353,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                   </p>
                   <div style={{ display:"flex", gap:6 }}>
                     {MOODS.map(m=>(
-                      <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} className="tap-btn"
+                      <button key={m.id} onClick={()=>{ haptic(); setMoodId(moodId===m.id?null:m.id); }} className="tap-btn"
                         style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
                         <span style={{ fontSize:24 }}>{m.emoji}</span>
                         <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
@@ -1364,7 +1368,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                     <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
-                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
+                        <button key={w.id} onClick={()=>{ haptic(); setWalletId(sel?null:w.id); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
                           <WalletIcon wallet={w} size={16}/><span>{w.name}</span>
                           <span style={{ fontSize:10, opacity:0.7 }}>{fmt(w.balance)}</span>
                           {insuf&&<span>⚠️</span>}
@@ -2876,6 +2880,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         {/* Sub info + streak inline */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF, flex:1 }}>{hero.sub}</p>
+          {budgetStreak !== null && [1,3,7,14,30].includes(budgetStreak) && haptic(30)}
           {budgetStreak !== null && budgetStreak > 0 && (
             <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3, marginLeft:8 }}>
               <span style={{ fontSize:10 }}>🔥</span>
