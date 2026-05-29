@@ -5190,19 +5190,42 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 
       <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
 
-      {/* Sign out */}
-      {onSignOut && (
-        <button onClick={onSignOut} className="tap-btn"
-          style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:12, padding:"11px", color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
-          {user?.displayName ? `Sign out (${user.displayName})` : "Sign out"}
-        </button>
+      {/* Account section */}
+      {user ? (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px", display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            {user.photoURL
+              ? <img src={user.photoURL} alt="" style={{ width:36, height:36, borderRadius:"50%", border:`2px solid ${C.border}` }}/>
+              : <div style={{ width:36, height:36, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>{(user.displayName||"U")[0]}</div>
+            }
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{user.displayName||"Google User"}</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>☁️ Data synced to cloud</p>
+            </div>
+          </div>
+          <button onClick={onSignOut} className="tap-btn"
+            style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
+            Sign out
+          </button>
+        </div>
+      ) : onSignOut && (
+        <div style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:14, padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+          <div>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>⚠️ Guest mode — data on this device only</p>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>Sign in with Google to back up your data and access it from any device.</p>
+          </div>
+          <button onClick={onSignOut} className="tap-btn"
+            style={{ background:C.gradAccent, border:"none", borderRadius:11, padding:"10px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif", width:"100%" }}>
+            Sign in with Google
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
-function LoginScreen({ onLogin, loading, error }) {
+function LoginScreen({ onLogin, onGuest, loading, error }) {
   return (
     <div style={{
       background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
@@ -5266,9 +5289,18 @@ function LoginScreen({ onLogin, loading, error }) {
             </p>
           )}
 
+          <button onClick={onGuest} className="tap-btn" style={{
+            width:"100%", padding:"14px 24px", borderRadius:16,
+            background:"none", border:`1px solid ${C.border}`,
+            color:C.textSub, fontSize:13, fontWeight:700,
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            transition:"opacity 0.2s",
+          }}>
+            Use without account
+          </button>
+
           <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Your data is synced to your Google account and stays private.
-            No ads. No selling your data.
+            Sign in to sync across devices. Guest data stays on this device only.
           </p>
         </div>
 
@@ -5285,6 +5317,7 @@ export default function Bulsa() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError,   setLoginError]   = useState("");
   const [syncStatus,   setSyncStatus]   = useState("idle"); // idle | saving | saved | error
+  const [guestMode,    setGuestMode]    = useLocalStorage("bulsa_guest", false);
 
   // ── App state (localStorage as local cache) ───────────────────────────────
   const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
@@ -5402,6 +5435,7 @@ export default function Bulsa() {
   const handleSignOut = async () => {
     await signOut(auth);
     setUser(null);
+    setGuestMode(false);
   };
 
   // ── PWA install prompt ────────────────────────────────────────────────────
@@ -5583,8 +5617,8 @@ export default function Bulsa() {
   }
 
   // ── Not logged in ────────────────────────────────────────────────────────
-  if (!user) {
-    return <LoginScreen onLogin={handleGoogleLogin} loading={loginLoading} error={loginError}/>;
+  if (!user && !guestMode) {
+    return <LoginScreen onLogin={handleGoogleLogin} onGuest={()=>setGuestMode(true)} loading={loginLoading} error={loginError}/>;
   }
 
   // ── Logged in ────────────────────────────────────────────────────────────
