@@ -2678,9 +2678,42 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
+// ─── SETUP NUDGE CARD ────────────────────────────────────────────────────────
+function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
+  const missing = [];
+  if (!name)                         missing.push({ icon:"👋", text:"Add your name" });
+  if (!income || income <= 0)        missing.push({ icon:"💸", text:"Set monthly income" });
+  if (!wallets || wallets.length===0) missing.push({ icon:"👛", text:"Add a wallet" });
+  if (missing.length === 0) return null;
+  return (
+    <div style={{ background:`${C.accent}0E`, border:`1.5px solid ${C.accent}30`, borderRadius:16, padding:"14px 16px", position:"relative" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div>
+          <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:C.text }}>Finish setting up bulsa.</p>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>{missing.length} thing{missing.length!==1?"s":""} left — takes 30 seconds</p>
+        </div>
+        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px", lineHeight:1 }}>×</button>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
+        {missing.map((m,i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:14 }}>{m.icon}</span>
+            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub }}>{m.text}</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={onSetup} style={{ background:C.gradAccent, border:"none", borderRadius:10, padding:"10px 0", width:"100%", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#fff", cursor:"pointer", boxShadow:`0 4px 14px ${C.accentGlow}` }}>
+        Set up now →
+      </button>
+    </div>
+  );
+}
+
+
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap }) {
   const fmt = useFmt();
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [nudgeDismissed,    setNudgeDismissed]    = useState(false);
+  const [setupCardDismissed, setSetupCardDismissed] = useState(false);
 
   // ── Core numbers ──────────────────────────────────────────────────────────
   const totalSpent  = expenses.reduce((s,e)=>s+e.amount,0);
@@ -2802,6 +2835,26 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             <button onClick={onInstall} className="tap-btn" style={{ background:C.gold, border:"none", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:800, color:"#111", fontFamily:FF }}>Install</button>
             <button onClick={onDismissInstall} className="tap-btn" style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer" }}>×</button>
           </div>
+        </div>
+      )}
+
+      {/* ── SETUP NUDGE CARD — only until dismissed ── */}
+      {!setupCardDismissed && (
+        <SetupCard
+          income={income} wallets={wallets} name={name}
+          onSetup={()=>setScreen("profile")}
+          onDismiss={()=>setSetupCardDismissed(true)}
+        />
+      )}
+
+      {/* ── INCOME NUDGE — shown when income not set ── */}
+      {income <= 0 && setupCardDismissed && (
+        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+          <span style={{ fontSize:16 }}>💸</span>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>
+            Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span>
+          </p>
+          <span style={{ color:C.gold, fontSize:14 }}>›</span>
         </div>
       )}
 
@@ -2930,22 +2983,20 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
               const cat  = catOf(e.catId);
               const mood = moodOf(e.moodId);
               return (
-                <SwipeableRow key={e.id} onDelete={()=>{ /* handled in ExpensesScreen */ }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:12, background:C.card, borderRadius:12, padding:"11px 14px", border:`1px solid ${C.border}` }}>
-                    <div style={{ width:36, height:36, borderRadius:11, background:cat.color+"18", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                      {cat.icon}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:700, color:C.text, fontFamily:FF, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                        {e.name || cat.label}
-                      </p>
-                      <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>{e.time} {mood ? mood.emoji : ""}</p>
-                    </div>
-                    <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:FF, flexShrink:0 }}>
-                      {hidden ? "••••" : `-${fmt(e.amount)}`}
-                    </p>
+                <div key={e.id} style={{ display:"flex", alignItems:"center", gap:12, background:C.card, borderRadius:12, padding:"11px 14px", border:`1px solid ${C.border}` }}>
+                  <div style={{ width:36, height:36, borderRadius:11, background:cat.color+"18", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                    {cat.icon}
                   </div>
-                </SwipeableRow>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:700, color:C.text, fontFamily:FF, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {e.name || cat.label}
+                    </p>
+                    <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>{e.time} {mood ? mood.emoji : ""}</p>
+                  </div>
+                  <p style={{ margin:0, fontSize:14, fontWeight:800, color:C.coral, fontFamily:FF, flexShrink:0 }}>
+                    {hidden ? "••••" : `-${fmt(e.amount)}`}
+                  </p>
+                </div>
               );
             })}
           </div>
@@ -3099,84 +3150,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 
 // ─── EXPENSE LIST VIEW ──────────────────────────────────────────────────────
 
-// ─── SWIPEABLE ROW ───────────────────────────────────────────────────────────
-function SwipeableRow({ children, onDelete }) {
-  const [dx,       setDx]       = useState(0);
-  const [swiping,  setSwiping]  = useState(false);
-  const startX  = useRef(0);
-  const startY  = useRef(0);
-  const locked  = useRef(null); // "h" | "v" | null
-  const THRESHOLD = 72;
-
-  const onTouchStart = e => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    locked.current = null;
-    setSwiping(false);
-  };
-
-  const onTouchMove = e => {
-    const deltaX = e.touches[0].clientX - startX.current;
-    const deltaY = e.touches[0].clientY - startY.current;
-    if (!locked.current) {
-      locked.current = Math.abs(deltaX) > Math.abs(deltaY) ? "h" : "v";
-    }
-    if (locked.current === "v") return;
-    if (deltaX > 0) { setDx(0); return; } // no right swipe
-    e.preventDefault();
-    setSwiping(true);
-    setDx(Math.max(deltaX, -THRESHOLD - 20));
-  };
-
-  const onTouchEnd = () => {
-    if (dx <= -THRESHOLD) {
-      setDx(-THRESHOLD);
-    } else {
-      setDx(0);
-      setSwiping(false);
-    }
-  };
-
-  const reset = () => { setDx(0); setSwiping(false); };
-
-  const handleDelete = () => {
-    try { navigator.vibrate?.(18); } catch {}
-    onDelete();
-  };
-
-  return (
-    <div style={{ position:"relative", overflow:"hidden", borderRadius:12 }}>
-      {/* Delete zone — revealed behind */}
-      <div style={{
-        position:"absolute", right:0, top:0, bottom:0, width:THRESHOLD,
-        background:C.coral, display:"flex", alignItems:"center", justifyContent:"center",
-        borderRadius:"0 12px 12px 0",
-      }}>
-        <button onClick={handleDelete} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-          <span style={{ fontSize:18 }}>🗑️</span>
-          <span style={{ fontSize:10, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>Delete</span>
-        </button>
-      </div>
-      {/* Row content — slides left */}
-      <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onClick={dx < -10 ? reset : undefined}
-        style={{
-          transform:`translateX(${dx}px)`,
-          transition: swiping ? "none" : "transform 0.25s cubic-bezier(0.25,1,0.5,1)",
-          willChange:"transform",
-          position:"relative", zIndex:1,
-        }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-
-function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
+function ExpenseListView({ expenses, onDetail, fmt }) {
   const [period, setPeriod] = useState("day");
   const now = new Date();
   const todayStr = now.toDateString();
@@ -3198,11 +3172,11 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodLabel}</span><div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{filtered.length} item{filtered.length!==1?"s":""}</span><span style={{ fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(total)}</span></div></div>
       {filtered.length===0&&(<div style={{ textAlign:"center", padding:"52px 0 36px" }}><div style={{ width:72, height:72, borderRadius:22, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 14px" }}>👛</div><p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{period==="day"?"Nothing logged today":period==="week"?"Nothing this week yet":"Nothing this month yet"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log an expense.</p></div>)}
       {filtered.length>0&&(period==="day"?(
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{filtered.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<SwipeableRow key={e.id} onDelete={()=>onDelete&&onDelete(e.id)}><Card onClick={()=>onDetail(e)} glow style={{ borderRadius:"0 0 0 0", margin:0 }}><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card></SwipeableRow>);})}</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{filtered.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div>
       ):(()=>{
         const groups = {};
         filtered.forEach(e=>{ const key=e.ts?new Date(e.ts).toDateString():"Unknown"; if(!groups[key]) groups[key]=[]; groups[key].push(e); });
-        return (<div style={{ display:"flex", flexDirection:"column", gap:14 }}>{Object.entries(groups).map(([dateStr,exps])=>{ const d=dateStr!=="Unknown"?new Date(dateStr):null; const isToday=d?.toDateString()===todayStr; const label=isToday?"Today":d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"})||"Unknown"; const dayTotal=exps.reduce((s,e)=>s+e.amount,0); return (<div key={dateStr}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}><span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{label}</span><span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(dayTotal)}</span></div><div style={{ display:"flex", flexDirection:"column", gap:8 }}>{exps.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<SwipeableRow key={e.id} onDelete={()=>onDelete&&onDelete(e.id)}><Card onClick={()=>onDetail(e)} glow style={{ borderRadius:"0 0 0 0", margin:0 }}><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card></SwipeableRow>);})}</div></div>); })}</div>);
+        return (<div style={{ display:"flex", flexDirection:"column", gap:14 }}>{Object.entries(groups).map(([dateStr,exps])=>{ const d=dateStr!=="Unknown"?new Date(dateStr):null; const isToday=d?.toDateString()===todayStr; const label=isToday?"Today":d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"})||"Unknown"; const dayTotal=exps.reduce((s,e)=>s+e.amount,0); return (<div key={dateStr}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}><span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{label}</span><span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(dayTotal)}</span></div><div style={{ display:"flex", flexDirection:"column", gap:8 }}>{exps.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div></div>); })}</div>);
       })())}
     </div>
   );
@@ -3286,7 +3260,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       </div>
 
       {view==="list"&&(
-        <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt} onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
+        <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt}/>
       )}
       {view==="chart"&&(()=>{
         const cycle    = getPaycycle(payday||"both");
@@ -5408,7 +5382,8 @@ export default function Bulsa() {
   const [guestMode,    setGuestMode]    = useLocalStorage("bulsa_guest", false);
 
   // ── App state (localStorage as local cache) ───────────────────────────────
-  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
+  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", true);
+  const [setupSeen,  setSetupSeen]  = useLocalStorage("bulsa_setup_seen", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
@@ -5737,17 +5712,20 @@ export default function Bulsa() {
           </div>
         )}
 
-        {!onboarded?(
-          <Onboarding onDone={handleOnboardDone}/>
-        ):(
-          <>
-            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-
-            </div>
-            <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
-          </>
-        )}
+        {/* Always show home — onboarding is now an optional overlay */}
+        <>
+          <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
+            {!setupSeen && !onboarded ? (
+              // First-ever open: show full onboarding overlay
+              <div style={{ position:"absolute", inset:0, zIndex:300, background:C.bg }}>
+                <Onboarding onDone={(data)=>{ handleOnboardDone(data); setSetupSeen(true); }}/>
+              </div>
+            ) : null}
+            {screens[screen]}
+          </div>
+          <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
+          {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+        </>
       </div>
     </div>
     </HideCtx.Provider>
