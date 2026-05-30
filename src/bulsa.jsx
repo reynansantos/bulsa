@@ -142,8 +142,8 @@ const CATS = [
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
   { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F9A8D4" },
   { id:"travel",    label:"Travel",         icon:"✈️", color:"#38BDF8" },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
-  { id:"other",     label:"Other",          icon:"✦",  color:"#A78BFA" },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:C.textSub },
+  { id:"other",     label:"Other",          icon:"✦",  color:C.textSub },
 ];
 
 const MOODS = [
@@ -159,9 +159,6 @@ const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
 const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, skincare:2000, travel:5000, bills:3000, other:1000 };
-
-// ─── HAPTICS ───────────────────────────────────────────────────────────────
-const haptic = (ms=10) => { try { navigator.vibrate?.(ms); } catch {} };
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
@@ -732,10 +729,166 @@ function WalletAdjustSheet({ wallet, onSave, onClose }) {
 
 // ─── WALLETS SCREEN ────────────────────────────────────────────────────────
 
+// ─── WALLET TRANSFER SHEET ─────────────────────────────────────────────────
+
+function WalletTransferSheet({ wallets, onTransfer, onClose }) {
+  const fmt = useFmt();
+  const today = new Date().toISOString().split("T")[0];
+  const [fromId,  setFromId]  = useState(wallets[0]?.id || null);
+  const [toId,    setToId]    = useState(wallets[1]?.id || null);
+  const [amount,  setAmount]  = useState("");
+  const [date,    setDate]    = useState(today);
+  const [note,    setNote]    = useState("");
+  const FF = "DM Sans,sans-serif";
+
+  const fromWallet = wallets.find(w=>w.id===fromId);
+  const toWallet   = wallets.find(w=>w.id===toId);
+  const amt        = parseFloat(amount) || 0;
+  const insufficient = fromWallet && amt > fromWallet.balance;
+  const sameWallet   = fromId && fromId === toId;
+  const canSave      = amt > 0 && fromId && toId && !sameWallet && !insufficient;
+
+  const swap = () => { setFromId(toId); setToId(fromId); };
+
+  const save = () => {
+    if (!canSave) return;
+    onTransfer({ fromId, toId, amount:amt, date, note:note.trim() });
+    onClose();
+  };
+
+  const QUICK = [500, 1000, 2000, 5000];
+
+  return (
+    <BottomSheet onClose={onClose} title="Transfer between accounts">
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+        {/* From → To picker */}
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* From */}
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>From</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {wallets.map(w=>(
+                <button key={w.id} onClick={()=>setFromId(w.id)} className="tap-btn"
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:12,
+                    border:`1.5px solid ${fromId===w.id?w.color+"80":C.border}`,
+                    background:fromId===w.id?w.color+"18":C.card,
+                    cursor:"pointer", textAlign:"left", opacity:toId===w.id?0.35:1 }}>
+                  <WalletIcon wallet={w} size={18}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ margin:0, fontSize:12, fontWeight:700, color:fromId===w.id?w.color:C.text, fontFamily:FF, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
+                    <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>{fmt(w.balance)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Swap button */}
+          <button onClick={swap} className="tap-btn"
+            style={{ width:36, height:36, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.card, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, color:C.textSub, alignSelf:"center" }}>
+            ⇄
+          </button>
+
+          {/* To */}
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>To</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {wallets.map(w=>(
+                <button key={w.id} onClick={()=>setToId(w.id)} className="tap-btn"
+                  style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:12,
+                    border:`1.5px solid ${toId===w.id?w.color+"80":C.border}`,
+                    background:toId===w.id?w.color+"18":C.card,
+                    cursor:"pointer", textAlign:"left", opacity:fromId===w.id?0.35:1 }}>
+                  <WalletIcon wallet={w} size={18}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ margin:0, fontSize:12, fontWeight:700, color:toId===w.id?w.color:C.text, fontFamily:FF, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{w.name}</p>
+                    <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>{fmt(w.balance)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {sameWallet && <p style={{ margin:0, fontSize:12, color:C.coral, fontFamily:FF, textAlign:"center" }}>Can't transfer to the same account.</p>}
+
+        {/* Amount */}
+        <div>
+          <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Amount</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:C.card, border:`1.5px solid ${amt>0&&!insufficient?C.accent+"60":insufficient?C.coral+"60":C.border}`, borderRadius:14, padding:"13px 16px", transition:"border 0.18s" }}>
+            <span style={{ fontSize:22, fontWeight:800, color:C.textSub, fontFamily:FF }}>₱</span>
+            <input autoFocus type="text" inputMode="decimal" value={amount}
+              onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))}
+              onKeyDown={e=>e.key==="Enter"&&canSave&&save()}
+              placeholder="0"
+              style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:FF, fontSize:28, fontWeight:800, color:C.text, caretColor:C.accent }}/>
+          </div>
+          {insufficient && <p style={{ margin:"5px 0 0", fontSize:12, color:C.coral, fontFamily:FF }}>⚠️ Not enough in {fromWallet?.name} — balance is {fmt(fromWallet?.balance||0)}</p>}
+
+          {/* Quick amounts */}
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+            {QUICK.map(q=>(
+              <button key={q} onClick={()=>setAmount(String(q))} className="tap-btn"
+                style={{ background:amount===String(q)?C.accentGlow:C.card, border:`1px solid ${amount===String(q)?C.accent+"55":C.border}`, color:amount===String(q)?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF }}>
+                ₱{q.toLocaleString()}
+              </button>
+            ))}
+            {fromWallet&&fromWallet.balance>0&&(
+              <button onClick={()=>setAmount(String(Math.floor(fromWallet.balance)))} className="tap-btn"
+                style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF }}>
+                Full ({fmt(fromWallet.balance)})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Preview */}
+        {canSave && fromWallet && toWallet && (
+          <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}25`, borderRadius:12, padding:"12px 14px" }}>
+            <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.7 }}>
+              <span style={{ color:fromWallet.color, fontWeight:700 }}>{fromWallet.name}</span>
+              {" "}→ <span style={{ color:C.coral, fontWeight:700 }}>{fmt(fromWallet.balance - amt)}</span>
+              {"  ·  "}
+              <span style={{ color:toWallet.color, fontWeight:700 }}>{toWallet.name}</span>
+              {" "}→ <span style={{ color:C.green, fontWeight:700 }}>{fmt(toWallet.balance + amt)}</span>
+            </p>
+          </div>
+        )}
+
+        {/* Date + Note */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Date</p>
+            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 12px", display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ fontSize:12 }}>📅</span>
+              <input type="date" value={date} max={today} onChange={e=>setDate(e.target.value||today)}
+                style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:12, fontWeight:700, fontFamily:FF }}/>
+            </div>
+          </div>
+          <div>
+            <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Note</p>
+            <input value={note} onChange={e=>setNote(e.target.value)} placeholder="optional..."
+              style={{ width:"100%", background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 12px", color:C.text, fontSize:13, outline:"none", fontFamily:FF, boxSizing:"border-box", caretColor:C.accent }}/>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} style={{ opacity:canSave?1:0.4 }}>
+            {canSave ? `Transfer ${fmt(amt)} →` : "Transfer"}
+          </Btn>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWalletId=null, onFocusClear }) {
   const fmt = useFmt();
   const [sheet,        setSheet]        = useState(null);
   const [adjustSheet,  setAdjustSheet]  = useState(null);
+  const [transferSheet,setTransferSheet]= useState(false);
   const [confirm,      setConfirm]      = useState(null);
   const [histOpen,     setHistOpen]     = useState({});
   const cardRefs = useRef({});
@@ -764,6 +917,21 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
   };
   const deleteWallet = id => { setWallets(prev=>prev.filter(w=>w.id!==id)); setConfirm(null); };
 
+  const handleTransfer = ({ fromId, toId, amount, date, note }) => {
+    const displayDate = new Date(date+"T12:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"});
+    setWallets(prev => prev.map(w => {
+      if (w.id === fromId) {
+        const adj = { id:uid(), type:"out", amount, label:`Transfer to ${prev.find(x=>x.id===toId)?.name||"account"}${note?` — ${note}`:""}`, date, displayDate, balanceBefore:w.balance, balanceAfter:Math.max(w.balance-amount,0) };
+        return { ...w, balance:Math.max(w.balance-amount,0), adjustments:[...(w.adjustments||[]),adj] };
+      }
+      if (w.id === toId) {
+        const adj = { id:uid(), type:"in", amount, label:`Transfer from ${prev.find(x=>x.id===fromId)?.name||"account"}${note?` — ${note}`:""}`, date, displayDate, balanceBefore:w.balance, balanceAfter:w.balance+amount };
+        return { ...w, balance:w.balance+amount, adjustments:[...(w.adjustments||[]),adj] };
+      }
+      return w;
+    }));
+  };
+
   const applyAdjustment = (walletId, adj) => {
     setWallets(prev => prev.map(w => {
       if (w.id !== walletId) return w;
@@ -782,6 +950,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
     <div style={{ display:"flex", flexDirection:"column", gap:14, ...(embedded?{}:{padding:"22px 18px 16px"}) }} className={embedded?"":"screen-wrap"}>
       {sheet && <WalletSheet wallet={sheet==="add"?null:sheet} onSave={saveWallet} onClose={()=>setSheet(null)}/>}
       {adjustSheet && <WalletAdjustSheet wallet={adjustSheet} onSave={adj=>applyAdjustment(adjustSheet.id,adj)} onClose={()=>setAdjustSheet(null)}/>}
+      {transferSheet && wallets.length>=2 && <WalletTransferSheet wallets={wallets} onTransfer={handleTransfer} onClose={()=>setTransferSheet(false)}/>}
 
       {!embedded && (
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -790,12 +959,14 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
             <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
           </div>
-          <button onClick={()=>setSheet("add")} style={{
-            background:C.gradAccent, border:"none", borderRadius:12,
-            padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800,
-            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-            boxShadow:`0 4px 16px ${C.accentGlow}`,
-          }} className="tap-btn">+ Add</button>
+          <div style={{ display:"flex", gap:8 }}>
+            {wallets.length >= 2 && (
+              <button onClick={()=>setTransferSheet(true)} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"9px 14px", color:C.textSub, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                ⇄ Transfer
+              </button>
+            )}
+            <button onClick={()=>setSheet("add")} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }} className="tap-btn">+ Add</button>
+          </div>
         </div>
       )}
       {embedded && (
@@ -1028,10 +1199,10 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const [showMore,  setShowMore]  = useState(true);
+  const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
 
   // AI
-  const [aiMode,    setAiMode]    = useState(false);
+  const [aiMode,    setAiMode]    = useState(!isEdit);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
@@ -1150,7 +1321,6 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
 
   const save = () => {
     if (!amount || +amount<=0) return;
-    haptic(14);
     const d = new Date(expDate+"T"+new Date().toTimeString().slice(0,8));
     const h=d.getHours(), mn=d.getMinutes().toString().padStart(2,"0");
     const isToday = expDate===today;
@@ -1298,7 +1468,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
                 {CATS.filter(c=>c.id!=="grocery").map(c=>(
-                  <button key={c.id} onClick={()=>{ haptic(); setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
+                  <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
                     style={{ background:!isGrocery&&catId===c.id?c.color+"1E":C.card, border:`1.5px solid ${!isGrocery&&catId===c.id?c.color+"70":C.border}`, borderRadius:13, padding:"9px 4px 7px", display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
                     <span style={{ fontSize:20 }}>{c.icon}</span>
                     <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:FF, lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
@@ -1353,7 +1523,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                   </p>
                   <div style={{ display:"flex", gap:6 }}>
                     {MOODS.map(m=>(
-                      <button key={m.id} onClick={()=>{ haptic(); setMoodId(moodId===m.id?null:m.id); }} className="tap-btn"
+                      <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} className="tap-btn"
                         style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
                         <span style={{ fontSize:24 }}>{m.emoji}</span>
                         <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
@@ -1368,7 +1538,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                     <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
-                        <button key={w.id} onClick={()=>{ haptic(); setWalletId(sel?null:w.id); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
+                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
                           <WalletIcon wallet={w} size={16}/><span>{w.name}</span>
                           <span style={{ fontSize:10, opacity:0.7 }}>{fmt(w.balance)}</span>
                           {insuf&&<span>⚠️</span>}
@@ -2678,42 +2848,9 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
-// ─── SETUP NUDGE CARD ────────────────────────────────────────────────────────
-function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
-  const missing = [];
-  if (!name)                         missing.push({ icon:"👋", text:"Add your name" });
-  if (!income || income <= 0)        missing.push({ icon:"💸", text:"Set monthly income" });
-  if (!wallets || wallets.length===0) missing.push({ icon:"👛", text:"Add a wallet" });
-  if (missing.length === 0) return null;
-  return (
-    <div style={{ background:`${C.accent}0E`, border:`1.5px solid ${C.accent}30`, borderRadius:16, padding:"14px 16px", position:"relative" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-        <div>
-          <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:C.text }}>Finish setting up bulsa.</p>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>{missing.length} thing{missing.length!==1?"s":""} left — takes 30 seconds</p>
-        </div>
-        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:"0 4px", lineHeight:1 }}>×</button>
-      </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
-        {missing.map((m,i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:14 }}>{m.icon}</span>
-            <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub }}>{m.text}</span>
-          </div>
-        ))}
-      </div>
-      <button onClick={onSetup} style={{ background:C.gradAccent, border:"none", borderRadius:10, padding:"10px 0", width:"100%", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#fff", cursor:"pointer", boxShadow:`0 4px 14px ${C.accentGlow}` }}>
-        Set up now →
-      </button>
-    </div>
-  );
-}
-
-
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
   const fmt = useFmt();
-  const [nudgeDismissed,    setNudgeDismissed]    = useState(false);
-  const [setupCardDismissed, setSetupCardDismissed] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // ── Core numbers ──────────────────────────────────────────────────────────
   const totalSpent  = expenses.reduce((s,e)=>s+e.amount,0);
@@ -2838,23 +2975,19 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       )}
 
-      {/* ── SETUP NUDGE CARD — only until dismissed ── */}
-      {!setupCardDismissed && (
-        <SetupCard
-          income={income} wallets={wallets} name={name}
-          onSetup={()=>setScreen("profile")}
-          onDismiss={()=>setSetupCardDismissed(true)}
-        />
-      )}
-
-      {/* ── INCOME NUDGE — shown when income not set ── */}
-      {income <= 0 && setupCardDismissed && (
-        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
-          <span style={{ fontSize:16 }}>💸</span>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>
-            Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span>
-          </p>
-          <span style={{ color:C.gold, fontSize:14 }}>›</span>
+      {/* ── AUTO-LOG TOAST — subscriptions that renewed since last open ── */}
+      {autoLoggedSubs.length > 0 && (
+        <div style={{ background:`${C.mint}12`, border:`1px solid ${C.mint}40`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, zIndex:2 }}>
+          <span style={{ fontSize:18, flexShrink:0 }}>🔄</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 1px", fontSize:12, fontWeight:800, color:C.text, fontFamily:FF }}>
+              Auto-logged {autoLoggedSubs.length} subscription{autoLoggedSubs.length>1?"s":""}
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>
+              {autoLoggedSubs.join(", ")} — added to your expenses
+            </p>
+          </div>
+          <button onClick={onDismissAutoLog} className="tap-btn" style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", flexShrink:0 }}>×</button>
         </div>
       )}
 
@@ -2933,7 +3066,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         {/* Sub info + streak inline */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF, flex:1 }}>{hero.sub}</p>
-          {budgetStreak !== null && [1,3,7,14,30].includes(budgetStreak) && haptic(30)}
           {budgetStreak !== null && budgetStreak > 0 && (
             <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3, marginLeft:8 }}>
               <span style={{ fontSize:10 }}>🔥</span>
@@ -5382,8 +5514,7 @@ export default function Bulsa() {
   const [guestMode,    setGuestMode]    = useLocalStorage("bulsa_guest", false);
 
   // ── App state (localStorage as local cache) ───────────────────────────────
-  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", true);
-  const [setupSeen,  setSetupSeen]  = useLocalStorage("bulsa_setup_seen", false);
+  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
@@ -5500,6 +5631,44 @@ export default function Bulsa() {
     setUser(null);
     setGuestMode(false);
   };
+
+  // ── Auto-log overdue subscriptions on app open ───────────────────────────
+  const [autoLoggedSubs, setAutoLoggedSubs] = useState([]);
+  useEffect(() => {
+    if (!subs || subs.length === 0) return;
+    const today = new Date().toISOString().split("T")[0];
+    const catMap = { streaming:"subs", music:"subs", gaming:"subs", cloud:"subs", news:"subs", tools:"subs", fitness:"health", rent:"bills", utilities:"bills", internet:"bills", insurance:"bills", other:"other" };
+    const overdue = subs.filter(s =>
+      s.active !== false &&
+      s.dueDate &&
+      s.dueDate <= today &&
+      !s.autoLoggedDate // prevent double-logging on same day
+    );
+    if (overdue.length === 0) return;
+    const now = new Date();
+    const h = now.getHours(), mn = now.getMinutes().toString().padStart(2,"0");
+    const timeStr = `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`;
+    const newExpenses = overdue.map(s => ({
+      id:            uid(),
+      name:          s.name,
+      amount:        s.amount,
+      catId:         catMap[s.cat] || "subs",
+      date:          "Today",
+      time:          timeStr,
+      ts:            now.toISOString(),
+      walletId:      s.defaultWalletId || null,
+      fromRecurring: true,
+      note:          `Auto-logged · ${s.cycle || "monthly"} subscription`,
+    }));
+    setExpenses(prev => [...newExpenses, ...prev]);
+    setSubs(prev => prev.map(s => {
+      if (!overdue.find(o => o.id === s.id)) return s;
+      let next = s.dueDate;
+      while (next <= today) next = advanceDue(next, s.cycle);
+      return { ...s, dueDate: next, lastPaid: today, autoLoggedDate: today };
+    }));
+    setAutoLoggedSubs(overdue.map(s => s.name));
+  }, []); // run once on mount
 
   // ── PWA install prompt ────────────────────────────────────────────────────
   useEffect(() => {
@@ -5654,7 +5823,7 @@ export default function Bulsa() {
   };
 
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -5712,20 +5881,17 @@ export default function Bulsa() {
           </div>
         )}
 
-        {/* Always show home — onboarding is now an optional overlay */}
-        <>
-          <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
-            {!setupSeen && !onboarded ? (
-              // First-ever open: show full onboarding overlay
-              <div style={{ position:"absolute", inset:0, zIndex:300, background:C.bg }}>
-                <Onboarding onDone={(data)=>{ handleOnboardDone(data); setSetupSeen(true); }}/>
-              </div>
-            ) : null}
-            {screens[screen]}
-          </div>
-          <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-          {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
-        </>
+        {!onboarded?(
+          <Onboarding onDone={handleOnboardDone}/>
+        ):(
+          <>
+            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
+
+            </div>
+            <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
+            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+          </>
+        )}
       </div>
     </div>
     </HideCtx.Provider>
