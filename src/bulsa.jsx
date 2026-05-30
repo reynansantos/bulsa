@@ -166,7 +166,7 @@ const CATS = [
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime     },
   { id:"skincare",  label:"Skincare",       icon:"✨", color:"#C47EB5"  },
   { id:"travel",    label:"Travel",         icon:"✈️", color:C.sky      },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:"#7A9EC9"  },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
   { id:"other",     label:"Other",          icon:"✦",  color:"#8A8FAA"  },
 ];
 
