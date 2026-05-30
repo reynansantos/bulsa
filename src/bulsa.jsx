@@ -3760,33 +3760,10 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const [editB,   setEditB]  = useState(null);
   const [bInput,  setBInput] = useState("");
 
-  // Period picker state
   const now = new Date();
-  const [period, setPeriod] = useState("month"); // "today" | "week" | "month" | "pick"
-  const [pickMonth, setPickMonth] = useState(now.getMonth());
-  const [pickYear,  setPickYear]  = useState(now.getFullYear());
 
-  // Filter expenses by selected period
-  const periodExp = useMemo(() => {
-    const d = new Date(); d.setHours(0,0,0,0);
-    if (period === "today") {
-      const s = d.toDateString();
-      return expenses.filter(e => e.ts && new Date(e.ts).toDateString() === s);
-    }
-    if (period === "week") {
-      const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
-      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
-    }
-    if (period === "month") {
-      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
-    }
-    // pick — specific month
-    return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===pickMonth && new Date(e.ts).getFullYear()===pickYear);
-  }, [expenses, period, pickMonth, pickYear]);
-
-  const periodTotal = useMemo(() => periodExp.reduce((s,e) => s+e.amount, 0), [periodExp]);
-  const total       = useMemo(() => expenses.reduce((s,e) => s+e.amount, 0), [expenses]);
-  const moodLogs    = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
+  const total    = useMemo(() => expenses.reduce((s,e) => s+e.amount, 0), [expenses]);
+  const moodLogs = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
   const bymood      = useMemo(() =>
     MOODS.map(m => {
       const amt = expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0);
@@ -3803,18 +3780,6 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
-
-  // Generate last 12 months for picker
-  const monthOptions = useMemo(() => {
-    const opts = [];
-    for (let i=0; i<12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      opts.push({ month:d.getMonth(), year:d.getFullYear(), label:d.toLocaleDateString("en-PH",{month:"long",year:"numeric"}) });
-    }
-    return opts;
-  }, []);
-
-  const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
 
   const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Analytics"]];
 
@@ -3843,51 +3808,13 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       </div>
 
       {/* ── TRANSACTIONS TAB ── */}
-      {view==="transactions"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-
-          {/* Period selector */}
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["today","Today"],["week","Week"],["month","Month"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setPeriod(v)} className="tap-btn"
-                  style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1px solid ${period===v?C.accent+"60":C.border}`, background:period===v?`${C.accent}12`:C.card, color:period===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-                  {l}
-                </button>
-              ))}
-              {/* Month picker dropdown */}
-              <select value={`${pickYear}-${pickMonth}`}
-                onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
-                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
-                {monthOptions.map(o=>(
-                  <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Period total */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:14, padding:"14px 16px", border:`1px solid ${C.border}` }}>
-              <div>
-                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em" }}>{periodLabel}</p>
-                <p style={{ margin:0, fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.03em" }}>{fmt(periodTotal)}</p>
-              </div>
-              <div style={{ textAlign:"right" }}>
-                <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodExp.length}</p>
-                <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>transactions</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Transaction list filtered by period */}
-          {periodExp.length===0?(
-            <div style={{ textAlign:"center", padding:"40px 0" }}>
-              <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
-              <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses for {periodLabel}</p>
-            </div>
-          ):(
-            <ExpenseListView expenses={periodExp} onDetail={setDetail} fmt={fmt}/>
-          )}
-        </div>
+      {view==="transactions" && (
+        <ExpenseListView
+          expenses={expenses}
+          onDetail={setDetail}
+          fmt={fmt}
+          onDelete={handleDelete}
+        />
       )}
 
       {view==="budget"&&(()=>{
