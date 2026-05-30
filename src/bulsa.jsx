@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
+import React, { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
 import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────────────────────────────
@@ -27,6 +27,99 @@ const FIRESTORE_FIELDS = [
   "name","income","dailyLimit","payday","incomeSources","budgets",
   "expenses","wallets","loans","goals","utangs","subs",
 ];
+
+// ─── ERROR BOUNDARY ────────────────────────────────────────────────────────
+// React requires a class component for error boundaries.
+// TWO levels of protection:
+//   1. <AppErrorBoundary>  — wraps the whole app. Last resort.
+//   2. <ScreenErrorBoundary> — wraps each screen. One bad screen can't kill the rest.
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { crashed: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { crashed: true, error };
+  }
+  componentDidCatch(error, info) {
+    // Log to console in dev; swap for a real error logger (e.g. Sentry) in prod
+    console.error("[bulsa. crash]", error, info.componentStack);
+  }
+  render() {
+    if (!this.state.crashed) return this.props.children;
+    const err = this.state.error?.message || "Unknown error";
+    return (
+      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px", fontFamily:"DM Sans,sans-serif" }}>
+        <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
+          <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>
+            😵
+          </div>
+          <div>
+            <h2 style={{ margin:"0 0 8px", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>
+              Nag-crash ang app
+            </h2>
+            <p style={{ margin:"0 0 6px", fontSize:14, color:C.textSub, lineHeight:1.6 }}>
+              May hindi inaasahang error. Huwag mag-alala — ang iyong data ay ligtas pa rin.
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.5, background:C.surface, borderRadius:10, padding:"8px 12px", fontFamily:"monospace", wordBreak:"break-all" }}>
+              {err.slice(0, 120)}{err.length > 120 ? "…" : ""}
+            </p>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%" }}>
+            <button
+              onClick={() => { this.setState({ crashed:false, error:null }); }}
+              style={{ width:"100%", padding:"14px", borderRadius:14, background:C.gradAccent, border:"none", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>
+              Subukan ulit
+            </button>
+            <button
+              onClick={() => { localStorage.clear(); window.location.reload(); }}
+              style={{ width:"100%", padding:"14px", borderRadius:14, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              I-clear ang cache at i-reload
+            </button>
+          </div>
+          <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.6 }}>
+            Kung paulit-ulit ito, i-screenshot at i-report sa aming support.
+          </p>
+        </div>
+      </div>
+    );
+  }
+}
+
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { crashed: false };
+  }
+  static getDerivedStateFromError() {
+    return { crashed: true };
+  }
+  componentDidCatch(error, info) {
+    console.error("[bulsa. screen crash]", this.props.screenName, error, info.componentStack);
+  }
+  render() {
+    if (!this.state.crashed) return this.props.children;
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", gap:16, fontFamily:"DM Sans,sans-serif", minHeight:300 }}>
+        <span style={{ fontSize:36 }}>😕</span>
+        <div style={{ textAlign:"center" }}>
+          <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:800, color:C.text }}>
+            Hindi ma-load ang screen na ito
+          </p>
+          <p style={{ margin:0, fontSize:13, color:C.textSub, lineHeight:1.55 }}>
+            May error sa <strong style={{ color:C.accent }}>{this.props.screenName || "page"}</strong>. Ang ibang screens ay gumagana pa rin.
+          </p>
+        </div>
+        <button
+          onClick={() => this.setState({ crashed: false })}
+          style={{ padding:"10px 24px", borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}40`, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer" }}>
+          Subukan ulit
+        </button>
+      </div>
+    );
+  }
+}
 
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
@@ -6086,17 +6179,21 @@ export default function Bulsa() {
     setScreen("accounts");
   };
 
+  const wrap = (name, el) => (
+    <ScreenErrorBoundary screenName={name}>{el}</ScreenErrorBoundary>
+  );
+
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
-    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
-    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
-    goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
-    wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
-    subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>,
-    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
-    accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>,
-    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
-    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
+    home:     wrap("Home",          <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>),
+    expenses: wrap("Expenses",      <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>),
+    loans:    wrap("Loans",         <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>),
+    goals:    wrap("Goals",         <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
+    wallets:  wrap("Wallets",       <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>),
+    subs:     wrap("Subscriptions", <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>),
+    utang:    wrap("Utang",         <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>),
+    accounts: wrap("Accounts",      <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
+    survive:  wrap("Survive",       <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>),
+    profile:  wrap("Profile",       <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -6119,6 +6216,7 @@ export default function Bulsa() {
 
   // ── Logged in ────────────────────────────────────────────────────────────
   return (
+    <AppErrorBoundary>
     <HideCtx.Provider value={hidden}>
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
@@ -6160,5 +6258,6 @@ export default function Bulsa() {
       </div>
     </div>
     </HideCtx.Provider>
+    </AppErrorBoundary>
   );
 }
