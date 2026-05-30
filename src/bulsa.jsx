@@ -983,7 +983,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
             <BackBtn onClick={()=>setScreen("home")}/>
-            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Money</h2>
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
           </div>
           <div style={{ display:"flex", gap:8 }}>
@@ -2403,7 +2403,7 @@ function NavBar({ screen, setScreen, onAdd }) {
       </button>
 
       <NavIcon icon={Handshake}     active={screen==="utang"}     label="Utang"    onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Accounts" onClick={()=>setScreen("accounts")}/>
+      <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Money" onClick={()=>setScreen("accounts")}/>
     </div>
   );
 }
