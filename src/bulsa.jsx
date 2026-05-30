@@ -142,8 +142,8 @@ const CATS = [
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
   { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F9A8D4" },
   { id:"travel",    label:"Travel",         icon:"✈️", color:"#38BDF8" },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:C.textSub },
-  { id:"other",     label:"Other",          icon:"✦",  color:C.textSub },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
+  { id:"other",     label:"Other",          icon:"✦",  color:"#A78BFA" },
 ];
 
 const MOODS = [
@@ -159,6 +159,9 @@ const GOAL_EMOJIS = ["✈️","🛡️","💻","🏠","🎓","💍","🚗","🎮
 const GOAL_COLORS = [C.accent, C.sky, C.rose, C.gold, C.mint, C.lime];
 
 const DEFAULT_BUDGETS = { food:6000, transport:3000, shopping:4000, subs:2000, health:2000, grocery:5000, skincare:2000, travel:5000, bills:3000, other:1000 };
+
+// ─── HAPTICS ────────────────────────────────────────────────────────────────
+const haptic = (ms=10) => { try { navigator.vibrate?.(ms); } catch {} };
 
 // ─── WALLET CONSTANTS ──────────────────────────────────────────────────────
 const WALLET_PRESETS = [
@@ -347,7 +350,7 @@ function Tag({ children, color=C.accent }) {
 }
 
 function SLabel({ children }) {
-  return <p style={{ margin:"0 0 6px", fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{children}</p>;
+  return <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, letterSpacing:"0.08em", textTransform:"uppercase", color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{children}</p>;
 }
 
 function Toggle({ on, setOn, color=C.accent }) {
@@ -1458,13 +1461,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
 
             {/* Category grid */}
             <div style={{ marginBottom:16 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Category</p>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:11, color:C.textSub, fontFamily:FF }}>Grocery</span>
-                  <Toggle on={isGrocery} setOn={v=>{ setIsGrocery(v); if(v) setCatId("grocery"); }} color={C.lime}/>
-                </div>
-              </div>
+              <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Category</p>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
                 {CATS.filter(c=>c.id!=="grocery").map(c=>(
                   <button key={c.id} onClick={()=>{ setCatId(c.id); setIsGrocery(false); }} className="tap-btn"
@@ -1473,6 +1470,12 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                     <span style={{ fontSize:10, fontWeight:700, color:!isGrocery&&catId===c.id?c.color:C.textSub, fontFamily:FF, lineHeight:1.2, textAlign:"center" }}>{c.label.split(" ")[0]}</span>
                   </button>
                 ))}
+                {/* Grocery tile */}
+                <button onClick={()=>{ const next=!isGrocery; setIsGrocery(next); if(next) setCatId("grocery"); }} className="tap-btn"
+                  style={{ background:isGrocery?C.lime+"1E":C.card, border:`1.5px solid ${isGrocery?C.lime+"70":C.border}`, borderRadius:13, padding:"9px 4px 7px", display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
+                  <span style={{ fontSize:20 }}>🛒</span>
+                  <span style={{ fontSize:10, fontWeight:700, color:isGrocery?C.lime:C.textSub, fontFamily:FF, lineHeight:1.2, textAlign:"center" }}>Grocery</span>
+                </button>
               </div>
             </div>
 
@@ -2845,9 +2848,37 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
+// ─── SETUP NUDGE CARD ────────────────────────────────────────────────────────
+function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
+  const missing = [];
+  if (!name)                          missing.push({ icon:"👋", text:"Add your name" });
+  if (!income || income <= 0)         missing.push({ icon:"💸", text:"Set monthly income" });
+  if (!wallets || wallets.length===0) missing.push({ icon:"👛", text:"Add a wallet" });
+  if (missing.length === 0) return null;
+  return (
+    <div style={{ background:`${C.accent}0E`, border:`1px solid ${C.accent}30`, borderRadius:16, padding:"14px 16px", position:"relative" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div>
+          <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:C.text }}>Finish setting up bulsa.</p>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>{missing.length} thing{missing.length!==1?"s":""} left — takes 30 seconds</p>
+        </div>
+        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
+        {missing.map((m,i)=>(<div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:14 }}>{m.icon}</span><span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub }}>{m.text}</span></div>))}
+      </div>
+      <button onClick={onSetup} style={{ background:C.gradAccent, border:"none", borderRadius:10, padding:"10px 0", width:"100%", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#fff", cursor:"pointer" }}>
+        Set up now →
+      </button>
+    </div>
+  );
+}
+
+
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
   const fmt = useFmt();
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
+  const [setupCardDismissed, setSetupCardDismissed] = useState(false);
 
   // ── Core numbers ──────────────────────────────────────────────────────────
   const totalSpent  = expenses.reduce((s,e)=>s+e.amount,0);
@@ -2985,6 +3016,20 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </p>
           </div>
           <button onClick={onDismissAutoLog} className="tap-btn" style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", flexShrink:0 }}>×</button>
+        </div>
+      )}
+
+      {/* ── SETUP NUDGE ── */}
+      {!setupCardDismissed && (
+        <SetupCard income={income} wallets={wallets} name={name}
+          onSetup={()=>setScreen("profile")}
+          onDismiss={()=>setSetupCardDismissed(true)}/>
+      )}
+      {income <= 0 && setupCardDismissed && (
+        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+          <span style={{ fontSize:16 }}>💸</span>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span></p>
+          <span style={{ color:C.gold, fontSize:14 }}>›</span>
         </div>
       )}
 
@@ -3279,7 +3324,56 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 
 // ─── EXPENSE LIST VIEW ──────────────────────────────────────────────────────
 
-function ExpenseListView({ expenses, onDetail, fmt }) {
+// ─── SWIPEABLE ROW ───────────────────────────────────────────────────────────
+function SwipeableRow({ children, onDelete }) {
+  const [dx,      setDx]      = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const locked = useRef(null);
+  const THRESHOLD = 72;
+
+  const onTouchStart = e => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    locked.current = null;
+  };
+  const onTouchMove = e => {
+    const dX = e.touches[0].clientX - startX.current;
+    const dY = e.touches[0].clientY - startY.current;
+    if (!locked.current) locked.current = Math.abs(dX) > Math.abs(dY) ? "h" : "v";
+    if (locked.current === "v") return;
+    if (dX > 0) { setDx(0); return; }
+    e.preventDefault();
+    setSwiping(true);
+    setDx(Math.max(dX, -THRESHOLD - 20));
+  };
+  const onTouchEnd = () => {
+    if (dx <= -THRESHOLD) setDx(-THRESHOLD);
+    else { setDx(0); setSwiping(false); }
+  };
+  const reset = () => { setDx(0); setSwiping(false); };
+  const handleDelete = () => { try { navigator.vibrate?.(18); } catch {} onDelete(); };
+
+  return (
+    <div style={{ position:"relative", overflow:"hidden", borderRadius:12 }}>
+      <div style={{ position:"absolute", right:0, top:0, bottom:0, width:THRESHOLD, background:C.coral, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"0 12px 12px 0" }}>
+        <button onClick={handleDelete} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+          <span style={{ fontSize:18 }}>🗑️</span>
+          <span style={{ fontSize:10, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>Delete</span>
+        </button>
+      </div>
+      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        onClick={dx < -10 ? reset : undefined}
+        style={{ transform:`translateX(${dx}px)`, transition:swiping?"none":"transform 0.25s cubic-bezier(0.25,1,0.5,1)", willChange:"transform", position:"relative", zIndex:1 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+
+function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
   const [period,  setPeriod]  = useState("month");
   const [query,   setQuery]   = useState("");
   const [catFilter, setCatFilter] = useState("all");
@@ -3352,7 +3446,7 @@ function ExpenseListView({ expenses, onDetail, fmt }) {
       return <>{text.slice(0,idx)}<mark style={{ background:`${C.accent}40`, color:C.text, borderRadius:3, padding:"0 1px" }}>{text.slice(idx,idx+q.length)}</mark>{text.slice(idx+q.length)}</>;
     };
     return (
-      <Card onClick={()=>onDetail(e)} glow>
+      <SwipeableRow onDelete={()=>onDelete&&onDelete(e.id)}><Card onClick={()=>onDetail(e)} glow>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           {e.photo
             ? <img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>
@@ -5676,7 +5770,8 @@ export default function Bulsa() {
   const [guestMode,    setGuestMode]    = useLocalStorage("bulsa_guest", false);
 
   // ── App state (localStorage as local cache) ───────────────────────────────
-  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", false);
+  const [onboarded, setOnboarded] = useLocalStorage("bulsa_onboarded", true);
+  const [setupSeen,  setSetupSeen]  = useLocalStorage("bulsa_setup_seen", false);
   const [screen,    setScreen]    = useState("home");
   const [addOpen,   setAddOpen]   = useState(false);
   const [expenses,  setExpenses]  = useLocalStorage("bulsa_expenses", []);
@@ -6043,17 +6138,18 @@ export default function Bulsa() {
           </div>
         )}
 
-        {!onboarded?(
-          <Onboarding onDone={handleOnboardDone}/>
-        ):(
-          <>
-            <div style={{ flex:1, overflowY:"auto", position:"relative" }}>{screens[screen]}
-
-            </div>
-            <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-            {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
-          </>
-        )}
+        <>
+          <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
+            {!setupSeen && !onboarded && (
+              <div style={{ position:"absolute", inset:0, zIndex:300, background:C.bg }}>
+                <Onboarding onDone={(data)=>{ handleOnboardDone(data); setSetupSeen(true); }}/>
+              </div>
+            )}
+            {screens[screen]}
+          </div>
+          <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
+          {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+        </>
       </div>
     </div>
     </HideCtx.Provider>
