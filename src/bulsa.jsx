@@ -611,7 +611,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
 function WalletAdjustSheet({ wallet, onSave, onClose }) {
   const color   = wallet.color || C.accent;
   const today   = new Date().toISOString().split("T")[0];
-  const [type,  setType]  = useState(wallet._defaultType || "in");   // "in" | "out"
+  const [type,  setType]  = useState("in");   // "in" | "out"
   const [amt,   setAmt]   = useState("");
   const [label, setLabel] = useState("");
   const [date,  setDate]  = useState(today);
@@ -647,7 +647,7 @@ function WalletAdjustSheet({ wallet, onSave, onClose }) {
   };
 
   return (
-    <BottomSheet onClose={onClose} title={wallet._defaultType==="in"?`Log income · ${wallet.name}`:wallet._defaultType==="out"?`Log spend · ${wallet.name}`:`Adjust · ${wallet.name}`}>
+    <BottomSheet onClose={onClose} title={`Adjust -- ${wallet.name}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
         {/* Current balance */}
@@ -978,14 +978,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
         </div>
       )}
       {embedded && (
-        <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-          {wallets.length >= 2 && (
-            <button onClick={()=>setTransferSheet(true)} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"8px 14px", color:C.textSub, fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-              ⇄ Transfer
-            </button>
-          )}
-          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add account</button>
-        </div>
+        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add account</button>
       )}
 
       {/* Total balance hero */}
@@ -1039,17 +1032,11 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
                 <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                {/* Income + Spend buttons */}
-                <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={()=>{ setAdjustSheet({...w, _defaultType:"in"}); }} className="tap-btn"
-                    style={{ background:`${C.green}15`, border:`1.5px solid ${C.green}50`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
-                    + Income
-                  </button>
-                  <button onClick={()=>{ setAdjustSheet({...w, _defaultType:"out"}); }} className="tap-btn"
-                    style={{ background:`${C.coral}15`, border:`1.5px solid ${C.coral}50`, color:C.coral, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
-                    − Spend
-                  </button>
-                </div>
+                {/* Adjust button -- the new one */}
+                <button onClick={()=>setAdjustSheet(w)} className="tap-btn"
+                  style={{ background:`${w.color}18`, border:`1.5px solid ${w.color}50`, color:w.color, borderRadius:10, padding:"7px 14px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
+                  +/- Adjust
+                </button>
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={()=>setSheet(w)} className="tap-btn" style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
                   {confirm===w.id ? (
@@ -4299,7 +4286,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   };
 
   const deleteUtang  = id  => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
-  const markSettled  = id  => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled}:x));
+  const markSettled  = id  => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled,settledAt:!x.settled?new Date().toISOString():null}:x));
   const deleteEntry  = (utangId,entryId) => setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
 
   // Derived totals — entries-aware
@@ -4311,7 +4298,8 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const settled     = utangs.filter(u=>u.settled);
   const iOweTotal   = iOwe.reduce((s,u)=>s+personRemaining(u),0);
   const theyOweTotal= theyOwe.reduce((s,u)=>s+personRemaining(u),0);
-  const filtered    = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe,...settled];
+  const filtered    = view==="iowe"?iOwe:view==="theyowe"?theyOwe:[...iOwe,...theyOwe];
+  const archivedList = settled.slice().sort((a,b)=>new Date(b.settledAt||0)-new Date(a.settledAt||0));
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -4406,7 +4394,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
           </div>
         )}
 
-        {/* Person cards */}
+        {/* Person cards — active */}
         {filtered.map((u,i)=>{
           const color    = u.direction==="iowe" ? C.coral : C.green;
           const entries  = u.entries||[];
@@ -4575,13 +4563,52 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                   )}
                 </div>
               )}
-              {u.settled&&(
-                <button onClick={()=>markSettled(u.id)} className="tap-btn"
-                  style={{ width:"100%", background:"none", border:"none", color:C.textFaint, fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", padding:"4px 0 0" }}>Undo settle</button>
-              )}
+
             </Card>
           );
         })}
+
+        {/* Archived / Settled section — always at bottom of all views */}
+        {archivedList.length>0&&(
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 10px" }}>
+              <div style={{ flex:1, height:1, background:C.border }}/>
+              <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                Archived ({archivedList.length})
+              </p>
+              <div style={{ flex:1, height:1, background:C.border }}/>
+            </div>
+            {archivedList.map((u,i)=>{
+              const color = u.direction==="iowe" ? C.coral : C.green;
+              const entries = u.entries||[];
+              const totalBorrowed = entries.reduce((s,e)=>s+e.amount,0);
+              const totalPaid = entries.reduce((s,e)=>(e.payments||[]).reduce((ss,p)=>ss+p.amount,0)+s,0);
+              return (
+                <Card key={u.id} animDelay={i*40} style={{ opacity:0.55, border:`1px solid ${C.border}`, marginBottom:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:40, height:40, borderRadius:12, background:`${color}10`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                      {u.direction==="iowe"?"😬":"🤑"}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
+                      <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                        {u.direction==="iowe"?"Owed":"Lent"} ₱{totalBorrowed.toLocaleString()}
+                        {u.settledAt&&` · settled ${new Date(u.settledAt).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}`}
+                      </p>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                      <Tag color={C.green}>Settled ✓</Tag>
+                      <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                        style={{ background:"none", border:`1px solid ${C.border}`, color:C.textFaint, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                        Undo
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </>)}
     </div>
   );
