@@ -166,7 +166,7 @@ const CATS = [
   { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime     },
   { id:"skincare",  label:"Skincare",       icon:"✨", color:"#C47EB5"  },
   { id:"travel",    label:"Travel",         icon:"✈️", color:C.sky      },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:"#7A9EC9"  },
   { id:"other",     label:"Other",          icon:"✦",  color:"#8A8FAA"  },
 ];
 
@@ -3678,7 +3678,7 @@ function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
 
 // ─── EXPENSES SCREEN ────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday }) {
+function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday, setScreen, wallets=[] }) {
   const fmt = useFmt();
   const [view,    setView]   = useState("transactions");
   const [detail,  setDetail] = useState(null);
@@ -3742,7 +3742,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
   const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
 
-  const TABS = [["transactions","Transactions"],["budget","Budget"],["analytics","Analytics"]];
+  const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Analytics"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3756,7 +3756,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       </div>
 
       {/* 3-tab bar */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
         {TABS.map(([v,lbl])=>(
           <button key={v} onClick={()=>setView(v)} className="tap-btn" style={{
             padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer",
@@ -3927,14 +3927,18 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         );
       })()}
 
+      {view==="subs"&&(
+        <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets} embedded={true}/>
+      )}
+
       {view==="analytics"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
           {/* Spending donut — uses current pay cycle */}
           {(()=>{
-            const cycle   = getPaycycle(payday||"both");
+            const cycle   = getPaycycle(payday||"15th30th");
             const cycleExp = expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cycle.cycleStart&&d<=cycle.nextPayday; });
-            return <SpendingDonut expenses={cycleExp} budgets={budgets}/>;
+            return cycleExp ? <SpendingDonut expenses={cycleExp} budgets={budgets}/> : null;
           })()}
 
           {/* Mood breakdown */}
@@ -6283,7 +6287,7 @@ export default function Bulsa() {
 
   const screens = {
     home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
-    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
+    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={wallets}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
     wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
