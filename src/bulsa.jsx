@@ -3657,6 +3657,23 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
 
 // ─── SPENDING DONUT ─────────────────────────────────────────────────────────
 
+// ─── ERROR BOUNDARY ──────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding:24, textAlign:"center" }}>
+        <p style={{ fontSize:14, color:C.coral, fontFamily:"DM Sans,sans-serif", marginBottom:8 }}>Something went wrong loading this view.</p>
+        <p style={{ fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{this.state.error.message}</p>
+        <button onClick={()=>this.setState({error:null})} style={{ marginTop:12, background:C.card, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 16px", color:C.text, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontSize:12 }}>Retry</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+
 function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
   const [hovered, setHovered] = useState(null);
   const data = expenses || [];
@@ -3678,7 +3695,7 @@ function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
 
 // ─── EXPENSES SCREEN ────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday, setScreen, wallets=[] }) {
+function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday, setScreen=()=>{}, wallets=[] }) {
   const fmt = useFmt();
   const [view,    setView]   = useState("transactions");
   const [detail,  setDetail] = useState(null);
@@ -3932,13 +3949,14 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       )}
 
       {view==="analytics"&&(
+        <ErrorBoundary>
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
           {/* Spending donut — uses current pay cycle */}
           {(()=>{
-            const cycle   = getPaycycle(payday||"15th30th");
+            const cycle   = getPaycycle(payday||"both");
             const cycleExp = expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cycle.cycleStart&&d<=cycle.nextPayday; });
-            return cycleExp ? <SpendingDonut expenses={cycleExp} budgets={budgets}/> : null;
+            return <SpendingDonut expenses={cycleExp} budgets={budgets}/>;
           })()}
 
           {/* Mood breakdown */}
@@ -3974,6 +3992,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
             <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
           </div>
         </div>
+        </ErrorBoundary>
       )}
     </div>
   );
