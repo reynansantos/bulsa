@@ -3463,6 +3463,8 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
   const [query,   setQuery]   = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate,   setToDate]   = useState("");
   const searchRef = useRef(null);
   const FF = "DM Sans,sans-serif";
   const now = new Date();
@@ -3476,8 +3478,15 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
     if (isSearching) return true; // search across all time
     if (!e.ts) return period === "month";
     const d = new Date(e.ts);
-    if (period === "day")   return d.toDateString() === todayStr;
-    if (period === "week")  return d >= weekStart;
+    if (period === "day")    return d.toDateString() === todayStr;
+    if (period === "week")   return d >= weekStart;
+    if (period === "custom") {
+      const from = fromDate ? new Date(fromDate + "T00:00:00") : null;
+      const to   = toDate   ? new Date(toDate   + "T23:59:59") : null;
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+      return true;
+    }
     return d >= monthStart;
   });
 
@@ -3500,7 +3509,11 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
       ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})
       : period==="week"
         ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}`
-        : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
+        : period==="custom"
+          ? (fromDate||toDate)
+            ? `${fromDate||"start"} → ${toDate||"today"}`
+            : "Custom range — pick dates below"
+          : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
 
   // Used cats for filter chips
   const usedCatIds = [...new Set(expenses.map(e=>e.catId))];
@@ -3512,7 +3525,7 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
         {isSearching ? "🔍" : "👛"}
       </div>
       <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:FF }}>
-        {isSearching ? "No results" : period==="day" ? "Nothing logged today" : period==="week" ? "Nothing this week yet" : "Nothing this month yet"}
+        {isSearching ? "No results" : period==="day" ? "Nothing logged today" : period==="week" ? "Nothing this week yet" : period==="custom" ? "No expenses in this date range" : "Nothing this month yet"}
       </p>
       <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF }}>
         {isSearching ? "Try a different name or category" : "Tap + to log an expense."}
@@ -3596,10 +3609,54 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
 
       {/* ── Period toggle — hidden when searching ── */}
       {!isSearching && (
-        <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>
-          {[["day","Today"],["week","This Week"],["month","This Month"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setPeriod(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:period===v?C.card:"none", color:period===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:FF, transition:"all 0.18s" }}>{l}</button>
-          ))}
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>
+            {[["day","Today"],["week","Week"],["month","Month"],["custom","Custom"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setPeriod(v)} style={{
+                flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer",
+                background:period===v?C.card:"none",
+                color:period===v?C.text:C.textSub,
+                fontSize:11, fontWeight:700, fontFamily:FF, transition:"all 0.18s"
+              }}>{l}</button>
+            ))}
+          </div>
+
+          {/* Custom date range pickers — only visible when Custom is selected */}
+          {period === "custom" && (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <div style={{ flex:1, background:C.card, border:`1px solid ${fromDate?C.accent+"60":C.border}`, borderRadius:12, padding:"9px 12px", display:"flex", alignItems:"center", gap:7, transition:"border 0.18s" }}>
+                <span style={{ fontSize:13, flexShrink:0 }}>📅</span>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 1px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>From</p>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    max={toDate||new Date().toISOString().split("T")[0]}
+                    onChange={e=>setFromDate(e.target.value)}
+                    style={{ background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF, width:"100%", cursor:"pointer" }}
+                  />
+                </div>
+              </div>
+              <span style={{ fontSize:13, color:C.textFaint, flexShrink:0 }}>→</span>
+              <div style={{ flex:1, background:C.card, border:`1px solid ${toDate?C.accent+"60":C.border}`, borderRadius:12, padding:"9px 12px", display:"flex", alignItems:"center", gap:7, transition:"border 0.18s" }}>
+                <span style={{ fontSize:13, flexShrink:0 }}>📅</span>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:"0 0 1px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>To</p>
+                  <input
+                    type="date"
+                    value={toDate}
+                    min={fromDate||undefined}
+                    max={new Date().toISOString().split("T")[0]}
+                    onChange={e=>setToDate(e.target.value)}
+                    style={{ background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF, width:"100%", cursor:"pointer" }}
+                  />
+                </div>
+              </div>
+              {(fromDate||toDate) && (
+                <button onClick={()=>{ setFromDate(""); setToDate(""); }} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", flexShrink:0, padding:"0 2px", lineHeight:1 }}>×</button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
