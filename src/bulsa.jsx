@@ -1214,19 +1214,25 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const isEdit = !!editExpense;
   const fmt = useFmt();
 
+  // Read quick-log pre-fill from sessionStorage (set by handleQuickLog on HomeScreen)
+  const prefillAmount = !isEdit ? (sessionStorage.getItem("bulsa_prefill_amount") || "") : "";
+  const prefillCat    = !isEdit ? (sessionStorage.getItem("bulsa_prefill_cat")    || "food") : "";
+  if (prefillAmount) sessionStorage.removeItem("bulsa_prefill_amount");
+  if (prefillCat && prefillCat !== "food") sessionStorage.removeItem("bulsa_prefill_cat");
+
   // ── State ──────────────────────────────────────────────────────────────────
-  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : "");
+  const [amount,    setAmount]    = useState(isEdit ? String(editExpense.amount) : prefillAmount);
   const [name,      setName]      = useState(isEdit ? editExpense.name : "");
-  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : "food");
+  const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : (prefillCat || "food"));
   const [moodId,    setMoodId]    = useState(isEdit ? editExpense.moodId : null);
   const [walletId,  setWalletId]  = useState(isEdit ? (editExpense.walletId||null) : (wallets?.length ? wallets[0].id : null));
-  const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : false);
+  const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : (prefillCat === "grocery"));
   const [gInput,    setGInput]    = useState("");
   const [gItems,    setGItems]    = useState(isEdit ? editExpense.groceryItems||[] : []);
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const [showMore,  setShowMore]  = useState(true); // always show — name/mood/backdate should never be hidden
+  const [showMore,  setShowMore]  = useState(true);
 
   // AI
   const [aiMode,    setAiMode]    = useState(false);
@@ -2899,7 +2905,7 @@ function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
 }
 
 
-function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
+function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, onQuickLog, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
   const fmt = useFmt();
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
   const [setupCardDismissed, setSetupCardDismissed] = useState(false);
@@ -3166,20 +3172,47 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       </div>
 
       {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
-      <button onClick={onAdd} className="tap-btn" style={{
-        width:"100%", background:C.card, border:`1.5px dashed ${C.accent}45`,
-        borderRadius:14, padding:"12px 16px", cursor:"pointer",
-        display:"flex", alignItems:"center", gap:12, zIndex:1,
-      }}>
-        <div style={{ width:32, height:32, borderRadius:10, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
-          <span style={{ fontSize:16, color:"#fff", fontWeight:800 }}>+</span>
+      <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
+        {/* Main log button */}
+        <button onClick={onAdd} className="tap-btn" style={{
+          width:"100%", background:C.card, border:`1.5px solid ${C.accent}35`,
+          borderRadius:14, padding:"12px 16px", cursor:"pointer",
+          display:"flex", alignItems:"center", gap:12,
+        }}>
+          <div style={{ width:32, height:32, borderRadius:10, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+            <span style={{ fontSize:16, color:"#fff", fontWeight:800 }}>+</span>
+          </div>
+          <div style={{ textAlign:"left", flex:1 }}>
+            <p style={{ margin:"0 0 1px", fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
+            <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub }}>Tap to log an expense</p>
+          </div>
+          <span style={{ color:C.accent, fontSize:20, opacity:0.5 }}>›</span>
+        </button>
+
+        {/* Quick amount buttons */}
+        <div style={{ display:"flex", gap:6 }}>
+          {[50, 100, 150, 200].map(amt => (
+            <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
+              style={{
+                flex:1, padding:"9px 4px", borderRadius:11,
+                background:C.surface, border:`1px solid ${C.border}`,
+                color:C.textSub, fontSize:12, fontWeight:800,
+                cursor:"pointer", fontFamily:FF, transition:"all 0.15s",
+              }}>
+              ₱{amt}
+            </button>
+          ))}
+          <button onClick={()=>onQuickLog(null, "food")} className="tap-btn"
+            style={{
+              flex:1, padding:"9px 4px", borderRadius:11,
+              background:`${C.accent}10`, border:`1px solid ${C.accent}30`,
+              color:C.accent, fontSize:14, fontWeight:800,
+              cursor:"pointer", fontFamily:FF,
+            }}>
+            🍜
+          </button>
         </div>
-        <div style={{ textAlign:"left" }}>
-          <p style={{ margin:"0 0 1px", fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
-          <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub }}>Tap to log an expense</p>
-        </div>
-        <span style={{ marginLeft:"auto", color:C.accent, fontSize:20, opacity:0.5 }}>›</span>
-      </button>
+      </div>
 
       {/* ══ TODAY'S EXPENSES — top 3 ════════════════════════════════════════ */}
       <div style={{ zIndex:1 }}>
@@ -3760,10 +3793,33 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const [editB,   setEditB]  = useState(null);
   const [bInput,  setBInput] = useState("");
 
+  // Period picker state
   const now = new Date();
+  const [period, setPeriod] = useState("month"); // "today" | "week" | "month" | "pick"
+  const [pickMonth, setPickMonth] = useState(now.getMonth());
+  const [pickYear,  setPickYear]  = useState(now.getFullYear());
 
-  const total    = useMemo(() => expenses.reduce((s,e) => s+e.amount, 0), [expenses]);
-  const moodLogs = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
+  // Filter expenses by selected period
+  const periodExp = useMemo(() => {
+    const d = new Date(); d.setHours(0,0,0,0);
+    if (period === "today") {
+      const s = d.toDateString();
+      return expenses.filter(e => e.ts && new Date(e.ts).toDateString() === s);
+    }
+    if (period === "week") {
+      const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
+      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
+    }
+    if (period === "month") {
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
+    }
+    // pick — specific month
+    return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===pickMonth && new Date(e.ts).getFullYear()===pickYear);
+  }, [expenses, period, pickMonth, pickYear]);
+
+  const periodTotal = useMemo(() => periodExp.reduce((s,e) => s+e.amount, 0), [periodExp]);
+  const total       = useMemo(() => expenses.reduce((s,e) => s+e.amount, 0), [expenses]);
+  const moodLogs    = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
   const bymood      = useMemo(() =>
     MOODS.map(m => {
       const amt = expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0);
@@ -3781,12 +3837,24 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
+  // Generate last 12 months for picker
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    for (let i=0; i<12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      opts.push({ month:d.getMonth(), year:d.getFullYear(), label:d.toLocaleDateString("en-PH",{month:"long",year:"numeric"}) });
+    }
+    return opts;
+  }, []);
+
+  const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
+
   const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Analytics"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete} onAddPhoto={handleAddPhoto}/>}
-      {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
+      {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs} wallets={wallets||[]}/>}
 
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -3808,13 +3876,51 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       </div>
 
       {/* ── TRANSACTIONS TAB ── */}
-      {view==="transactions" && (
-        <ExpenseListView
-          expenses={expenses}
-          onDetail={setDetail}
-          fmt={fmt}
-          onDelete={handleDelete}
-        />
+      {view==="transactions"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+
+          {/* Period selector */}
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["today","Today"],["week","Week"],["month","Month"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setPeriod(v)} className="tap-btn"
+                  style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1px solid ${period===v?C.accent+"60":C.border}`, background:period===v?`${C.accent}12`:C.card, color:period===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {l}
+                </button>
+              ))}
+              {/* Month picker dropdown */}
+              <select value={`${pickYear}-${pickMonth}`}
+                onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
+                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
+                {monthOptions.map(o=>(
+                  <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Period total */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:14, padding:"14px 16px", border:`1px solid ${C.border}` }}>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em" }}>{periodLabel}</p>
+                <p style={{ margin:0, fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.03em" }}>{fmt(periodTotal)}</p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodExp.length}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>transactions</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction list filtered by period */}
+          {periodExp.length===0?(
+            <div style={{ textAlign:"center", padding:"40px 0" }}>
+              <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
+              <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses for {periodLabel}</p>
+            </div>
+          ):(
+            <ExpenseListView expenses={periodExp} onDetail={setDetail} fmt={fmt}/>
+          )}
+        </div>
       )}
 
       {view==="budget"&&(()=>{
@@ -6288,8 +6394,15 @@ export default function Bulsa() {
     setScreen("accounts");
   };
 
+  // Quick log — pre-fills amount and optionally category, then opens sheet
+  const handleQuickLog = useCallback((amount, catId) => {
+    if (amount) sessionStorage.setItem("bulsa_prefill_amount", String(amount));
+    if (catId)  sessionStorage.setItem("bulsa_prefill_cat",    catId);
+    setAddOpen(true);
+  }, []);
+
   const screens = {
-    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={handleQuickLog} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
     expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={wallets}/>,
     loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
     goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
@@ -6346,8 +6459,25 @@ export default function Bulsa() {
           </div>
         )}
 
-        <>
-          <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
+        {/* Guest mode banner — soft nudge to sign in */}
+        {guestMode && !user && (
+          <div style={{
+            display:"flex", alignItems:"center", gap:10, padding:"8px 14px",
+            background:`${C.gold}12`, borderBottom:`1px solid ${C.gold}25`,
+            flexShrink:0,
+          }}>
+            <span style={{ fontSize:14, flexShrink:0 }}>💾</span>
+            <p style={{ margin:0, flex:1, fontSize:11, color:C.gold, fontFamily:"DM Sans,sans-serif", fontWeight:700, lineHeight:1.4 }}>
+              Guest mode — data saved on this device only
+            </p>
+            <button onClick={handleGoogleLogin} disabled={loginLoading} className="tap-btn"
+              style={{ background:C.gold, border:"none", borderRadius:8, padding:"5px 11px", fontSize:11, fontWeight:800, color:"#111", cursor:"pointer", fontFamily:"DM Sans,sans-serif", flexShrink:0 }}>
+              {loginLoading ? "…" : "Sign in"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ flex:1, overflowY:"auto", position:"relative" }}>
             {!setupSeen && !onboarded && (
               <div style={{ position:"absolute", inset:0, zIndex:300, background:C.bg }}>
                 <Onboarding onDone={(data)=>{ handleOnboardDone(data); setSetupSeen(true); }}/>
@@ -6357,7 +6487,6 @@ export default function Bulsa() {
           </div>
           <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
           {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
-        </>
       </div>
     </div>
     </HideCtx.Provider>
