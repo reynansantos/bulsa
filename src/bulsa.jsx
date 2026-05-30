@@ -983,7 +983,7 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
             <BackBtn onClick={()=>setScreen("home")}/>
-            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Money</h2>
+            <h2 style={{ margin:"4px 0 0", fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Accounts</h2>
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Your real available money</p>
           </div>
           <div style={{ display:"flex", gap:8 }}>
@@ -2403,7 +2403,7 @@ function NavBar({ screen, setScreen, onAdd }) {
       </button>
 
       <NavIcon icon={Handshake}     active={screen==="utang"}     label="Utang"    onClick={()=>setScreen("utang")}/>
-      <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Money" onClick={()=>setScreen("accounts")}/>
+      <NavIcon icon={Wallet}        active={screen==="accounts"}  label="Accounts" onClick={()=>setScreen("accounts")}/>
     </div>
   );
 }
@@ -3680,16 +3680,40 @@ function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
 
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday }) {
   const fmt = useFmt();
-  const [view,      setView]     = useState("list");
-  const [detail,    setDetail]   = useState(null);
-  const [editExp,   setEditExp]  = useState(null);
-  const [editB,     setEditB]    = useState(null);
-  const [bInput,    setBInput]   = useState("");
-  const [chartScope, setChartScope] = useState("cycle");
+  const [view,    setView]   = useState("transactions");
+  const [detail,  setDetail] = useState(null);
+  const [editExp, setEditExp] = useState(null);
+  const [editB,   setEditB]  = useState(null);
+  const [bInput,  setBInput] = useState("");
 
-  const total    = useMemo(() => expenses.reduce((s,e) => s + e.amount, 0), [expenses]);
-  const moodLogs = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
-  const bymood   = useMemo(() =>
+  // Period picker state
+  const now = new Date();
+  const [period, setPeriod] = useState("month"); // "today" | "week" | "month" | "pick"
+  const [pickMonth, setPickMonth] = useState(now.getMonth());
+  const [pickYear,  setPickYear]  = useState(now.getFullYear());
+
+  // Filter expenses by selected period
+  const periodExp = useMemo(() => {
+    const d = new Date(); d.setHours(0,0,0,0);
+    if (period === "today") {
+      const s = d.toDateString();
+      return expenses.filter(e => e.ts && new Date(e.ts).toDateString() === s);
+    }
+    if (period === "week") {
+      const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
+      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
+    }
+    if (period === "month") {
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
+    }
+    // pick — specific month
+    return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===pickMonth && new Date(e.ts).getFullYear()===pickYear);
+  }, [expenses, period, pickMonth, pickYear]);
+
+  const periodTotal = useMemo(() => periodExp.reduce((s,e) => s+e.amount, 0), [periodExp]);
+  const total       = useMemo(() => expenses.reduce((s,e) => s+e.amount, 0), [expenses]);
+  const moodLogs    = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
+  const bymood      = useMemo(() =>
     MOODS.map(m => {
       const amt = expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0);
       const cnt = expenses.filter(e=>e.moodId===m.id).length;
@@ -3706,66 +3730,92 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
-  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
+  // Generate last 12 months for picker
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    for (let i=0; i<12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      opts.push({ month:d.getMonth(), year:d.getFullYear(), label:d.toLocaleDateString("en-PH",{month:"long",year:"numeric"}) });
+    }
+    return opts;
+  }, []);
+
+  const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
+
+  const TABS = [["transactions","Transactions"],["budget","Budget"],["analytics","Analytics"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete} onAddPhoto={handleAddPhoto}/>}
       {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs}/>}
+
+      {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>all time</p></Card>
-        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>total logged</p></Card>
-      </div>
 
-      {/* Scrollable tab bar */}
-      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, overflowX:"auto", gap:2 }}>
+      {/* 3-tab bar */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, gap:2 }}>
         {TABS.map(([v,lbl])=>(
           <button key={v} onClick={()=>setView(v)} className="tap-btn" style={{
-            flexShrink:0, padding:"8px 14px", borderRadius:9, border:"none", cursor:"pointer",
+            padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer",
             background:view===v?C.card:"none",
             color:view===v?C.text:C.textSub,
             fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif",
             transition:"all 0.18s",
-            position:"relative",
-          }}>
-            {lbl}
-            {v==="subs"&&subs?.filter(s=>s.active!==false).some(s=>daysUntil(s.dueDate)<=3)&&(
-              <span style={{ position:"absolute", top:5, right:5, width:6, height:6, borderRadius:"50%", background:C.coral }}/>
-            )}
-          </button>
+          }}>{lbl}</button>
         ))}
       </div>
 
-      {view==="list"&&(
-        <ExpenseListView expenses={expenses} onDetail={setDetail} fmt={fmt}/>
-      )}
-      {view==="chart"&&(()=>{
-        const cycle    = getPaycycle(payday||"both");
-        const cycleExp = expenses.filter(e=>{
-          if (!e.ts) return false;
-          const d = new Date(e.ts);
-          return d>=cycle.cycleStart && d<=cycle.nextPayday;
-        });
-        const scopeData = chartScope==="cycle" ? cycleExp : expenses;
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            {/* Scope toggle */}
+      {/* ── TRANSACTIONS TAB ── */}
+      {view==="transactions"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+
+          {/* Period selector */}
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             <div style={{ display:"flex", gap:6 }}>
-              {[["cycle","This cycle"],["all","All time"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setChartScope(v)} className="tap-btn"
-                  style={{ flex:1, padding:"8px", borderRadius:10, border:`1px solid ${chartScope===v?C.accent+"60":C.border}`, background:chartScope===v?`${C.accent}12`:C.card, color:chartScope===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              {[["today","Today"],["week","Week"],["month","Month"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setPeriod(v)} className="tap-btn"
+                  style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1px solid ${period===v?C.accent+"60":C.border}`, background:period===v?`${C.accent}12`:C.card, color:period===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
                   {l}
                 </button>
               ))}
+              {/* Month picker dropdown */}
+              <select value={`${pickYear}-${pickMonth}`}
+                onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
+                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
+                {monthOptions.map(o=>(
+                  <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
+                ))}
+              </select>
             </div>
-            <SpendingDonut expenses={scopeData} budgets={budgets}/>
+
+            {/* Period total */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:14, padding:"14px 16px", border:`1px solid ${C.border}` }}>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em" }}>{periodLabel}</p>
+                <p style={{ margin:0, fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.03em" }}>{fmt(periodTotal)}</p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodExp.length}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>transactions</p>
+              </div>
+            </div>
           </div>
-        );
-      })()}
+
+          {/* Transaction list filtered by period */}
+          {periodExp.length===0?(
+            <div style={{ textAlign:"center", padding:"40px 0" }}>
+              <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
+              <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses for {periodLabel}</p>
+            </div>
+          ):(
+            <ExpenseListView expenses={periodExp} onDetail={setDetail} fmt={fmt}/>
+          )}
+        </div>
+      )}
+
       {view==="budget"&&(()=>{
         const cycle       = getPaycycle(payday||"both");
         const cycleStart  = cycle.cycleStart;
@@ -3877,29 +3927,49 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         );
       })()}
 
-      {view==="subs"&&(
-        <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} setExpenses={setExpenses} wallets={[]} embedded/>
-      )}
+      {view==="analytics"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
-      {view==="mood"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {moodLogs<2?(
-            <div style={{ textAlign:"center", padding:"48px 20px" }}>
-              <div style={{ width:80, height:80, borderRadius:"50%", background:`${C.rose}14`, border:`2px dashed ${C.rose}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>🔒</div>
-              <p style={{ margin:"0 0 8px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
-              <p style={{ margin:"0 0 18px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Tag your mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
-              <Ring pct={(moodLogs/2)*100} size={80} stroke={6} color={C.rose}><span style={{ fontSize:14, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif" }}>{moodLogs}/2</span></Ring>
-            </div>
-          ):(
-            <>
-              <Card style={{ background:`${C.rose}0C`, border:`1px solid ${C.rose}28` }}><p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Emotional Finance Profile</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>How you feel shapes how you spend.</p></Card>
-              {bymood.map(m=>(<Card key={m.id}><div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:12 }}><span style={{ fontSize:32 }}>{m.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} - {m.pct}% of spending</p></div><p style={{ margin:0, fontSize:16, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p></div><Bar pct={m.pct} color={m.color} h={6}/></Card>))}
-            </>
-          )}
+          {/* Spending donut — uses current pay cycle */}
+          {(()=>{
+            const cycle   = getPaycycle(payday||"both");
+            const cycleExp = expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cycle.cycleStart&&d<=cycle.nextPayday; });
+            return <SpendingDonut expenses={cycleExp} budgets={budgets}/>;
+          })()}
+
+          {/* Mood breakdown */}
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+            <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:"DM Sans,sans-serif" }}>Mood & Spending</p>
+            {moodLogs<2?(
+              <div style={{ textAlign:"center", padding:"24px 20px", background:C.surface, borderRadius:16, border:`1px dashed ${C.border}` }}>
+                <p style={{ margin:"0 0 4px", fontSize:22 }}>🔒</p>
+                <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
+                <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tag mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
+              </div>
+            ):(
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {bymood.map(m=>(
+                  <Card key={m.id}>
+                    <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
+                      <span style={{ fontSize:28 }}>{m.emoji}</span>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} · {m.pct}% of spending</p>
+                      </div>
+                      <p style={{ margin:0, fontSize:15, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p>
+                    </div>
+                    <Bar pct={m.pct} color={m.color} h={5}/>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Insights */}
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+            <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
+          </div>
         </div>
-      )}
-      {view==="insights"&&(
-        <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
       )}
     </div>
   );
