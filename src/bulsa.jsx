@@ -611,7 +611,7 @@ function WalletSheet({ wallet, onSave, onClose }) {
 function WalletAdjustSheet({ wallet, onSave, onClose }) {
   const color   = wallet.color || C.accent;
   const today   = new Date().toISOString().split("T")[0];
-  const [type,  setType]  = useState("in");   // "in" | "out"
+  const [type,  setType]  = useState(wallet._defaultType || "in");   // "in" | "out"
   const [amt,   setAmt]   = useState("");
   const [label, setLabel] = useState("");
   const [date,  setDate]  = useState(today);
@@ -647,7 +647,7 @@ function WalletAdjustSheet({ wallet, onSave, onClose }) {
   };
 
   return (
-    <BottomSheet onClose={onClose} title={`Adjust -- ${wallet.name}`}>
+    <BottomSheet onClose={onClose} title={wallet._defaultType==="in"?`Log income · ${wallet.name}`:wallet._defaultType==="out"?`Log spend · ${wallet.name}`:`Adjust · ${wallet.name}`}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
         {/* Current balance */}
@@ -978,7 +978,14 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
         </div>
       )}
       {embedded && (
-        <button onClick={()=>setSheet("add")} className="tap-btn" style={{ alignSelf:"flex-end", background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add account</button>
+        <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+          {wallets.length >= 2 && (
+            <button onClick={()=>setTransferSheet(true)} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"8px 14px", color:C.textSub, fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+              ⇄ Transfer
+            </button>
+          )}
+          <button onClick={()=>setSheet("add")} className="tap-btn" style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"8px 16px", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add account</button>
+        </div>
       )}
 
       {/* Total balance hero */}
@@ -1032,11 +1039,17 @@ function WalletsScreen({ wallets, setWallets, setScreen, embedded=false, focusWa
                 <p style={{ margin:0, fontSize:26, fontWeight:800, color:w.color, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.02em" }}>{fmt(w.balance)}</p>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                {/* Adjust button -- the new one */}
-                <button onClick={()=>setAdjustSheet(w)} className="tap-btn"
-                  style={{ background:`${w.color}18`, border:`1.5px solid ${w.color}50`, color:w.color, borderRadius:10, padding:"7px 14px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
-                  +/- Adjust
-                </button>
+                {/* Income + Spend buttons */}
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={()=>{ setAdjustSheet({...w, _defaultType:"in"}); }} className="tap-btn"
+                    style={{ background:`${C.green}15`, border:`1.5px solid ${C.green}50`, color:C.green, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
+                    + Income
+                  </button>
+                  <button onClick={()=>{ setAdjustSheet({...w, _defaultType:"out"}); }} className="tap-btn"
+                    style={{ background:`${C.coral}15`, border:`1.5px solid ${C.coral}50`, color:C.coral, borderRadius:10, padding:"7px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, whiteSpace:"nowrap" }}>
+                    − Spend
+                  </button>
+                </div>
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={()=>setSheet(w)} className="tap-btn" style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>Edit</button>
                   {confirm===w.id ? (
@@ -3687,7 +3700,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
-  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"]];
+  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3697,29 +3710,10 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
-      {(()=>{
-        const cyc = getPaycycle(payday||"both");
-        const cycleExp = expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cyc.cycleStart&&d<=cyc.nextPayday; });
-        const cycleTotal = cycleExp.reduce((s,e)=>s+e.amount,0);
-        const cycleLabel = payday==="both" ? (new Date().getDate()<=15?"1st–15th":"16th–30th") : cyc.label;
-        const todayTotal = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===new Date().toDateString()).reduce((s,e)=>s+e.amount,0);
-        return (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}>
-              <SLabel>This cycle</SLabel>
-              <p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(cycleTotal)}</p>
-              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{cycleLabel} · {cycleExp.length} items</p>
-            </Card>
-            <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}>
-              <SLabel>Today</SLabel>
-              <p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(todayTotal)}</p>
-              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-                {expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===new Date().toDateString()).length} items logged
-              </p>
-            </Card>
-          </div>
-        );
-      })()}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>all time</p></Card>
+        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>total logged</p></Card>
+      </div>
 
       {/* Scrollable tab bar */}
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, overflowX:"auto", gap:2 }}>
@@ -3881,7 +3875,26 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} setExpenses={setExpenses} wallets={[]} embedded/>
       )}
 
-
+      {view==="mood"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {moodLogs<2?(
+            <div style={{ textAlign:"center", padding:"48px 20px" }}>
+              <div style={{ width:80, height:80, borderRadius:"50%", background:`${C.rose}14`, border:`2px dashed ${C.rose}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>🔒</div>
+              <p style={{ margin:"0 0 8px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
+              <p style={{ margin:"0 0 18px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Tag your mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
+              <Ring pct={(moodLogs/2)*100} size={80} stroke={6} color={C.rose}><span style={{ fontSize:14, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif" }}>{moodLogs}/2</span></Ring>
+            </div>
+          ):(
+            <>
+              <Card style={{ background:`${C.rose}0C`, border:`1px solid ${C.rose}28` }}><p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Emotional Finance Profile</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>How you feel shapes how you spend.</p></Card>
+              {bymood.map(m=>(<Card key={m.id}><div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:12 }}><span style={{ fontSize:32 }}>{m.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} - {m.pct}% of spending</p></div><p style={{ margin:0, fontSize:16, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p></div><Bar pct={m.pct} color={m.color} h={6}/></Card>))}
+            </>
+          )}
+        </div>
+      )}
+      {view==="insights"&&(
+        <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
+      )}
     </div>
   );
 }
