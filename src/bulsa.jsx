@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo, createContext, useContext } from "react";
 import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────────────────────────────
@@ -28,99 +28,6 @@ const FIRESTORE_FIELDS = [
   "expenses","wallets","loans","goals","utangs","subs",
 ];
 
-// ─── ERROR BOUNDARY ────────────────────────────────────────────────────────
-// React requires a class component for error boundaries.
-// TWO levels of protection:
-//   1. <AppErrorBoundary>  — wraps the whole app. Last resort.
-//   2. <ScreenErrorBoundary> — wraps each screen. One bad screen can't kill the rest.
-
-class AppErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { crashed: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { crashed: true, error };
-  }
-  componentDidCatch(error, info) {
-    // Log to console in dev; swap for a real error logger (e.g. Sentry) in prod
-    console.error("[bulsa. crash]", error, info.componentStack);
-  }
-  render() {
-    if (!this.state.crashed) return this.props.children;
-    const err = this.state.error?.message || "Unknown error";
-    return (
-      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px", fontFamily:"DM Sans,sans-serif" }}>
-        <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
-          <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>
-            😵
-          </div>
-          <div>
-            <h2 style={{ margin:"0 0 8px", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>
-              Nag-crash ang app
-            </h2>
-            <p style={{ margin:"0 0 6px", fontSize:14, color:C.textSub, lineHeight:1.6 }}>
-              May hindi inaasahang error. Huwag mag-alala — ang iyong data ay ligtas pa rin.
-            </p>
-            <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.5, background:C.surface, borderRadius:10, padding:"8px 12px", fontFamily:"monospace", wordBreak:"break-all" }}>
-              {err.slice(0, 120)}{err.length > 120 ? "…" : ""}
-            </p>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%" }}>
-            <button
-              onClick={() => { this.setState({ crashed:false, error:null }); }}
-              style={{ width:"100%", padding:"14px", borderRadius:14, background:C.gradAccent, border:"none", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>
-              Subukan ulit
-            </button>
-            <button
-              onClick={() => { localStorage.clear(); window.location.reload(); }}
-              style={{ width:"100%", padding:"14px", borderRadius:14, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              I-clear ang cache at i-reload
-            </button>
-          </div>
-          <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.6 }}>
-            Kung paulit-ulit ito, i-screenshot at i-report sa aming support.
-          </p>
-        </div>
-      </div>
-    );
-  }
-}
-
-class ScreenErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { crashed: false };
-  }
-  static getDerivedStateFromError() {
-    return { crashed: true };
-  }
-  componentDidCatch(error, info) {
-    console.error("[bulsa. screen crash]", this.props.screenName, error, info.componentStack);
-  }
-  render() {
-    if (!this.state.crashed) return this.props.children;
-    return (
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", gap:16, fontFamily:"DM Sans,sans-serif", minHeight:300 }}>
-        <span style={{ fontSize:36 }}>😕</span>
-        <div style={{ textAlign:"center" }}>
-          <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:800, color:C.text }}>
-            Hindi ma-load ang screen na ito
-          </p>
-          <p style={{ margin:0, fontSize:13, color:C.textSub, lineHeight:1.55 }}>
-            May error sa <strong style={{ color:C.accent }}>{this.props.screenName || "page"}</strong>. Ang ibang screens ay gumagana pa rin.
-          </p>
-        </div>
-        <button
-          onClick={() => this.setState({ crashed: false })}
-          style={{ padding:"10px 24px", borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}40`, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer" }}>
-          Subukan ulit
-        </button>
-      </div>
-    );
-  }
-}
-
 // ─── HIDE BALANCE CONTEXT ──────────────────────────────────────────────────
 const HideCtx = createContext(false);
 const useHide = () => useContext(HideCtx);
@@ -128,7 +35,11 @@ const mask = "₱••••";
 
 // ─── GLOBAL STYLES ─────────────────────────────────────────────────────────
 const GlobalStyles = () => (
-  <style>{`
+  <>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <style>{`
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
     body { font-family: 'DM Sans', sans-serif; }
     ::-webkit-scrollbar { display: none; }
@@ -188,6 +99,7 @@ const GlobalStyles = () => (
       animation: shimmer 3s linear infinite;
     }
   `}</style>
+  </>
 );
 
 // ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
@@ -2973,16 +2885,33 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
   const [setupCardDismissed, setSetupCardDismissed] = useState(false);
 
-  // ── Core numbers ──────────────────────────────────────────────────────────
-  const totalSpent  = expenses.reduce((s,e)=>s+e.amount,0);
-  const walletTotal = wallets && wallets.length > 0 ? wallets.reduce((s,w)=>s+w.balance,0) : null;
-  const balance     = walletTotal !== null ? walletTotal : income - totalSpent;
-  const todayStr    = new Date().toDateString();
-  const todaySpent  = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
-  const todayExps   = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  // ── Core numbers — memoized so they only recompute when expenses/wallets change ──
+  const todayStr   = new Date().toDateString();
 
-  // ── Runway ────────────────────────────────────────────────────────────────
-  const runway = (() => {
+  const totalSpent = useMemo(
+    () => expenses.reduce((s,e) => s + e.amount, 0),
+    [expenses]
+  );
+
+  const walletTotal = useMemo(
+    () => wallets && wallets.length > 0 ? wallets.reduce((s,w) => s + w.balance, 0) : null,
+    [wallets]
+  );
+
+  const balance = walletTotal !== null ? walletTotal : income - totalSpent;
+
+  const todaySpent = useMemo(
+    () => expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr).reduce((s,e) => s + e.amount, 0),
+    [expenses, todayStr]
+  );
+
+  const todayExps = useMemo(
+    () => expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr).sort((a,b) => new Date(b.ts) - new Date(a.ts)),
+    [expenses, todayStr]
+  );
+
+  // ── Runway ─────────────────────────────────────────────────────────────────
+  const runway = useMemo(() => {
     const cycle = getPaycycle(payday);
     const daysLeft = cycle.daysLeft;
     if (daysLeft <= 0 || balance <= 0) return null;
@@ -2994,28 +2923,29 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     const petsaDePeligro = daysLeft <= 4;
     const color = over ? C.coral : tight ? C.gold : petsaDePeligro ? C.coral : C.green;
     return { allowedPerDay, daysLeft, daysRemaining, pct, over, tight, petsaDePeligro, color, label: cycle.label };
-  })();
+  }, [payday, balance, todaySpent]);
 
-  // ── Budget streak ─────────────────────────────────────────────────────────
-  const budgetStreak = (() => {
+  // ── Budget streak — THE most expensive computation. Memoized hard. ─────────
+  // Only recomputes when expenses array or dailyLimit changes.
+  const budgetStreak = useMemo(() => {
     if (dailyLimit <= 0) return null;
     let streak = 0;
     const tod = new Date(); tod.setHours(0,0,0,0);
     for (let i = 0; i < 365; i++) {
       const d  = new Date(tod); d.setDate(tod.getDate() - i);
       const ds = d.toDateString();
-      const daySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===ds).reduce((s,e)=>s+e.amount,0);
-      const hasLogs  = expenses.some(e=>e.ts&&new Date(e.ts).toDateString()===ds);
+      const daySpent = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === ds).reduce((s,e) => s + e.amount, 0);
+      const hasLogs  = expenses.some(e => e.ts && new Date(e.ts).toDateString() === ds);
       if (i === 0) { if (daySpent <= dailyLimit) { streak++; continue; } else break; }
       if (!hasLogs) break;
       if (daySpent > dailyLimit) break;
       streak++;
     }
     return streak;
-  })();
+  }, [expenses, dailyLimit]);
 
-  // ── Hero status ───────────────────────────────────────────────────────────
-  const hero = (() => {
+  // ── Hero status ────────────────────────────────────────────────────────────
+  const hero = useMemo(() => {
     const overLimit  = dailyLimit > 0 && todaySpent > dailyLimit;
     const nearLimit  = dailyLimit > 0 && !overLimit && (todaySpent/dailyLimit) > 0.8;
     const overRunway = runway && todaySpent > runway.allowedPerDay;
@@ -3055,17 +2985,23 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         : runway
         ? `${fmt(runway.allowedPerDay - todaySpent)} left today · ${runway.daysLeft}d to ${runway.label}`
         : `${fmt(balance)} across all wallets` };
-  })();
+  }, [dailyLimit, todaySpent, runway, expenses, balance, fmt]);
 
-  const todayPct = dailyLimit > 0
-    ? Math.min((todaySpent/dailyLimit)*100,100)
-    : runway ? Math.min((todaySpent/runway.allowedPerDay)*100,100) : 0;
+  const todayPct = useMemo(() =>
+    dailyLimit > 0
+      ? Math.min((todaySpent/dailyLimit)*100, 100)
+      : runway ? Math.min((todaySpent/runway.allowedPerDay)*100, 100) : 0,
+    [dailyLimit, todaySpent, runway]
+  );
 
-  // ── Insight ───────────────────────────────────────────────────────────────
-  const insight = getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday);
+  // ── Insight — memoized, only recomputes when expenses/income/etc change ────
+  const insight = useMemo(
+    () => getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday),
+    [expenses, income, dailyLimit, wallets, utangs, payday]
+  );
 
-  // ── Under-budget nudge ────────────────────────────────────────────────────
-  const underBudgetAmt = (() => {
+  // ── Under-budget nudge ─────────────────────────────────────────────────────
+  const underBudgetAmt = useMemo(() => {
     if (nudgeDismissed) return 0;
     if (!goals || goals.filter(g=>g.saved<g.target).length===0) return 0;
     const t = todaySpent;
@@ -3073,7 +3009,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     if (dailyLimit > 0) { const u = dailyLimit - t; return u >= 50 ? u : 0; }
     if (runway)         { const u = runway.allowedPerDay - t; return u >= 50 ? u : 0; }
     return 0;
-  })();
+  }, [nudgeDismissed, goals, todaySpent, dailyLimit, runway]);
 
   const FF = "DM Sans,sans-serif";
 
@@ -3338,40 +3274,70 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   const [editLimit, setEditLimit] = useState(false);
   const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const totalSpent = expenses.reduce((s,e)=>s+e.amount,0);
-  const byDay = Array(7).fill(0);
-  expenses.forEach(e=>{ if(e.ts) byDay[new Date(e.ts).getDay()] += e.amount; });
-  const maxDay = Math.max(...byDay,1);
-  const peakDayIdx = byDay.indexOf(Math.max(...byDay));
-  const byCat = CATS.map(c=>({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
   const todayStr = new Date().toDateString();
-  const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
-  const dailyPct = dailyLimit>0 ? Math.min((todaySpent/dailyLimit)*100,100) : 0;
-  const dailyOver = dailyLimit>0 && todaySpent>dailyLimit;
-  const dailyColor = dailyOver ? C.coral : dailyLimit>0&&dailyPct>80 ? C.gold : C.green;
-  const now = new Date();
-  const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
-  const thisWeek = expenses.filter(e=>e.ts&&new Date(e.ts)>=weekStart);
-  const weekTotal = thisWeek.reduce((s,e)=>s+e.amount,0);
-  const weekByDay = Array(7).fill(0);
-  thisWeek.forEach(e=>{ if(e.ts) weekByDay[new Date(e.ts).getDay()]+=e.amount; });
-  const weekMaxDay = Math.max(...weekByDay,1);
-  const weekPeakIdx = weekByDay.indexOf(Math.max(...weekByDay));
-  const tips = [];
-  const foodAmt = byCat.find(c=>c.id==="food")?.total||0;
-  const shopAmt = byCat.find(c=>c.id==="shopping")?.total||0;
-  const foodPct = totalSpent ? foodAmt/totalSpent : 0;
-  const shopPct = totalSpent ? shopAmt/totalSpent : 0;
-  const fri = byDay[5], sat = byDay[6], weekdayAvg = (byDay[1]+byDay[2]+byDay[3]+byDay[4])/4||1;
-  if (expenses.length===0) { tips.push({ icon:"💡", tip:"Start logging to unlock your personal insights. Kahit 5 entries lang, makikita mo na ang pattern mo." }); }
-  else {
-    if (income>0 && totalSpent/income>0.8) tips.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Withdraw only what you plan to spend — leave the rest in your account.` });
-    if (foodPct>0.4) tips.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam lang. Malaking tipid over a month.` });
-    if (shopPct>0.25) tips.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule — wait 2 days before buying anything over ₱500.` });
-    if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) tips.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning — once it's gone, it's gone." });
-    if (dailyLimit>0&&todaySpent>dailyLimit*0.9) tips.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight — those small orders add up fast.` });
-    if (tips.length===0) tips.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging — mas magiging clear ang pattern mo over time." });
-  }
+
+  const totalSpent = useMemo(() => expenses.reduce((s,e) => s + e.amount, 0), [expenses]);
+
+  const byDay = useMemo(() => {
+    const arr = Array(7).fill(0);
+    expenses.forEach(e => { if(e.ts) arr[new Date(e.ts).getDay()] += e.amount; });
+    return arr;
+  }, [expenses]);
+
+  const maxDay      = useMemo(() => Math.max(...byDay, 1), [byDay]);
+  const peakDayIdx  = useMemo(() => byDay.indexOf(Math.max(...byDay)), [byDay]);
+
+  const byCat = useMemo(() =>
+    CATS.map(c => ({ ...c, total:expenses.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0) }))
+        .filter(c => c.total > 0)
+        .sort((a,b) => b.total - a.total),
+    [expenses]
+  );
+
+  const todaySpent = useMemo(() =>
+    expenses.filter(e => e.ts && new Date(e.ts).toDateString() === todayStr).reduce((s,e) => s + e.amount, 0),
+    [expenses, todayStr]
+  );
+
+  const { weekTotal, weekByDay, weekMaxDay, weekPeakIdx } = useMemo(() => {
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
+    const thisWeek = expenses.filter(e => e.ts && new Date(e.ts) >= weekStart);
+    const wbd = Array(7).fill(0);
+    thisWeek.forEach(e => { if(e.ts) wbd[new Date(e.ts).getDay()] += e.amount; });
+    return {
+      weekTotal:   thisWeek.reduce((s,e) => s + e.amount, 0),
+      weekByDay:   wbd,
+      weekMaxDay:  Math.max(...wbd, 1),
+      weekPeakIdx: wbd.indexOf(Math.max(...wbd)),
+    };
+  }, [expenses]);
+
+  const { dailyPct, dailyOver, dailyColor } = useMemo(() => {
+    const pct   = dailyLimit > 0 ? Math.min((todaySpent/dailyLimit)*100, 100) : 0;
+    const over  = dailyLimit > 0 && todaySpent > dailyLimit;
+    const color = over ? C.coral : dailyLimit > 0 && pct > 80 ? C.gold : C.green;
+    return { dailyPct:pct, dailyOver:over, dailyColor:color };
+  }, [dailyLimit, todaySpent]);
+
+  const tips = useMemo(() => {
+    const result = [];
+    const foodAmt = byCat.find(c=>c.id==="food")?.total||0;
+    const shopAmt = byCat.find(c=>c.id==="shopping")?.total||0;
+    const foodPct = totalSpent ? foodAmt/totalSpent : 0;
+    const shopPct = totalSpent ? shopAmt/totalSpent : 0;
+    const fri = byDay[5], sat = byDay[6], weekdayAvg = (byDay[1]+byDay[2]+byDay[3]+byDay[4])/4||1;
+    if (expenses.length===0) { result.push({ icon:"💡", tip:"Start logging to unlock your personal insights. Kahit 5 entries lang, makikita mo na ang pattern mo." }); }
+    else {
+      if (income>0 && totalSpent/income>0.8) result.push({ icon:"🚨", tip:`You've spent ${Math.round((totalSpent/income)*100)}% of your income. Withdraw only what you plan to spend — leave the rest in your account.` });
+      if (foodPct>0.4) result.push({ icon:"🍜", tip:`Food is ${Math.round(foodPct*100)}% of your spending. Try cooking 2x a week — kahit simpleng ulam lang. Malaking tipid over a month.` });
+      if (shopPct>0.25) result.push({ icon:"🛍️", tip:`Shopping is at ${Math.round(shopPct*100)}% this month. Use the 48-hour rule — wait 2 days before buying anything over ₱500.` });
+      if (fri>weekdayAvg*1.8||sat>weekdayAvg*1.8) result.push({ icon:"📅", tip:"Weekends are where your money disappears. Set a weekend allowance on Friday morning — once it's gone, it's gone." });
+      if (dailyLimit>0&&todaySpent>dailyLimit*0.9) result.push({ icon:"⚠️", tip:`You're ${dailyOver?"over":"near"} your daily limit today. Avoid GCash or GrabFood tonight — those small orders add up fast.` });
+      if (result.length===0) result.push({ icon:"✅", tip:"Your spending looks balanced this month. Keep logging — mas magiging clear ang pattern mo over time." });
+    }
+    return result;
+  }, [expenses, income, totalSpent, byCat, byDay, dailyLimit, todaySpent, dailyOver]);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div><SLabel>Daily Spending Limit</SLabel>
@@ -3701,9 +3667,17 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
   const [editB,     setEditB]    = useState(null);
   const [bInput,    setBInput]   = useState("");
   const [chartScope, setChartScope] = useState("cycle");
-  const total    = expenses.reduce((s,e)=>s+e.amount,0);
-  const moodLogs = expenses.filter(e=>e.moodId).length;
-  const bymood   = MOODS.map(m=>{ const amt=expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0),cnt=expenses.filter(e=>e.moodId===m.id).length; return {...m,amount:amt,count:cnt,pct:total?Math.round((amt/total)*100):0}; }).filter(m=>m.count>0);
+
+  const total    = useMemo(() => expenses.reduce((s,e) => s + e.amount, 0), [expenses]);
+  const moodLogs = useMemo(() => expenses.filter(e => e.moodId).length, [expenses]);
+  const bymood   = useMemo(() =>
+    MOODS.map(m => {
+      const amt = expenses.filter(e=>e.moodId===m.id).reduce((s,e)=>s+e.amount,0);
+      const cnt = expenses.filter(e=>e.moodId===m.id).length;
+      return { ...m, amount:amt, count:cnt, pct:total?Math.round((amt/total)*100):0 };
+    }).filter(m => m.count > 0),
+    [expenses, total]
+  );
 
   const handleEdit     = exp => setEditExp(exp);
   const handleDelete   = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
@@ -5782,7 +5756,6 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
       justifyContent:"center", padding:"0 24px",
     }}>
       <GlobalStyles/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:360, display:"flex", flexDirection:"column", alignItems:"center", gap:32, animation:"fadeIn 0.4s ease" }}>
 
         {/* Logo */}
@@ -6179,21 +6152,17 @@ export default function Bulsa() {
     setScreen("accounts");
   };
 
-  const wrap = (name, el) => (
-    <ScreenErrorBoundary screenName={name}>{el}</ScreenErrorBoundary>
-  );
-
   const screens = {
-    home:     wrap("Home",          <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>),
-    expenses: wrap("Expenses",      <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>),
-    loans:    wrap("Loans",         <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>),
-    goals:    wrap("Goals",         <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
-    wallets:  wrap("Wallets",       <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>),
-    subs:     wrap("Subscriptions", <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>),
-    utang:    wrap("Utang",         <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>),
-    accounts: wrap("Accounts",      <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
-    survive:  wrap("Survive",       <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>),
-    profile:  wrap("Profile",       <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
+    home:     <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>,
+    expenses: <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday}/>,
+    loans:    <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>,
+    goals:    <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>,
+    wallets:  <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>,
+    subs:     <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>,
+    utang:    <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>,
+    accounts: <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>,
+    survive:  <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>,
+    profile:  <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>,
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -6216,11 +6185,9 @@ export default function Bulsa() {
 
   // ── Logged in ────────────────────────────────────────────────────────────
   return (
-    <AppErrorBoundary>
     <HideCtx.Provider value={hidden}>
     <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
       <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
         {/* Sync status pill */}
@@ -6258,6 +6225,5 @@ export default function Bulsa() {
       </div>
     </div>
     </HideCtx.Provider>
-    </AppErrorBoundary>
   );
 }
