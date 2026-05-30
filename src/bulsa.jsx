@@ -3469,7 +3469,7 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
             {m ? <span style={{ fontSize:13 }}>{m.emoji}</span> : <span style={{ fontSize:10, color:C.textFaint }}>--</span>}
           </div>
         </div>
-      </Card>
+      </Card></SwipeableRow>
     );
   };
 
