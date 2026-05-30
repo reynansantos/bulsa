@@ -3327,7 +3327,7 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 // ─── SWIPEABLE ROW ───────────────────────────────────────────────────────────
 function SwipeableRow({ children, onDelete }) {
   const [dx,      setDx]      = useState(0);
-  const [swiping, setSwiping] = useState(false);
+  const [active,  setActive]  = useState(false); // only true once user starts swiping
   const startX = useRef(0);
   const startY = useRef(0);
   const locked = useRef(null);
@@ -3345,27 +3345,34 @@ function SwipeableRow({ children, onDelete }) {
     if (locked.current === "v") return;
     if (dX > 0) { setDx(0); return; }
     e.preventDefault();
-    setSwiping(true);
+    setActive(true);
     setDx(Math.max(dX, -THRESHOLD - 20));
   };
   const onTouchEnd = () => {
     if (dx <= -THRESHOLD) setDx(-THRESHOLD);
-    else { setDx(0); setSwiping(false); }
+    else { setDx(0); setActive(false); }
   };
-  const reset = () => { setDx(0); setSwiping(false); };
+  const reset = () => { setDx(0); setActive(false); };
   const handleDelete = () => { try { navigator.vibrate?.(18); } catch {} onDelete(); };
 
   return (
-    <div style={{ position:"relative", overflow:"hidden", borderRadius:12 }}>
-      <div style={{ position:"absolute", right:0, top:0, bottom:0, width:THRESHOLD, background:C.coral, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"0 12px 12px 0" }}>
-        <button onClick={handleDelete} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-          <span style={{ fontSize:18 }}>🗑️</span>
-          <span style={{ fontSize:10, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>Delete</span>
-        </button>
-      </div>
+    <div style={{ position:"relative", borderRadius:12, overflow:"hidden" }}>
+      {/* Delete zone — only rendered when actively swiping */}
+      {active && (
+        <div style={{ position:"absolute", right:0, top:0, bottom:0, width:THRESHOLD,
+          background:C.coral, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={handleDelete} style={{ background:"none", border:"none", cursor:"pointer",
+            display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+            <span style={{ fontSize:18 }}>🗑️</span>
+            <span style={{ fontSize:10, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>Delete</span>
+          </button>
+        </div>
+      )}
       <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         onClick={dx < -10 ? reset : undefined}
-        style={{ transform:`translateX(${dx}px)`, transition:swiping?"none":"transform 0.25s cubic-bezier(0.25,1,0.5,1)", willChange:"transform", position:"relative", zIndex:1 }}>
+        style={{ transform:`translateX(${dx}px)`,
+          transition:active?"none":"transform 0.25s cubic-bezier(0.25,1,0.5,1)",
+          position:"relative", zIndex:1 }}>
         {children}
       </div>
     </div>
