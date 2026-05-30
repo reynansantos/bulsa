@@ -126,36 +126,55 @@ function useLocalStorage(key, initialValue) {
 
 // ─── TOKENS ────────────────────────────────────────────────────────────────
 const C = {
+  // Surfaces — keep exactly as is
   bg:"#0A1628", surface:"#111E2F", card:"#1C2B42", cardAlt:"#1F3050",
-  border:"#1E3352", borderLight:"#2A3F5C",
+  border:"#243550", borderLight:"#2E4468",
+
+  // Primary accent — orange, unchanged
   accent:"#FF6B2B", accentSoft:"#FF9A6B", accentGlow:"rgba(255,107,43,0.18)",
-  lime:"#C8F135", sky:"#3D7EF8", rose:"#FF4D8C", gold:"#FFD060", mint:"#00E0A0",
+
+  // Supporting accent — sky blue only
+  sky:"#3D7EF8",
+
+  // Muted category tints — all desaturated so they don't compete with orange
+  lime:"#6EBF8B",   // was neon #C8F135 — now muted sage green
+  rose:"#C97FAA",   // was hot #FF4D8C — now dusty rose
+  gold:"#C9993A",   // was neon #FFD060 — now warm amber
+  mint:"#3AABAA",   // was neon #00E0A0 — now teal
+  green:"#3AB87A",  // was neon #00E096 — now muted green
+  coral:"#E85A5A",  // was bright #FF4455 — now softer red
+
+  // Text — unchanged
   text:"#E8EFF8", textSub:"#6B8CAD", textFaint:"#4A6A8A",
-  green:"#00E096", coral:"#FF4455", overlay:"rgba(8,18,36,0.95)",
+
+  // Overlay — unchanged
+  overlay:"rgba(8,18,36,0.95)",
+
+  // Gradients — orange stays, others muted
   gradAccent:"linear-gradient(135deg,#FF6B2B,#FF9A6B)",
-  gradLime:"linear-gradient(135deg,#C8F135,#8FB800)",
+  gradLime:"linear-gradient(135deg,#6EBF8B,#4A9B6E)",
   gradSky:"linear-gradient(135deg,#3D7EF8,#0055CC)",
-  gradRose:"linear-gradient(135deg,#FF4D8C,#FF9ABA)",
+  gradRose:"linear-gradient(135deg,#C97FAA,#A85C8A)",
 };
 
 const CATS = [
-  { id:"food",      label:"Food & Drinks",  icon:"🍜", color:C.accent },
-  { id:"transport", label:"Transport",      icon:"🚗", color:C.sky },
-  { id:"shopping",  label:"Shopping",       icon:"🛍️", color:C.rose },
-  { id:"subs",      label:"Subscriptions",  icon:"📱", color:C.gold },
-  { id:"health",    label:"Health",         icon:"💪", color:C.mint },
-  { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime },
-  { id:"skincare",  label:"Skincare",       icon:"✨", color:"#F9A8D4" },
-  { id:"travel",    label:"Travel",         icon:"✈️", color:"#38BDF8" },
-  { id:"bills",     label:"Bills",          icon:"🧾", color:"#60A5FA" },
-  { id:"other",     label:"Other",          icon:"✦",  color:"#A78BFA" },
+  { id:"food",      label:"Food & Drinks",  icon:"🍜", color:C.accent   },
+  { id:"transport", label:"Transport",      icon:"🚗", color:C.sky      },
+  { id:"shopping",  label:"Shopping",       icon:"🛍️", color:C.rose     },
+  { id:"subs",      label:"Subscriptions",  icon:"📱", color:C.gold     },
+  { id:"health",    label:"Health",         icon:"💪", color:C.mint     },
+  { id:"grocery",   label:"Groceries",      icon:"🛒", color:C.lime     },
+  { id:"skincare",  label:"Skincare",       icon:"✨", color:"#C47EB5"  },
+  { id:"travel",    label:"Travel",         icon:"✈️", color:C.sky      },
+  { id:"bills",     label:"Bills",          icon:"🧾", color:"#7A9EC9"  },
+  { id:"other",     label:"Other",          icon:"✦",  color:"#8A8FAA"  },
 ];
 
 const MOODS = [
-  { id:"stressed",  emoji:"😰", label:"Stressed",  color:C.coral },
+  { id:"stressed",  emoji:"😰", label:"Stressed",  color:C.coral  },
   { id:"neutral",   emoji:"😐", label:"Neutral",   color:C.textSub },
-  { id:"happy",     emoji:"😊", label:"Happy",     color:C.gold },
-  { id:"motivated", emoji:"🔥", label:"Motivated", color:C.green },
+  { id:"happy",     emoji:"😊", label:"Happy",     color:C.gold   },
+  { id:"motivated", emoji:"🔥", label:"Motivated", color:C.green  },
 ];
 
 const LOAN_TYPES  = ["BNPL","Personal","Cash Loan","Credit Card","Student","Car Loan","Other"];
