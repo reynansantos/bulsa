@@ -1202,7 +1202,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
 
   // AI
-  const [aiMode,    setAiMode]    = useState(!isEdit);
+  const [aiMode,    setAiMode]    = useState(false);
   const [aiInput,   setAiInput]   = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState("");
@@ -1222,10 +1222,9 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 
   useEffect(()=>{ setTimeout(()=>setVis(true), 20); }, []);
 
-  // Auto-focus on open
+  // Auto-focus amount on open (manual is default)
   useEffect(()=>{
-    if (aiMode) setTimeout(()=>aiInputRef.current?.focus(), 80);
-    else        setTimeout(()=>amountRef.current?.focus(),  80);
+    setTimeout(()=>amountRef.current?.focus(), 80);
   }, []);
 
   // Local regex fallback
