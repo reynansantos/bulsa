@@ -3687,7 +3687,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
-  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"],["mood","Mood"],["insights","Insights"]];
+  const TABS = [["list","List"],["chart","Chart"],["budget","Budget"],["subs","Subs"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3697,10 +3697,29 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Expenses</h2>
         <button onClick={onAdd} style={{ background:C.gradAccent, border:"none", borderRadius:12, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif", boxShadow:`0 4px 16px ${C.accentGlow}` }}>+ Add</button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}><SLabel>Total Spent</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(total)}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>all time</p></Card>
-        <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}><SLabel>Transactions</SLabel><p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{expenses.length}</p><p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>total logged</p></Card>
-      </div>
+      {(()=>{
+        const cyc = getPaycycle(payday||"both");
+        const cycleExp = expenses.filter(e=>{ if(!e.ts) return false; const d=new Date(e.ts); return d>=cyc.cycleStart&&d<=cyc.nextPayday; });
+        const cycleTotal = cycleExp.reduce((s,e)=>s+e.amount,0);
+        const cycleLabel = payday==="both" ? (new Date().getDate()<=15?"1st–15th":"16th–30th") : cyc.label;
+        const todayTotal = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===new Date().toDateString()).reduce((s,e)=>s+e.amount,0);
+        return (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <Card style={{ background:`${C.coral}10`, border:`1px solid ${C.coral}28` }}>
+              <SLabel>This cycle</SLabel>
+              <p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(cycleTotal)}</p>
+              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{cycleLabel} · {cycleExp.length} items</p>
+            </Card>
+            <Card style={{ background:`${C.accent}0C`, border:`1px solid ${C.accent}28` }}>
+              <SLabel>Today</SLabel>
+              <p style={{ margin:0, fontSize:24, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(todayTotal)}</p>
+              <p style={{ margin:0, fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+                {expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===new Date().toDateString()).length} items logged
+              </p>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Scrollable tab bar */}
       <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:4, border:`1px solid ${C.border}`, overflowX:"auto", gap:2 }}>
@@ -3862,26 +3881,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <SubscriptionsScreen subs={subs||[]} setSubs={setSubs} setExpenses={setExpenses} wallets={[]} embedded/>
       )}
 
-      {view==="mood"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {moodLogs<2?(
-            <div style={{ textAlign:"center", padding:"48px 20px" }}>
-              <div style={{ width:80, height:80, borderRadius:"50%", background:`${C.rose}14`, border:`2px dashed ${C.rose}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>🔒</div>
-              <p style={{ margin:"0 0 8px", fontSize:16, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
-              <p style={{ margin:"0 0 18px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>Tag your mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
-              <Ring pct={(moodLogs/2)*100} size={80} stroke={6} color={C.rose}><span style={{ fontSize:14, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif" }}>{moodLogs}/2</span></Ring>
-            </div>
-          ):(
-            <>
-              <Card style={{ background:`${C.rose}0C`, border:`1px solid ${C.rose}28` }}><p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.rose, fontFamily:"DM Sans,sans-serif", textTransform:"uppercase", letterSpacing:"0.08em" }}>Emotional Finance Profile</p><p style={{ margin:0, fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>How you feel shapes how you spend.</p></Card>
-              {bymood.map(m=>(<Card key={m.id}><div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:12 }}><span style={{ fontSize:32 }}>{m.emoji}</span><div style={{ flex:1 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} - {m.pct}% of spending</p></div><p style={{ margin:0, fontSize:16, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p></div><Bar pct={m.pct} color={m.color} h={6}/></Card>))}
-            </>
-          )}
-        </div>
-      )}
-      {view==="insights"&&(
-        <InsightsTab expenses={expenses} income={income} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}/>
-      )}
+
     </div>
   );
 }
