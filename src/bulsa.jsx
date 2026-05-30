@@ -2069,6 +2069,7 @@ function SubscriptionsScreen({ subs, setSubs, setScreen, embedded=false, setExpe
   const [payingId, setPayingId] = useState(null); // sub id currently being paid
 
   const enableNotifs = async () => {
+    const ok = await requestNotifPermission();
     setNotifOk(ok);
     if (ok) sendNotif("bulsa. 🔔", "You'll get reminders before subscriptions are due!");
   };
