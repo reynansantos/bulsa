@@ -1199,7 +1199,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [vis,       setVis]       = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [expDate,   setExpDate]   = useState(isEdit && editExpense.ts ? editExpense.ts.split("T")[0] : today);
-  const [showMore,  setShowMore]  = useState(isEdit); // name/mood/wallet expanded by default when editing
+  const [showMore,  setShowMore]  = useState(true); // always show — name/mood/backdate should never be hidden
 
   // AI
   const [aiMode,    setAiMode]    = useState(false);
@@ -1476,96 +1476,93 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
               </div>
             </div>
 
-            {/* ── OPTIONAL DETAILS — name, mood, wallet ── */}
-            {!showMore ? (
-              <button onClick={()=>setShowMore(true)}
-                style={{ background:"none", border:"none", color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:FF, padding:"0 0 14px", display:"flex", alignItems:"center", gap:5, width:"100%" }}>
-                <span style={{ color:C.accent }}>+</span> Add name, mood, wallet
-              </button>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:4 }}>
+            {/* ── ALWAYS VISIBLE DETAILS — name, mood, wallet, date ── */}
+            <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:4 }}>
 
-                {/* Name */}
-                <div>
-                  <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
-                    Name <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
-                  </p>
-                  <input
-                    value={name} onChange={e=>setName(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&save()}
-                    placeholder={isGrocery?"e.g. SM Supermarket run...":`e.g. Jollibee, Grab, ${cat.label}...`}
-                    style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
-                  />
-                </div>
-
-                {/* Grocery items */}
-                {isGrocery&&(
-                  <div>
-                    <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Items in this haul</p>
-                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                      <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter" onKeyDown={e=>e.key==="Enter"&&addGItem()}
-                        style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.lime }}/>
-                      <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
-                    </div>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
-                      {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:FF, fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
-                      {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:FF }}>Type and press Enter or +</p>}
-                    </div>
-                  </div>
-                )}
-
-                {/* Mood */}
-                <div>
-                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
-                    Feeling? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
-                    {moodLogsCount<2&&<span style={{ color:C.rose, fontWeight:700 }}> · {2-moodLogsCount} more to unlock insights</span>}
-                  </p>
-                  <div style={{ display:"flex", gap:6 }}>
-                    {MOODS.map(m=>(
-                      <button key={m.id} onClick={()=>setMoodId(moodId===m.id?null:m.id)} className="tap-btn"
-                        style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
-                        <span style={{ fontSize:24 }}>{m.emoji}</span>
-                        <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Wallet picker */}
-                {wallets&&wallets.length>0&&(
-                  <div>
-                    <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                      {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
-                        <button key={w.id} onClick={()=>setWalletId(sel?null:w.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
-                          <WalletIcon wallet={w} size={16}/><span>{w.name}</span>
-                          <span style={{ fontSize:10, opacity:0.7 }}>{fmt(w.balance)}</span>
-                          {insuf&&<span>⚠️</span>}
-                        </button>
-                      );})}
-                    </div>
-                    {insufficient&&<p style={{ margin:"6px 0 0", fontSize:12, color:C.coral, fontWeight:700, fontFamily:FF }}>⚠️ Not enough in {selectedWallet.name}</p>}
-                  </div>
-                )}
-
-                {/* Backdate */}
-                {expDate!==today&&(
-                  <div style={{ display:"flex", alignItems:"center", gap:8, background:`${C.accent}0C`, border:`1px solid ${C.accent}30`, borderRadius:12, padding:"9px 14px" }}>
-                    <span style={{ fontSize:14 }}>📅</span>
-                    <input type="date" value={expDate} max={today} onChange={e=>setExpDate(e.target.value)} style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF }}/>
-                    <Tag color={C.accent}>Backdated</Tag>
-                  </div>
-                )}
-                {expDate===today&&(
-                  <button onClick={()=>setExpDate("")} style={{ background:"none", border:"none", color:C.textFaint, fontSize:11, fontFamily:FF, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:5 }}>
-                    📅 Backdate this expense
-                  </button>
-                )}
-                {expDate===""&&(
-                  <input type="date" autoFocus value={expDate} max={today} onChange={e=>setExpDate(e.target.value||today)} style={{ width:"100%", background:C.card, border:`1px solid ${C.accent}50`, borderRadius:12, padding:"10px 14px", color:C.text, fontSize:14, fontWeight:700, fontFamily:FF, outline:"none", boxSizing:"border-box" }}/>
-                )}
+              {/* Name */}
+              <div>
+                <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                  What was it? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                </p>
+                <input
+                  value={name} onChange={e=>setName(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&save()}
+                  placeholder={isGrocery?"e.g. SM Supermarket run...":`e.g. Jollibee, Grab, ${cat.label}...`}
+                  style={{ width:"100%", background:C.card, border:`1px solid ${name.trim()?C.accent+"60":C.border}`, borderRadius:12, padding:"12px 14px", color:C.text, fontSize:15, fontWeight:600, outline:"none", fontFamily:FF, caretColor:C.accent, boxSizing:"border-box", transition:"border 0.18s" }}
+                />
               </div>
-            )}
+
+              {/* Grocery items */}
+              {isGrocery&&(
+                <div>
+                  <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Items in this haul</p>
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <input value={gInput} onChange={e=>setGInput(e.target.value)} placeholder="Add item, press Enter" onKeyDown={e=>e.key==="Enter"&&addGItem()}
+                      style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.lime }}/>
+                    <button onClick={addGItem} style={{ background:C.lime, border:"none", borderRadius:11, padding:"0 16px", fontSize:20, cursor:"pointer", color:"#000", fontWeight:800, flexShrink:0 }}>+</button>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6, minHeight:24 }}>
+                    {gItems.map((item,i)=>(<span key={i} onClick={()=>setGItems(p=>p.filter((_,j)=>j!==i))} style={{ background:C.lime+"1A", border:`1px solid ${C.lime}40`, color:C.lime, borderRadius:99, padding:"4px 11px", fontSize:12, fontFamily:FF, fontWeight:700, cursor:"pointer" }}>{item} ×</span>))}
+                    {gItems.length===0&&<p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:FF }}>Type and press Enter or +</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Mood — always visible */}
+              <div>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                  How did it feel? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                </p>
+                <div style={{ display:"flex", gap:6 }}>
+                  {MOODS.map(m=>(
+                    <button key={m.id} onClick={()=>{ haptic(); setMoodId(moodId===m.id?null:m.id); }} className="tap-btn"
+                      style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
+                      <span style={{ fontSize:22 }}>{m.emoji}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Wallet picker — always visible if wallets exist */}
+              {wallets&&wallets.length>0&&(
+                <div>
+                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>Pay from</p>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {wallets.map(w=>{ const sel=walletId===w.id; const insuf=sel&&+amount>w.balance; return (
+                      <button key={w.id} onClick={()=>{ haptic(); setWalletId(sel?null:w.id); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:99, border:`1.5px solid ${sel?(insuf?C.coral:w.color)+"80":C.border}`, background:sel?w.color+"18":C.card, cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF, color:sel?(insuf?C.coral:w.color):C.textSub }}>
+                        <WalletIcon wallet={w} size={16}/><span>{w.name}</span>
+                        <span style={{ fontSize:10, opacity:0.7 }}>{fmt(w.balance)}</span>
+                        {insuf&&<span>⚠️</span>}
+                      </button>
+                    );})}
+                  </div>
+                  {insufficient&&<p style={{ margin:"6px 0 0", fontSize:12, color:C.coral, fontWeight:700, fontFamily:FF }}>⚠️ Not enough in {selectedWallet.name}</p>}
+                </div>
+              )}
+
+              {/* Date — always visible single date pill, no 3-state confusion */}
+              <div>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>When?</p>
+                <div style={{ display:"flex", alignItems:"center", gap:8, background:expDate!==today?`${C.accent}0C`:C.card, border:`1px solid ${expDate!==today?C.accent+"40":C.border}`, borderRadius:12, padding:"10px 14px", transition:"all 0.18s" }}>
+                  <span style={{ fontSize:15 }}>📅</span>
+                  <input
+                    type="date"
+                    value={expDate}
+                    max={today}
+                    onChange={e=>setExpDate(e.target.value||today)}
+                    style={{ flex:1, background:"none", border:"none", outline:"none", color:C.text, fontSize:14, fontWeight:700, fontFamily:FF, cursor:"pointer" }}
+                  />
+                  {expDate!==today&&(
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                      <Tag color={C.accent}>Backdated</Tag>
+                      <button onClick={()=>setExpDate(today)} style={{ background:"none", border:"none", color:C.textFaint, fontSize:14, cursor:"pointer", padding:"0 2px", lineHeight:1 }}>×</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
 
             {/* Save */}
             <Btn onClick={save} style={{ opacity:canSave?1:0.4, marginTop:showMore?18:0 }}>
