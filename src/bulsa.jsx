@@ -3283,33 +3283,198 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 // ─── EXPENSE LIST VIEW ──────────────────────────────────────────────────────
 
 function ExpenseListView({ expenses, onDetail, fmt }) {
-  const [period, setPeriod] = useState("day");
+  const [period,  setPeriod]  = useState("month");
+  const [query,   setQuery]   = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchRef = useRef(null);
+  const FF = "DM Sans,sans-serif";
   const now = new Date();
-  const todayStr = now.toDateString();
+  const todayStr  = now.toDateString();
   const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const filtered = expenses.filter(e => {
-    if (!e.ts) return period==="month";
+
+  const isSearching = query.trim().length > 0 || catFilter !== "all";
+
+  const byPeriod = expenses.filter(e => {
+    if (isSearching) return true; // search across all time
+    if (!e.ts) return period === "month";
     const d = new Date(e.ts);
-    if (period==="day")  return d.toDateString()===todayStr;
-    if (period==="week") return d>=weekStart;
-    return d>=monthStart;
-  }).sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0));
-  const total = filtered.reduce((s,e)=>s+e.amount,0);
-  const periodLabel = period==="day" ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"}) : period==="week" ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}` : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
-  const fmtL = n => "₱"+Math.round(n).toLocaleString();
+    if (period === "day")   return d.toDateString() === todayStr;
+    if (period === "week")  return d >= weekStart;
+    return d >= monthStart;
+  });
+
+  const filtered = byPeriod.filter(e => {
+    const q = query.toLowerCase().trim();
+    const matchesQuery = !q ||
+      e.name?.toLowerCase().includes(q) ||
+      catOf(e.catId).label.toLowerCase().includes(q) ||
+      String(e.amount).includes(q);
+    const matchesCat = catFilter === "all" || e.catId === catFilter;
+    return matchesQuery && matchesCat;
+  }).sort((a,b) => new Date(b.ts||0) - new Date(a.ts||0));
+
+  const total = filtered.reduce((s,e) => s+e.amount, 0);
+  const fmtL  = n => "₱"+Math.round(n).toLocaleString();
+
+  const periodLabel = isSearching
+    ? `${filtered.length} result${filtered.length!==1?"s":""} · all time`
+    : period==="day"
+      ? now.toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})
+      : period==="week"
+        ? `${weekStart.toLocaleDateString("en-PH",{month:"short",day:"numeric"})} – ${now.toLocaleDateString("en-PH",{month:"short",day:"numeric"})}`
+        : now.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
+
+  // Used cats for filter chips
+  const usedCatIds = [...new Set(expenses.map(e=>e.catId))];
+  const usedCats   = CATS.filter(c => usedCatIds.includes(c.id));
+
+  const EmptyState = () => (
+    <div style={{ textAlign:"center", padding:"52px 0 36px" }}>
+      <div style={{ width:72, height:72, borderRadius:22, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 14px" }}>
+        {isSearching ? "🔍" : "👛"}
+      </div>
+      <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:FF }}>
+        {isSearching ? "No results" : period==="day" ? "Nothing logged today" : period==="week" ? "Nothing this week yet" : "Nothing this month yet"}
+      </p>
+      <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF }}>
+        {isSearching ? "Try a different name or category" : "Tap + to log an expense."}
+      </p>
+    </div>
+  );
+
+  const ExpenseRow = ({ e }) => {
+    const c = catOf(e.catId), m = moodOf(e.moodId);
+    const q = query.toLowerCase().trim();
+    // Highlight matching text
+    const highlight = (text) => {
+      if (!q || !text) return text;
+      const idx = text.toLowerCase().indexOf(q);
+      if (idx === -1) return text;
+      return <>{text.slice(0,idx)}<mark style={{ background:`${C.accent}40`, color:C.text, borderRadius:3, padding:"0 1px" }}>{text.slice(idx,idx+q.length)}</mark>{text.slice(idx+q.length)}</>;
+    };
+    return (
+      <Card onClick={()=>onDetail(e)} glow>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          {e.photo
+            ? <img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>
+            : <div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>
+          }
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:FF, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+              {highlight(e.name)}
+            </p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>
+              {c.label}
+              {e.date && e.date !== "Today" ? ` · ${e.date}` : ""}
+              {e.time ? ` · ${e.time}` : ""}
+              {e.fromRecurring && <span style={{ color:C.mint }}> · 🔄 auto</span>}
+              {e.groceryItems?.length>0 && <span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}
+            </p>
+          </div>
+          <div style={{ textAlign:"right", flexShrink:0 }}>
+            <p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:FF }}>-{fmtL(e.amount)}</p>
+            {m ? <span style={{ fontSize:13 }}>{m.emoji}</span> : <span style={{ fontSize:10, color:C.textFaint }}>--</span>}
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-      <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>{[["day","Today"],["week","This Week"],["month","This Month"]].map(([v,l])=>(<button key={v} onClick={()=>setPeriod(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:period===v?C.card:"none", color:period===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", transition:"all 0.18s" }}>{l}</button>))}</div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}><span style={{ fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodLabel}</span><div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{filtered.length} item{filtered.length!==1?"s":""}</span><span style={{ fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(total)}</span></div></div>
-      {filtered.length===0&&(<div style={{ textAlign:"center", padding:"52px 0 36px" }}><div style={{ width:72, height:72, borderRadius:22, background:`${C.accent}10`, border:`2px dashed ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 14px" }}>👛</div><p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{period==="day"?"Nothing logged today":period==="week"?"Nothing this week yet":"Nothing this month yet"}</p><p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tap + to log an expense.</p></div>)}
-      {filtered.length>0&&(period==="day"?(
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{filtered.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}{e.groceryItems?.length>0&&<span style={{ color:C.lime }}> · 🛒{e.groceryItems.length}</span>}{e.photo&&<span style={{ color:C.textFaint }}> · 📸</span>}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div>
-      ):(()=>{
-        const groups = {};
-        filtered.forEach(e=>{ const key=e.ts?new Date(e.ts).toDateString():"Unknown"; if(!groups[key]) groups[key]=[]; groups[key].push(e); });
-        return (<div style={{ display:"flex", flexDirection:"column", gap:14 }}>{Object.entries(groups).map(([dateStr,exps])=>{ const d=dateStr!=="Unknown"?new Date(dateStr):null; const isToday=d?.toDateString()===todayStr; const label=isToday?"Today":d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"})||"Unknown"; const dayTotal=exps.reduce((s,e)=>s+e.amount,0); return (<div key={dateStr}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}><span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{label}</span><span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{fmtL(dayTotal)}</span></div><div style={{ display:"flex", flexDirection:"column", gap:8 }}>{exps.map(e=>{ const c=catOf(e.catId),m=moodOf(e.moodId); return (<Card key={e.id} onClick={()=>onDetail(e)} glow><div style={{ display:"flex", alignItems:"center", gap:12 }}>{e.photo?<img src={e.photo} alt={e.name} style={{ width:44, height:44, borderRadius:13, objectFit:"cover", flexShrink:0 }}/>:<div style={{ width:44, height:44, borderRadius:13, background:c.color+"1A", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{c.icon}</div>}<div style={{ flex:1, minWidth:0 }}><p style={{ margin:"0 0 2px", fontSize:14, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.name}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{c.label} · {e.time}</p></div><div style={{ textAlign:"right", flexShrink:0 }}><p style={{ margin:"0 0 3px", fontSize:14, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>-{fmtL(e.amount)}</p>{m?<span style={{ fontSize:13 }}>{m.emoji}</span>:<span style={{ fontSize:10, color:C.textFaint }}>--</span>}</div></div></Card>);})}</div></div>); })}</div>);
-      })())}
+
+      {/* ── Search bar ── */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, background:C.card, border:`1.5px solid ${searchFocused?C.accent+"60":C.border}`, borderRadius:13, padding:"10px 14px", transition:"border 0.18s" }}>
+        <span style={{ fontSize:16, flexShrink:0, opacity:0.5 }}>🔍</span>
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={e=>setQuery(e.target.value)}
+          onFocus={()=>setSearchFocused(true)}
+          onBlur={()=>setSearchFocused(false)}
+          placeholder="Search expenses..."
+          style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:FF, fontSize:14, fontWeight:600, color:C.text, caretColor:C.accent }}
+        />
+        {query && (
+          <button onClick={()=>{ setQuery(""); searchRef.current?.focus(); }} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", padding:0, lineHeight:1, flexShrink:0 }}>×</button>
+        )}
+      </div>
+
+      {/* ── Category filter chips ── */}
+      {usedCats.length > 1 && (
+        <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:2 }}>
+          <button onClick={()=>setCatFilter("all")} className="tap-btn"
+            style={{ flexShrink:0, background:catFilter==="all"?C.accentGlow:C.card, border:`1px solid ${catFilter==="all"?C.accent+"55":C.border}`, color:catFilter==="all"?C.accent:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF }}>
+            All
+          </button>
+          {usedCats.map(c=>(
+            <button key={c.id} onClick={()=>setCatFilter(catFilter===c.id?"all":c.id)} className="tap-btn"
+              style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, background:catFilter===c.id?c.color+"18":C.card, border:`1px solid ${catFilter===c.id?c.color+"60":C.border}`, color:catFilter===c.id?c.color:C.textSub, borderRadius:99, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:FF }}>
+              <span style={{ fontSize:13 }}>{c.icon}</span>{c.label.split(" ")[0]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Period toggle — hidden when searching ── */}
+      {!isSearching && (
+        <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>
+          {[["day","Today"],["week","This Week"],["month","This Month"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setPeriod(v)} style={{ flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer", background:period===v?C.card:"none", color:period===v?C.text:C.textSub, fontSize:11, fontWeight:700, fontFamily:FF, transition:"all 0.18s" }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Summary row ── */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}>
+        <span style={{ fontSize:11, color:C.textSub, fontFamily:FF }}>{periodLabel}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:11, color:C.textFaint, fontFamily:FF }}>{filtered.length} item{filtered.length!==1?"s":""}</span>
+          <span style={{ fontSize:14, fontWeight:800, color:C.coral, fontFamily:FF }}>{fmtL(total)}</span>
+        </div>
+      </div>
+
+      {/* ── Expense list ── */}
+      {filtered.length === 0 ? <EmptyState/> : isSearching ? (
+        // Search results — flat list, no date grouping
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtered.map(e => <ExpenseRow key={e.id} e={e}/>)}
+        </div>
+      ) : period === "day" ? (
+        // Today — flat list
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtered.map(e => <ExpenseRow key={e.id} e={e}/>)}
+        </div>
+      ) : (
+        // Week / Month — grouped by date
+        (() => {
+          const groups = {};
+          filtered.forEach(e => { const key=e.ts?new Date(e.ts).toDateString():"Unknown"; if(!groups[key]) groups[key]=[]; groups[key].push(e); });
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              {Object.entries(groups).map(([dateStr,exps]) => {
+                const d = dateStr!=="Unknown" ? new Date(dateStr) : null;
+                const isToday = d?.toDateString()===todayStr;
+                const label = isToday ? "Today" : d?.toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"}) || "Unknown";
+                const dayTotal = exps.reduce((s,e)=>s+e.amount,0);
+                return (
+                  <div key={dateStr}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"0 2px" }}>
+                      <span style={{ fontSize:12, fontWeight:800, color:isToday?C.accent:C.textSub, fontFamily:FF }}>{label}</span>
+                      <span style={{ fontSize:12, fontWeight:800, color:C.coral, fontFamily:FF }}>{fmtL(dayTotal)}</span>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {exps.map(e => <ExpenseRow key={e.id} e={e}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()
+      )}
     </div>
   );
 }
