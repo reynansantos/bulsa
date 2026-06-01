@@ -3306,6 +3306,23 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
 function morningBriefSub(expenses, income, dailyLimit, runway, name) {
   const hour = new Date().getHours();
   const todayStr = new Date().toDateString();
+
+  // Trend period filter
+  const trendExps = useMemo(() => {
+    const now = new Date();
+    if (trendPeriod === "week") {
+      const ws = new Date(now); ws.setDate(now.getDate()-now.getDay()); ws.setHours(0,0,0,0);
+      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
+    }
+    if (trendPeriod === "month") {
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
+    }
+    if (trendPeriod === "last") {
+      const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===lm.getMonth() && new Date(e.ts).getFullYear()===lm.getFullYear());
+    }
+    return expenses;
+  }, [expenses, trendPeriod]);
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
   if (hour >= 5  && hour < 12) return runway ? `₱${runway.allowedPerDay.toLocaleString()}/day until ${runway.label}` : "Good morning! Track your day.";
   if (hour >= 12 && hour < 17) return todaySpent > 0 ? `₱${todaySpent.toLocaleString()} spent so far` : "Walang gastos pa. 👀";
@@ -3323,8 +3340,9 @@ function morningBriefSub(expenses, income, dailyLimit, runway, name) {
 
 function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
   const fmt = useFmt();
-  const [editLimit, setEditLimit] = useState(false);
-  const [limitInput, setLimitInput] = useState(String(dailyLimit || ""));
+  const [editLimit,   setEditLimit]   = useState(false);
+  const [limitInput,  setLimitInput]  = useState(String(dailyLimit || ""));
+  const [trendPeriod, setTrendPeriod] = useState("week"); // "week" | "month" | "last"
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const todayStr = new Date().toDateString();
 
@@ -3351,19 +3369,17 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
     [expenses, todayStr]
   );
 
-  const { weekTotal, weekByDay, weekMaxDay, weekPeakIdx } = useMemo(() => {
-    const now = new Date();
-    const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay()); weekStart.setHours(0,0,0,0);
-    const thisWeek = expenses.filter(e => e.ts && new Date(e.ts) >= weekStart);
+  const { weekTotal, weekByDay, weekMaxDay, weekPeakIdx, weekCount } = useMemo(() => {
     const wbd = Array(7).fill(0);
-    thisWeek.forEach(e => { if(e.ts) wbd[new Date(e.ts).getDay()] += e.amount; });
+    trendExps.forEach(e => { if(e.ts) wbd[new Date(e.ts).getDay()] += e.amount; });
     return {
-      weekTotal:   thisWeek.reduce((s,e) => s + e.amount, 0),
+      weekTotal:   trendExps.reduce((s,e) => s + e.amount, 0),
       weekByDay:   wbd,
       weekMaxDay:  Math.max(...wbd, 1),
       weekPeakIdx: wbd.indexOf(Math.max(...wbd)),
+      weekCount:   trendExps.length,
     };
-  }, [expenses]);
+  }, [trendExps]);
 
   const { dailyPct, dailyOver, dailyColor } = useMemo(() => {
     const pct   = dailyLimit > 0 ? Math.min((todaySpent/dailyLimit)*100, 100) : 0;
@@ -3419,9 +3435,19 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
           )}
         </Card>
       </div>
-      <div><SLabel>This Week</SLabel>
+      {/* Period selector */}
+      <div style={{ display:"flex", gap:6, marginBottom:4 }}>
+        {[["week","This Week"],["month","This Month"],["last","Last Month"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setTrendPeriod(v)} className="tap-btn"
+            style={{ flex:1, padding:"7px 4px", borderRadius:10, border:`1px solid ${trendPeriod===v?C.accent+"60":C.border}`, background:trendPeriod===v?`${C.accent}12`:C.card, color:trendPeriod===v?C.accent:C.textSub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <div><SLabel>{trendPeriod==="week"?"This Week":trendPeriod==="month"?"This Month":"Last Month"}</SLabel>
         <Card>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}><div><p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(weekTotal)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week · {thisWeek.length} transactions</p></div>{weekTotal>0&&weekPeakIdx>=0&&<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Highest spend</p><Tag color={C.coral}>{DAYS[weekPeakIdx]}</Tag></div>}</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}><div><p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{fmt(weekTotal)}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>spent this week · {weekCount} transactions</p></div>{weekTotal>0&&weekPeakIdx>=0&&<div style={{ textAlign:"right" }}><p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Highest spend</p><Tag color={C.coral}>{DAYS[weekPeakIdx]}</Tag></div>}</div>
           <div style={{ display:"flex", alignItems:"flex-end", gap:4, height:60 }}>{DAYS.map((d,i)=>{ const v=weekByDay[i]; const h=weekMaxDay>0?Math.max((v/weekMaxDay)*56,v>0?6:2):2; return (<div key={d} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}><div style={{ width:"100%", height:h, borderRadius:"4px 4px 0 0", background:i===weekPeakIdx&&v>0?C.coral:v>0?C.accent+"60":C.border, transition:"height 0.6s ease" }}/><span style={{ fontSize:9, fontWeight:i===weekPeakIdx&&v>0?800:500, color:i===weekPeakIdx&&v>0?C.coral:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{d}</span></div>);})}</div>
           {weekTotal===0&&<p style={{ margin:"8px 0 0", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>No expenses logged this week yet.</p>}
         </Card>
@@ -3735,7 +3761,7 @@ function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
 
 function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs, setSubs, payday, setScreen=()=>{}, wallets=[] }) {
   const fmt = useFmt();
-  const [view,    setView]   = useState("list");
+  const [view,    setView]   = useState("transactions");
   const [detail,  setDetail] = useState(null);
   const [editExp, setEditExp] = useState(null);
   const [editB,   setEditB]  = useState(null);
@@ -3785,13 +3811,6 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
   };
 
-  // Calendar state
-  const [calMonth,   setCalMonth]   = useState(now.getMonth());
-  const [calYear,    setCalYear]    = useState(now.getFullYear());
-  const [calSelDay,  setCalSelDay]  = useState(null); // selected day string
-  const [showSearch, setShowSearch] = useState(false);
-  const [query,      setQuery]      = useState("");
-
   // Generate last 12 months for picker
   const monthOptions = useMemo(() => {
     const opts = [];
@@ -3804,7 +3823,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
 
   const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
 
-  const TABS = [["list","List"],["cycle","Cycle"],["subs","Subs"],["trends","Trends"]];
+  const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Analytics"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3831,155 +3850,54 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
       </div>
 
       {/* ── TRANSACTIONS TAB ── */}
-      {view==="list"&&(()=>{
-        // Calendar heat-map data for selected month
-        const calDaysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-        const calFirstDow    = new Date(calYear, calMonth, 1).getDay();
-        const calMonthExps   = expenses.filter(e => {
-          if (!e.ts) return false;
-          const d = new Date(e.ts);
-          return d.getMonth()===calMonth && d.getFullYear()===calYear;
-        });
-        const calMonthTotal = calMonthExps.reduce((s,e)=>s+e.amount,0);
-        // Max daily spend for bar scaling
-        const dayTotals = {};
-        calMonthExps.forEach(e => {
-          const day = new Date(e.ts).getDate();
-          dayTotals[day] = (dayTotals[day]||0) + e.amount;
-        });
-        const maxDay = Math.max(...Object.values(dayTotals), 1);
+      {view==="transactions"&&(
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
 
-        // Selected day expenses
-        const selExps = calSelDay
-          ? expenses.filter(e => e.ts && new Date(e.ts).toDateString()===calSelDay)
-              .sort((a,b)=>new Date(b.ts)-new Date(a.ts))
-          : null;
-
-        // Search filtered expenses
-        const searchExps = query.trim()
-          ? expenses.filter(e =>
-              (e.name||"").toLowerCase().includes(query.toLowerCase()) ||
-              catOf(e.catId).label.toLowerCase().includes(query.toLowerCase())
-            ).slice(0,30)
-          : null;
-
-        const FF = "DM Sans,sans-serif";
-        const DAYS_SHORT = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-
-        return (
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-
-            {/* Month nav + search icon */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <button onClick={()=>{ const d=new Date(calYear,calMonth-1,1); setCalMonth(d.getMonth()); setCalYear(d.getFullYear()); setCalSelDay(null); }}
-                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:"pointer", color:C.text, fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
-                <p style={{ margin:0, fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>
-                  {new Date(calYear,calMonth,1).toLocaleDateString("en-PH",{month:"long",year:"numeric"})}
-                </p>
-                <button onClick={()=>{ const d=new Date(calYear,calMonth+1,1); if(d<=new Date()){setCalMonth(d.getMonth());setCalYear(d.getFullYear());setCalSelDay(null);} }}
-                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:"pointer", color:new Date(calYear,calMonth+1,1)>new Date()?C.border:C.text, fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <p style={{ margin:0, fontFamily:FF, fontSize:12, color:C.textSub }}>{fmt(calMonthTotal)}</p>
-                <button onClick={()=>{ setShowSearch(s=>!s); setQuery(""); }}
-                  style={{ background:showSearch?`${C.accent}18`:C.card, border:`1px solid ${showSearch?C.accent+"50":C.border}`, borderRadius:8, width:32, height:32, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  🔍
+          {/* Period selector */}
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["today","Today"],["week","Week"],["month","Month"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setPeriod(v)} className="tap-btn"
+                  style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1px solid ${period===v?C.accent+"60":C.border}`, background:period===v?`${C.accent}12`:C.card, color:period===v?C.accent:C.textSub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+                  {l}
                 </button>
-              </div>
+              ))}
+              {/* Month picker dropdown */}
+              <select value={`${pickYear}-${pickMonth}`}
+                onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
+                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
+                {monthOptions.map(o=>(
+                  <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
+                ))}
+              </select>
             </div>
 
-            {/* Search — hidden until toggled */}
-            {showSearch && (
-              <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
-                placeholder="Search expenses..."
-                style={{ background:C.card, border:`1.5px solid ${C.accent}50`, borderRadius:12, padding:"11px 14px", color:C.text, fontSize:14, outline:"none", fontFamily:FF, caretColor:C.accent, width:"100%", boxSizing:"border-box" }}/>
-            )}
-
-            {/* Search results */}
-            {searchExps ? (
-              searchExps.length===0
-                ? <p style={{ textAlign:"center", padding:"24px 0", color:C.textFaint, fontFamily:FF, fontSize:13 }}>No results for "{query}"</p>
-                : <ExpenseListView expenses={searchExps} onDetail={setDetail} fmt={fmt} onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
-            ) : (<>
-
-              {/* Calendar heat-map */}
-              <div style={{ background:C.card, borderRadius:16, padding:"14px 12px", border:`1px solid ${C.border}` }}>
-                {/* Day labels */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginBottom:6 }}>
-                  {DAYS_SHORT.map(d=>(
-                    <div key={d} style={{ textAlign:"center", fontSize:10, fontWeight:700, color:C.textFaint, fontFamily:FF }}>{d}</div>
-                  ))}
-                </div>
-                {/* Day cells */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:3 }}>
-                  {/* Empty cells for first week */}
-                  {Array.from({length:calFirstDow}).map((_,i)=>(
-                    <div key={`e${i}`}/>
-                  ))}
-                  {Array.from({length:calDaysInMonth}).map((_,i)=>{
-                    const day    = i+1;
-                    const amt    = dayTotals[day]||0;
-                    const barPct = amt>0 ? Math.max(amt/maxDay, 0.15) : 0;
-                    const over   = dailyLimit>0 && amt>dailyLimit;
-                    const isToday= day===new Date().getDate() && calMonth===new Date().getMonth() && calYear===new Date().getFullYear();
-                    const dStr   = new Date(calYear,calMonth,day).toDateString();
-                    const isSel  = calSelDay===dStr;
-                    const barColor = over ? C.coral : amt>0 ? C.accent : "transparent";
-                    return (
-                      <button key={day} onClick={()=>setCalSelDay(isSel?null:dStr)}
-                        style={{ position:"relative", height:44, borderRadius:8, border:`1.5px solid ${isSel?C.accent:isToday?C.accent+"40":"transparent"}`, background:isSel?`${C.accent}15`:"none", cursor:amt>0?"pointer":"default", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-end", padding:"2px 0 4px", transition:"all 0.12s" }}>
-                        {/* Bar */}
-                        {amt>0 && (
-                          <div style={{ position:"absolute", bottom:20, left:"20%", right:"20%", height:`${Math.round(barPct*20)}px`, maxHeight:20, background:barColor, borderRadius:"3px 3px 0 0", opacity:isSel?1:0.75 }}/>
-                        )}
-                        <span style={{ fontSize:10, fontWeight:isToday?800:500, color:isSel?C.accent:isToday?C.accent:amt>0?C.text:C.textFaint, fontFamily:FF, lineHeight:1 }}>{day}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Period total */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surface, borderRadius:14, padding:"14px 16px", border:`1px solid ${C.border}` }}>
+              <div>
+                <p style={{ margin:"0 0 2px", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em" }}>{periodLabel}</p>
+                <p style={{ margin:0, fontSize:28, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", letterSpacing:"-0.03em" }}>{fmt(periodTotal)}</p>
               </div>
-
-              {/* Selected day transactions */}
-              {calSelDay && (
-                <div>
-                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
-                    {new Date(calSelDay).toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})}
-                    {selExps?.length ? ` · ${selExps.length} item${selExps.length!==1?"s":""}` : ""}
-                  </p>
-                  {selExps?.length===0 ? (
-                    <p style={{ textAlign:"center", padding:"16px 0", color:C.textFaint, fontFamily:FF, fontSize:13 }}>No expenses this day</p>
-                  ) : (
-                    <ExpenseListView expenses={selExps||[]} onDetail={setDetail} fmt={fmt} onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
-                  )}
-                </div>
-              )}
-
-              {/* Default: show this month's full list if nothing selected */}
-              {!calSelDay && (
-                <div>
-                  <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
-                    All transactions · {calMonthExps.length} item{calMonthExps.length!==1?"s":""}
-                  </p>
-                  {calMonthExps.length===0 ? (
-                    <div style={{ textAlign:"center", padding:"32px 0" }}>
-                      <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
-                      <p style={{ margin:0, fontSize:14, color:C.textSub, fontFamily:FF }}>No expenses this month</p>
-                    </div>
-                  ) : (
-                    <ExpenseListView
-                      expenses={[...calMonthExps].sort((a,b)=>new Date(b.ts)-new Date(a.ts))}
-                      onDetail={setDetail} fmt={fmt}
-                      onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
-                  )}
-                </div>
-              )}
-            </>)}
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:"0 0 2px", fontSize:22, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{periodExp.length}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>transactions</p>
+              </div>
+            </div>
           </div>
-        );
-      })()}
 
-      {view==="cycle"&&(()=>{
+          {/* Transaction list filtered by period */}
+          {periodExp.length===0?(
+            <div style={{ textAlign:"center", padding:"40px 0" }}>
+              <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
+              <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses for {periodLabel}</p>
+            </div>
+          ):(
+            <ExpenseListView expenses={periodExp} onDetail={setDetail} fmt={fmt}/>
+          )}
+        </div>
+      )}
+
+      {view==="budget"&&(()=>{
         const cycle       = getPaycycle(payday||"both");
         const cycleStart  = cycle.cycleStart;
         const cycleEnd    = cycle.nextPayday;
@@ -4094,7 +4012,7 @@ function ExpensesScreen({ expenses, setExpenses, budgets, setBudgets, onAdd, dai
         <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets} embedded={true}/>
       )}
 
-      {view==="trends"&&(
+      {view==="analytics"&&(
         <ErrorBoundary>
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
