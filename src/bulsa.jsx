@@ -3640,58 +3640,6 @@ function ExpenseListView({ expenses, onDetail, fmt, onDelete }) {
         </div>
       )}
 
-      {/* ── Period toggle — hidden when searching ── */}
-      {!isSearching && (
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          <div style={{ display:"flex", background:C.surface, borderRadius:12, padding:3, border:`1px solid ${C.border}` }}>
-            {[["day","Today"],["week","Week"],["month","Month"],["custom","Custom"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setPeriod(v)} style={{
-                flex:1, padding:"8px 4px", borderRadius:9, border:"none", cursor:"pointer",
-                background:period===v?C.card:"none",
-                color:period===v?C.text:C.textSub,
-                fontSize:11, fontWeight:700, fontFamily:FF, transition:"all 0.18s"
-              }}>{l}</button>
-            ))}
-          </div>
-
-          {/* Custom date range pickers — only visible when Custom is selected */}
-          {period === "custom" && (
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <div style={{ flex:1, background:C.card, border:`1px solid ${fromDate?C.accent+"60":C.border}`, borderRadius:12, padding:"9px 12px", display:"flex", alignItems:"center", gap:7, transition:"border 0.18s" }}>
-                <span style={{ fontSize:13, flexShrink:0 }}>📅</span>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:"0 0 1px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>From</p>
-                  <input
-                    type="date"
-                    value={fromDate}
-                    max={toDate||new Date().toISOString().split("T")[0]}
-                    onChange={e=>setFromDate(e.target.value)}
-                    style={{ background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF, width:"100%", cursor:"pointer" }}
-                  />
-                </div>
-              </div>
-              <span style={{ fontSize:13, color:C.textFaint, flexShrink:0 }}>→</span>
-              <div style={{ flex:1, background:C.card, border:`1px solid ${toDate?C.accent+"60":C.border}`, borderRadius:12, padding:"9px 12px", display:"flex", alignItems:"center", gap:7, transition:"border 0.18s" }}>
-                <span style={{ fontSize:13, flexShrink:0 }}>📅</span>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:"0 0 1px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>To</p>
-                  <input
-                    type="date"
-                    value={toDate}
-                    min={fromDate||undefined}
-                    max={new Date().toISOString().split("T")[0]}
-                    onChange={e=>setToDate(e.target.value)}
-                    style={{ background:"none", border:"none", outline:"none", color:C.text, fontSize:13, fontWeight:700, fontFamily:FF, width:"100%", cursor:"pointer" }}
-                  />
-                </div>
-              </div>
-              {(fromDate||toDate) && (
-                <button onClick={()=>{ setFromDate(""); setToDate(""); }} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", flexShrink:0, padding:"0 2px", lineHeight:1 }}>×</button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Summary row ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"2px 4px" }}>
