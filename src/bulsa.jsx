@@ -108,7 +108,13 @@ function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
       const item = localStorage.getItem(key);
-      return item !== null ? JSON.parse(item) : initialValue;
+      if (item === null) return initialValue;
+      const parsed = JSON.parse(item);
+      // Type-safety: if we expect an array but got something else, reset to default
+      if (Array.isArray(initialValue) && !Array.isArray(parsed)) return initialValue;
+      // If we expect an object but got a primitive, reset
+      if (initialValue !== null && typeof initialValue === "object" && !Array.isArray(initialValue) && (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null)) return initialValue;
+      return parsed;
     } catch {
       return initialValue;
     }
@@ -5955,6 +5961,21 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
         )}
       </div>
 
+      {/* Fix corrupted data */}
+      <Card style={{ padding:"14px 16px", border:`1px solid ${C.gold}30`, background:`${C.gold}06` }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:38, height:38, borderRadius:11, background:`${C.gold}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🔧</div>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Screens not loading?</p>
+            <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Clears corrupted app cache and reloads</p>
+          </div>
+          <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+            style={{ background:`${C.gold}18`, border:`1px solid ${C.gold}40`, color:C.gold, borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            Fix
+          </button>
+        </div>
+      </Card>
+
       {/* Back Tap / Quick Tap setup guide */}
       <div style={{ background:`${C.sky}08`, border:`1px solid ${C.sky}25`, borderRadius:16, padding:"16px 18px" }}>
         <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>⚡ Log expenses in 1 tap</p>
@@ -6127,6 +6148,15 @@ export default function Bulsa() {
   const [wallets,   setWallets]   = useLocalStorage("bulsa_wallets", []);
   const [subs,      setSubs]      = useLocalStorage("bulsa_subs", []);
   const [lastBackup]              = useLocalStorage("bulsa_last_backup", null);
+
+  // ── Safety: ensure arrays are always arrays (corrupted localStorage guard) ─
+  const safeExpenses  = Array.isArray(expenses)      ? expenses      : [];
+  const safeLoans     = Array.isArray(loans)         ? loans         : [];
+  const safeGoals     = Array.isArray(goals)         ? goals         : [];
+  const safeUtangs    = Array.isArray(utangs)        ? utangs        : [];
+  const safeWallets   = Array.isArray(wallets)       ? wallets       : [];
+  const safeSubs      = Array.isArray(subs)          ? subs          : [];
+  const safeIncomeSrc = Array.isArray(incomeSources) ? incomeSources : [];
   const [hidden,         setHidden]         = useState(false);
   const [focusWalletId,  setFocusWalletId]  = useState(null);
   const [installPrompt,  setInstallPrompt]  = useState(null);
@@ -6428,16 +6458,16 @@ export default function Bulsa() {
   const wrap = (name, el) => <ScreenErrorBoundary screenName={name}>{el}</ScreenErrorBoundary>;
 
   const screens = {
-    home:     wrap("Home",          <HomeScreen expenses={expenses} budgets={budgets} income={income} name={name} loans={loans} goals={goals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={handleQuickLog} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={utangs} wallets={wallets} hidden={hidden} setHidden={setHidden} subs={subs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>),
-    expenses: wrap("Expenses",      <ExpensesScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={subs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={wallets}/>),
-    loans:    wrap("Loans",         <LoansScreen loans={loans} setLoans={setLoans} setScreen={setScreen}/>),
-    goals:    wrap("Goals",         <GoalsScreen goals={goals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
-    wallets:  wrap("Wallets",       <WalletsScreen wallets={wallets} setWallets={setWallets} setScreen={setScreen}/>),
-    subs:     wrap("Subscriptions", <SubscriptionsScreen subs={subs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={wallets}/>),
-    utang:    wrap("Utang",         <UtangScreen utangs={utangs} setUtangs={setUtangs} loans={loans} setLoans={setLoans} setScreen={setScreen} wallets={wallets} setWallets={setWallets}/>),
-    accounts: wrap("Accounts",      <AccountsScreen wallets={wallets} setWallets={setWallets} goals={goals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
-    survive:  wrap("Survive",       <SurviveScreen expenses={expenses} income={income} loans={loans} goals={goals} payday={payday} setScreen={setScreen} budgets={budgets}/>),
-    profile:  wrap("Profile",       <ProfileScreen income={income} setIncome={setIncome} incomeSources={incomeSources} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={expenses} setExpenses={setExpenses} loans={loans} setLoans={setLoans} goals={goals} setGoals={setGoals} utangs={utangs} setUtangs={setUtangs} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={subs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
+    home:     wrap("Home",          <HomeScreen expenses={safeExpenses} budgets={budgets} income={income} name={name} loans={safeLoans} goals={safeGoals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={handleQuickLog} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={safeUtangs} wallets={safeWallets} hidden={hidden} setHidden={setHidden} subs={safeSubs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>),
+    expenses: wrap("Expenses",      <ExpensesScreen expenses={safeExpenses} setExpenses={setExpenses} budgets={budgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={safeSubs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={safeWallets}/>),
+    loans:    wrap("Loans",         <LoansScreen loans={safeLoans} setLoans={setLoans} setScreen={setScreen}/>),
+    goals:    wrap("Goals",         <GoalsScreen goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
+    wallets:  wrap("Wallets",       <WalletsScreen wallets={safeWallets} setWallets={setWallets} setScreen={setScreen}/>),
+    subs:     wrap("Subscriptions", <SubscriptionsScreen subs={safeSubs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={safeWallets}/>),
+    utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
+    accounts: wrap("Accounts",      <AccountsScreen wallets={safeWallets} setWallets={setWallets} goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
+    survive:  wrap("Survive",       <SurviveScreen expenses={safeExpenses} income={income} loans={safeLoans} goals={safeGoals} payday={payday} setScreen={setScreen} budgets={budgets}/>),
+    profile:  wrap("Profile",       <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
@@ -6513,7 +6543,7 @@ export default function Bulsa() {
             {screens[screen]}
           </div>
           <NavBar screen={screen} setScreen={setScreen} onAdd={()=>setAddOpen(true)}/>
-          {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={wallets} onDeductWallet={handleDeductWallet}/>}
+          {addOpen&&<AddExpenseSheet onClose={()=>setAddOpen(false)} onSave={handleSave} moodLogsCount={moodCount} wallets={safeWallets} onDeductWallet={handleDeductWallet}/>}
       </div>
     </div>
     </HideCtx.Provider>
