@@ -102,52 +102,6 @@ const GlobalStyles = () => (
   </>
 );
 
-// ─── ERROR BOUNDARIES ──────────────────────────────────────────────────────
-class AppErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { crashed:false, error:null }; }
-  static getDerivedStateFromError(error) { return { crashed:true, error }; }
-  componentDidCatch(error, info) { console.error("[bulsa. crash]", error, info?.componentStack); }
-  render() {
-    if (!this.state.crashed) return this.props.children;
-    const msg = this.state.error?.message || "Unknown error";
-    return (
-      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
-        <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
-          <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>😵</div>
-          <div>
-            <h2 style={{ margin:"0 0 8px", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>Nag-crash ang app</h2>
-            <p style={{ margin:"0 0 10px", fontSize:14, color:C.textSub, lineHeight:1.6 }}>Huwag mag-alala — ang iyong data ay ligtas pa rin.</p>
-            <p style={{ margin:0, fontSize:11, color:C.textFaint, background:C.surface, borderRadius:10, padding:"8px 12px", fontFamily:"monospace", wordBreak:"break-all", textAlign:"left" }}>{msg.slice(0,140)}</p>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%" }}>
-            <button onClick={()=>this.setState({crashed:false,error:null})} style={{ width:"100%", padding:14, borderRadius:14, background:`linear-gradient(135deg,#FF6B2B,#FF9A6B)`, border:"none", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>Subukan ulit</button>
-            <button onClick={()=>{localStorage.clear();window.location.reload();}} style={{ width:"100%", padding:14, borderRadius:14, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>I-clear ang cache at i-reload</button>
-          </div>
-          <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.6 }}>Kung paulit-ulit ito, i-screenshot at i-report.</p>
-        </div>
-      </div>
-    );
-  }
-}
-
-class ScreenErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { crashed:false }; }
-  static getDerivedStateFromError() { return { crashed:true }; }
-  componentDidCatch(error, info) { console.error("[bulsa. screen crash]", this.props.screenName, error, info?.componentStack); }
-  render() {
-    if (!this.state.crashed) return this.props.children;
-    return (
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", gap:16, fontFamily:"DM Sans,sans-serif", minHeight:300 }}>
-        <span style={{ fontSize:36 }}>😕</span>
-        <div style={{ textAlign:"center" }}>
-          <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:800, color:C.text }}>Hindi ma-load ang screen na ito</p>
-          <p style={{ margin:0, fontSize:13, color:C.textSub, lineHeight:1.55 }}>May error sa <strong style={{ color:C.accent }}>{this.props.screenName||"page"}</strong>. Ang ibang screens ay gumagana pa rin.</p>
-        </div>
-        <button onClick={()=>this.setState({crashed:false})} style={{ padding:"10px 24px", borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}40`, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer" }}>Subukan ulit</button>
-      </div>
-    );
-  }
-}
 
 // ─── LOCAL STORAGE HOOK ────────────────────────────────────────────────────
 function useLocalStorage(key, initialValue) {
@@ -203,6 +157,55 @@ const C = {
   gradSky:"linear-gradient(135deg,#3D7EF8,#0055CC)",
   gradRose:"linear-gradient(135deg,#C97FAA,#A85C8A)",
 };
+
+
+// ─── ERROR BOUNDARIES ──────────────────────────────────────────────────────
+class AppErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { crashed:false, error:null }; }
+  static getDerivedStateFromError(error) { return { crashed:true, error }; }
+  componentDidCatch(error, info) { console.error("[bulsa. crash]", error, info?.componentStack); }
+  render() {
+    if (!this.state.crashed) return this.props.children;
+    const msg = this.state.error?.message || "Unknown error";
+    return (
+      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
+        <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
+          <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>😵</div>
+          <div>
+            <h2 style={{ margin:"0 0 8px", fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>Nag-crash ang app</h2>
+            <p style={{ margin:"0 0 10px", fontSize:14, color:C.textSub, lineHeight:1.6 }}>Huwag mag-alala — ang iyong data ay ligtas pa rin.</p>
+            <p style={{ margin:0, fontSize:11, color:C.textFaint, background:C.surface, borderRadius:10, padding:"8px 12px", fontFamily:"monospace", wordBreak:"break-all", textAlign:"left" }}>{msg.slice(0,140)}</p>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%" }}>
+            <button onClick={()=>this.setState({crashed:false,error:null})} style={{ width:"100%", padding:14, borderRadius:14, background:`linear-gradient(135deg,#FF6B2B,#FF9A6B)`, border:"none", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>Subukan ulit</button>
+            <button onClick={()=>{localStorage.clear();window.location.reload();}} style={{ width:"100%", padding:14, borderRadius:14, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>I-clear ang cache at i-reload</button>
+          </div>
+          <p style={{ margin:0, fontSize:11, color:C.textFaint, lineHeight:1.6 }}>Kung paulit-ulit ito, i-screenshot at i-report.</p>
+        </div>
+      </div>
+    );
+  }
+}
+
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { crashed:false }; }
+  static getDerivedStateFromError() { return { crashed:true }; }
+  componentDidCatch(error, info) { console.error("[bulsa. screen crash]", this.props.screenName, error, info?.componentStack); }
+  render() {
+    if (!this.state.crashed) return this.props.children;
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", gap:16, fontFamily:"DM Sans,sans-serif", minHeight:300 }}>
+        <span style={{ fontSize:36 }}>😕</span>
+        <div style={{ textAlign:"center" }}>
+          <p style={{ margin:"0 0 6px", fontSize:15, fontWeight:800, color:C.text }}>Hindi ma-load ang screen na ito</p>
+          <p style={{ margin:0, fontSize:13, color:C.textSub, lineHeight:1.55 }}>May error sa <strong style={{ color:C.accent }}>{this.props.screenName||"page"}</strong>. Ang ibang screens ay gumagana pa rin.</p>
+        </div>
+        <button onClick={()=>this.setState({crashed:false})} style={{ padding:"10px 24px", borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}40`, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer" }}>Subukan ulit</button>
+      </div>
+    );
+  }
+}
+
 
 const CATS = [
   { id:"food",      label:"Food & Drinks",  icon:"🍜", color:C.accent   },
