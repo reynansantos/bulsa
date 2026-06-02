@@ -3360,23 +3360,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
 function morningBriefSub(expenses, income, dailyLimit, runway, name) {
   const hour = new Date().getHours();
   const todayStr = new Date().toDateString();
-
-  // Trend period filter
-  const trendExps = useMemo(() => {
-    const now = new Date();
-    if (trendPeriod === "week") {
-      const ws = new Date(now); ws.setDate(now.getDate()-now.getDay()); ws.setHours(0,0,0,0);
-      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
-    }
-    if (trendPeriod === "month") {
-      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
-    }
-    if (trendPeriod === "last") {
-      const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
-      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===lm.getMonth() && new Date(e.ts).getFullYear()===lm.getFullYear());
-    }
-    return expenses;
-  }, [expenses, trendPeriod]);
   const todaySpent = expenses.filter(e=>e.ts&&new Date(e.ts).toDateString()===todayStr).reduce((s,e)=>s+e.amount,0);
   if (hour >= 5  && hour < 12) return runway ? `₱${runway.allowedPerDay.toLocaleString()}/day until ${runway.label}` : "Good morning! Track your day.";
   if (hour >= 12 && hour < 17) return todaySpent > 0 ? `₱${todaySpent.toLocaleString()} spent so far` : "Walang gastos pa. 👀";
