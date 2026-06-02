@@ -480,7 +480,7 @@ function BackBtn({ onClick }) {
 
 // ─── BOTTOM SHEET WRAPPER ──────────────────────────────────────────────────
 
-function BottomSheet({ children, onClose, title }) {
+function BottomSheet({ children, onClose, title, footer }) {
   const [vis, setVis] = useState(false);
   useState(()=>{ setTimeout(()=>setVis(true),20); });
   const close = ()=>{ setVis(false); setTimeout(onClose,320); };
@@ -491,18 +491,28 @@ function BottomSheet({ children, onClose, title }) {
         transform:`translateY(${vis?0:"110%"})`,
         width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
-        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
-        {/* Drag handle */}
-        <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
-          <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
-        </div>
-        <div style={{ padding:"10px 22px 24px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+        transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)",
+        maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
+        {/* Drag handle + title — never scrolls */}
+        <div style={{ flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4 }}>
+            <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
+          </div>
+          <div style={{ padding:"10px 22px 0", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
             <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{title}</h3>
             <button onClick={close} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
           </div>
+        </div>
+        {/* Scrollable content */}
+        <div style={{ flex:1, overflowY:"auto", padding:"0 22px", paddingBottom: footer ? 8 : 32 }}>
           {children}
         </div>
+        {/* Sticky footer — always visible above keyboard */}
+        {footer && (
+          <div style={{ flexShrink:0, padding:"12px 22px", paddingBottom:"calc(12px + env(safe-area-inset-bottom))", background:C.surface, borderTop:`1px solid ${C.border}` }}>
+            {footer}
+          </div>
+        )}
       </div>
     </>
   );
@@ -1453,7 +1463,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
           <div style={{ width:36, height:4, borderRadius:99, background:C.border }}/>
         </div>
 
-        <div style={{ padding:"10px 22px 24px" }}>
+        <div style={{ padding:"10px 22px 44px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
             <p style={{ margin:0, fontSize:18, fontWeight:800, color:C.text, fontFamily:FF }}>
               {isEdit ? "Edit expense" : "Log expense"}
@@ -4218,6 +4228,21 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
 
 // ─── UTANG ENTRY SHEET (one loan entry on a person's card) ─────────────────
 
+// ─── SHARE UTANG CARD ───────────────────────────────────────────────────────
+function shareUtangCard(person, entries, direction) {
+  const total   = entries.reduce((s,e)=>s+e.amount,0);
+  const paid    = entries.reduce((s,e)=>s+(e.payments||[]).reduce((p,x)=>p+x.amount,0),0);
+  const remaining = Math.max(total - paid, 0);
+  const verb    = direction==="iowe" ? "I owe" : "owes me";
+  const text    = `💸 ${person} ${verb} ₱${remaining.toLocaleString()} on bulsa.\n\nTrack your IOUs at bulsa-app.vercel.app`;
+  if (navigator.share) {
+    navigator.share({ title:"bulsa. Utang", text }).catch(()=>{});
+  } else {
+    navigator.clipboard?.writeText(text).then(()=>alert("Copied to clipboard!")).catch(()=>{});
+  }
+}
+
+
 function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[] }) {
   const color    = direction==="iowe" ? C.coral : C.green;
   const today    = new Date().toISOString().split("T")[0];
@@ -4278,7 +4303,13 @@ function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[]
   };
 
   return (
-    <BottomSheet onClose={onClose} title={entry ? `Edit loan · ${person}` : `New loan · ${person}`}>
+    <BottomSheet onClose={onClose} title={entry ? `Edit loan · ${person}` : `New loan · ${person}`}
+      footer={<div style={{ display:"flex", gap:10 }}>
+        <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?`linear-gradient(135deg,${color},${color}bb)`:undefined, boxShadow:"none" }}>
+          {entry ? "Save changes" : "Add loan"}
+        </Btn>
+      </div>}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
         {/* Amount */}
@@ -4404,7 +4435,7 @@ function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[]
           )}
         </div>
 
-        <div style={{ position:"sticky", bottom:0, background:C.surface, paddingTop:12, paddingBottom:8, marginTop:8, display:"flex", gap:10, zIndex:2 }}>
+        <div style={{ display:"flex", gap:10 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?`linear-gradient(135deg,${color},${color}bb)`:undefined, boxShadow:"none" }}>
             {entry ? "Save changes" : "Add loan"}
@@ -4880,6 +4911,8 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                     style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
                     ✓ Settle all
                   </button>
+                  <button onClick={()=>shareUtangCard(u.person, u.entries||[], u.direction)} className="tap-btn"
+                    style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>📤</button>
                   <button onClick={()=>setSheet(u)} className="tap-btn"
                     style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12 }}>✎</button>
                   {confirm===u.id?(
