@@ -496,7 +496,7 @@ function BottomSheet({ children, onClose, title }) {
         <div style={{ display:"flex", justifyContent:"center", paddingTop:12, paddingBottom:4, position:"sticky", top:0, background:C.surface, zIndex:1 }}>
           <div style={{ width:40, height:5, borderRadius:99, background:C.borderLight }}/>
         </div>
-        <div style={{ padding:"10px 22px 44px" }}>
+        <div style={{ padding:"10px 22px 24px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
             <h3 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{title}</h3>
             <button onClick={close} className="tap-btn" style={{ background:C.card, border:`1px solid ${C.border}`, color:C.textSub, width:32, height:32, borderRadius:"50%", cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -1453,7 +1453,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
           <div style={{ width:36, height:4, borderRadius:99, background:C.border }}/>
         </div>
 
-        <div style={{ padding:"10px 22px 44px" }}>
+        <div style={{ padding:"10px 22px 24px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
             <p style={{ margin:0, fontSize:18, fontWeight:800, color:C.text, fontFamily:FF }}>
               {isEdit ? "Edit expense" : "Log expense"}
@@ -4404,7 +4404,7 @@ function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[]
           )}
         </div>
 
-        <div style={{ display:"flex", gap:10 }}>
+        <div style={{ position:"sticky", bottom:0, background:C.surface, paddingTop:12, paddingBottom:8, marginTop:8, display:"flex", gap:10, zIndex:2 }}>
           <Btn variant="outline" onClick={onClose}>Cancel</Btn>
           <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?`linear-gradient(135deg,${color},${color}bb)`:undefined, boxShadow:"none" }}>
             {entry ? "Save changes" : "Add loan"}
