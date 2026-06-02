@@ -487,7 +487,8 @@ function BottomSheet({ children, onClose, title }) {
   return (
     <>
       <div onClick={close} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:200, opacity:vis?1:0, transition:"opacity 0.28s" }}/>
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:`translateX(-50%) translateY(${vis?0:"110%"})`,
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, margin:"0 auto",
+        transform:`translateY(${vis?0:"110%"})`,
         width:"100%", maxWidth:420, background:C.surface, borderRadius:"26px 26px 0 0",
         border:`1px solid ${C.borderLight}`, borderBottom:"none", zIndex:201,
         transition:"transform 0.36s cubic-bezier(0.32,0.72,0,1)", maxHeight:"90vh", overflowY:"auto" }}>
@@ -4543,120 +4544,6 @@ function LoanEntryPaymentSheet({ entry, person, direction, onSave, onClose, wall
   );
 }
 
-// ─── SHARE UTANG CARD ────────────────────────────────────────────────────────
-// Generates a styled PNG card via Canvas and shares via Web Share API (or downloads).
-// Zero API cost — pure client-side.
-async function generateUtangCard({ person, direction, totalRemaining, totalBorrowed, entries=[] }) {
-  const W = 600, H = 340;
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d");
-
-  const iOwe     = direction === "iowe";
-  const bgFrom   = iOwe ? "#1A0A0A" : "#0A1A0F";
-  const bgTo     = "#0A1628";
-  const accent   = iOwe ? "#FF6B6B" : "#4ADE80";
-  const accentDim = iOwe ? "#FF6B6B22" : "#4ADE8022";
-
-  // Background gradient
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, bgFrom);
-  grad.addColorStop(1, bgTo);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.roundRect(0, 0, W, H, 24);
-  ctx.fill();
-
-  // Subtle accent orb top-right
-  const orbGrad = ctx.createRadialGradient(W-60, 60, 0, W-60, 60, 200);
-  orbGrad.addColorStop(0, accent + "18");
-  orbGrad.addColorStop(1, "transparent");
-  ctx.fillStyle = orbGrad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Top accent border line
-  ctx.fillStyle = accent + "80";
-  ctx.fillRect(0, 0, W, 2);
-
-  // bulsa. wordmark — top left
-  ctx.font = "700 15px 'DM Sans', sans-serif";
-  ctx.fillStyle = "#6B8CAD";
-  ctx.fillText("bulsa.", 28, 36);
-
-  // Direction label pill
-  const pillText = iOwe ? "I OWE" : "THEY OWE ME";
-  const pillW = ctx.measureText(pillText).width + 24;
-  ctx.fillStyle = accentDim;
-  ctx.beginPath();
-  ctx.roundRect(W - pillW - 28, 18, pillW, 28, 99);
-  ctx.fill();
-  ctx.font = "800 11px 'DM Sans', sans-serif";
-  ctx.fillStyle = accent;
-  ctx.textAlign = "right";
-  ctx.fillText(pillText, W - 28 - 12, 37);
-  ctx.textAlign = "left";
-
-  // Person name
-  ctx.font = "800 32px 'DM Sans', sans-serif";
-  ctx.fillStyle = "#E8EFF8";
-  ctx.fillText(person, 28, 96);
-
-  // Divider
-  ctx.fillStyle = "#1E3352";
-  ctx.fillRect(28, 112, W - 56, 1);
-
-  // Big amount
-  const amtStr = "₱" + Math.round(totalRemaining).toLocaleString();
-  ctx.font = "800 64px 'DM Sans', sans-serif";
-  ctx.fillStyle = accent;
-  ctx.fillText(amtStr, 28, 196);
-
-  // "remaining" label below amount
-  ctx.font = "500 14px 'DM Sans', sans-serif";
-  ctx.fillStyle = "#6B8CAD";
-  ctx.fillText(
-    totalBorrowed > totalRemaining
-      ? `₱${Math.round(totalBorrowed - totalRemaining).toLocaleString()} already paid`
-      : iOwe ? "total I owe" : "total they owe me",
-    28, 220
-  );
-
-  // Active loans list (up to 3)
-  const activeEntries = entries.filter(e => !e.settled).slice(0, 3);
-  if (activeEntries.length > 0) {
-    let ey = 256;
-    ctx.font = "700 11px 'DM Sans', sans-serif";
-    ctx.fillStyle = "#4A6A8A";
-    ctx.fillText("ACTIVE LOANS", 28, ey - 6);
-    ctx.fillStyle = "#1E3352";
-    ctx.fillRect(28, ey - 2, W - 56, 1);
-    ey += 8;
-    for (const e of activeEntries) {
-      const rem = Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
-      ctx.font = "600 13px 'DM Sans', sans-serif";
-      ctx.fillStyle = "#E8EFF8";
-      ctx.fillText(e.reason || "Loan", 28, ey + 13);
-      ctx.font = "700 13px 'DM Sans', sans-serif";
-      ctx.fillStyle = accent;
-      ctx.textAlign = "right";
-      ctx.fillText("₱" + Math.round(rem).toLocaleString(), W - 28, ey + 13);
-      ctx.textAlign = "left";
-      ey += 24;
-    }
-  }
-
-  // Bottom tagline
-  ctx.font = "500 12px 'DM Sans', sans-serif";
-  ctx.fillStyle = "#2E4468";
-  ctx.fillText("Track your utang at bulsa.app", 28, H - 18);
-
-  // Emoji accent
-  ctx.font = "28px serif";
-  ctx.fillText(iOwe ? "😬" : "🤑", W - 60, H - 14);
-
-  return new Promise(resolve => canvas.toBlob(blob => resolve(blob), "image/png", 0.95));
-}
-
 // ─── UTANG SCREEN ───────────────────────────────────────────────────────────
 
 function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets }) {
@@ -4667,7 +4554,6 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const [entrySheet, setEntrySheet] = useState(null);   // { utangId, entry|null } — add/edit a loan entry
   const [paySheet,   setPaySheet]   = useState(null);   // { utang, entry }
   const [confirm,    setConfirm]    = useState(null);
-  const [sharing,     setSharing]     = useState(null); // utang id being shared
   const [expanded,   setExpanded]   = useState({});     // { [utangId]: Set of expanded entryIds }
 
   const toggleEntry = (utangId, entryId) =>
@@ -4730,41 +4616,6 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const deleteUtang  = id  => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
   const markSettled  = id  => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled,settledAt:!x.settled?new Date().toISOString():null}:x));
   const deleteEntry  = (utangId,entryId) => setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
-
-  const shareUtangCard = async (u) => {
-    setSharing(u.id);
-    try {
-      const entries     = u.entries||[];
-      const totalBorrow = entries.reduce((s,e)=>s+e.amount,0);
-      const totalPaid2  = entries.reduce((s,e)=>(e.payments||[]).reduce((ss,p)=>ss+p.amount,0)+s,0);
-      const totalRem    = Math.max(totalBorrow - totalPaid2, 0);
-      const blob = await generateUtangCard({
-        person: u.person,
-        direction: u.direction,
-        totalRemaining: totalRem,
-        totalBorrowed: totalBorrow,
-        entries,
-      });
-      const file = new File([blob], `utang-${u.person.replace(/\s+/g,"-")}.png`, { type:"image/png" });
-      const shareText = u.direction==="iowe"
-        ? `Utang ko kay ${u.person}: ₱${Math.round(totalRem).toLocaleString()} pa ang hindi nabayaran`
-        : `${u.person} still owes me ₱${Math.round(totalRem).toLocaleString()} — tracked on bulsa.`;
-      if (navigator.canShare?.({ files:[file] })) {
-        await navigator.share({ files:[file], text:shareText });
-      } else {
-        // Fallback: download the image
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement("a"), { href:url, download:file.name });
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch(e) {
-      if (e?.name !== "AbortError") console.error("Share failed", e);
-    } finally {
-      setSharing(null);
-    }
-  };
 
   // Derived totals — entries-aware
   const entryRemaining = e => Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
@@ -5028,10 +4879,6 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                   <button onClick={()=>markSettled(u.id)} className="tap-btn"
                     style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
                     ✓ Settle all
-                  </button>
-                  <button onClick={()=>shareUtangCard(u)} disabled={sharing===u.id} className="tap-btn"
-                    style={{ background:`${C.sky}12`, border:`1px solid ${C.sky}35`, color:C.sky, borderRadius:10, padding:"9px 11px", cursor:sharing===u.id?"wait":"pointer", fontSize:12, opacity:sharing===u.id?0.6:1 }}>
-                    {sharing===u.id?"⏳":"📤"}
                   </button>
                   <button onClick={()=>setSheet(u)} className="tap-btn"
                     style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12 }}>✎</button>
