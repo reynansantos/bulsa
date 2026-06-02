@@ -3829,6 +3829,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
   const [period, setPeriod] = useState("month"); // "today" | "week" | "month" | "pick"
   const [pickMonth, setPickMonth] = useState(now.getMonth());
   const [pickYear,  setPickYear]  = useState(now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(null); // "YYYY-MM-DD" or null
 
   // Filter expenses by selected period
   const periodExp = useMemo(() => {
@@ -3880,7 +3881,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
 
   const periodLabel = period==="today"?"Today":period==="week"?"This Week":period==="month"?now.toLocaleDateString("en-PH",{month:"long",year:"numeric"}):monthOptions.find(o=>o.month===pickMonth&&o.year===pickYear)?.label||"";
 
-  const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Analytics"]];
+  const TABS = [["transactions","Transactions"],["budget","Budget"],["subs","Subs"],["analytics","Trends"]];
 
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -3942,15 +3943,108 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
             </div>
           </div>
 
-          {/* Transaction list filtered by period */}
-          {periodExp.length===0?(
-            <div style={{ textAlign:"center", padding:"40px 0" }}>
-              <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
-              <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>No expenses for {periodLabel}</p>
-            </div>
-          ):(
-            <ExpenseListView expenses={periodExp} onDetail={setDetail} fmt={fmt}/>
-          )}
+          {/* ── Calendar Heatmap — shows for month/pick periods ── */}
+          {(period==="month"||period==="pick")&&(()=>{
+            const calYear  = period==="pick" ? pickYear  : now.getFullYear();
+            const calMonth = period==="pick" ? pickMonth : now.getMonth();
+            const calStart = new Date(calYear, calMonth, 1);
+            const calEnd   = new Date(calYear, calMonth+1, 1);
+            const firstDOW = calStart.getDay();
+            const daysInM  = new Date(calYear, calMonth+1, 0).getDate();
+            const todayKey = now.toISOString().split("T")[0];
+
+            // Spending per day
+            const dayTotals = {};
+            expenses.forEach(e => {
+              if (!e.ts) return;
+              const d = new Date(e.ts);
+              if (d >= calStart && d < calEnd) {
+                const k = d.toISOString().split("T")[0];
+                dayTotals[k] = (dayTotals[k]||0) + e.amount;
+              }
+            });
+            const maxAmt = Math.max(...Object.values(dayTotals), 1);
+
+            return (
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"14px 12px" }}>
+                {/* Day of week labels */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:6 }}>
+                  {["S","M","T","W","T","F","S"].map((d,i)=>(
+                    <div key={i} style={{ textAlign:"center", fontSize:9, color:C.textFaint, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Day grid */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:3 }}>
+                  {Array(firstDOW).fill(null).map((_,i)=><div key={"e"+i}/>)}
+                  {Array(daysInM).fill(null).map((_,i)=>{
+                    const day   = i+1;
+                    const key   = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                    const amt   = dayTotals[key]||0;
+                    const ratio = amt/maxAmt;
+                    const isTod = key===todayKey;
+                    const isSel = key===selectedDay;
+                    // Heatmap color intensity
+                    const bg = amt===0 ? C.surface
+                      : ratio>0.75 ? C.coral
+                      : ratio>0.4  ? C.accent
+                      : `${C.accent}70`;
+                    return (
+                      <button key={key} onClick={()=>setSelectedDay(isSel?null:key)} className="tap-btn"
+                        style={{ aspectRatio:"1", borderRadius:6, background:isSel?C.sky:bg, border:`1.5px solid ${isSel?C.sky:isTod&&amt===0?C.accent+"60":"transparent"}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", transition:"all 0.15s" }}>
+                        <span style={{ fontSize:9, fontWeight:isTod||isSel?800:500, color:amt>0||isSel?"#fff":isTod?C.accent:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{day}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                    <div style={{ width:10, height:10, borderRadius:3, background:C.surface, border:`1px solid ${C.border}` }}/>
+                    <div style={{ width:10, height:10, borderRadius:3, background:`${C.accent}70` }}/>
+                    <div style={{ width:10, height:10, borderRadius:3, background:C.accent }}/>
+                    <div style={{ width:10, height:10, borderRadius:3, background:C.coral }}/>
+                  </div>
+                  <span style={{ fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>light → heavy spend</span>
+                  {selectedDay && (
+                    <button onClick={()=>setSelectedDay(null)} style={{ marginLeft:"auto", background:"none", border:"none", color:C.sky, fontSize:11, fontFamily:"DM Sans,sans-serif", cursor:"pointer", fontWeight:700 }}>
+                      Clear ×
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected day label */}
+                {selectedDay && (
+                  <div style={{ marginTop:8, padding:"8px 10px", background:`${C.sky}12`, border:`1px solid ${C.sky}30`, borderRadius:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize:12, color:C.sky, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                      📅 {new Date(selectedDay+"T12:00:00").toLocaleDateString("en-PH",{weekday:"long",month:"short",day:"numeric"})}
+                    </span>
+                    <span style={{ fontSize:12, color:C.coral, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
+                      {fmt(dayTotals[selectedDay]||0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Transaction list filtered by period + selected day */}
+          {(()=>{
+            const listExp = selectedDay
+              ? periodExp.filter(e => e.ts && e.ts.startsWith(selectedDay))
+              : periodExp;
+            return listExp.length===0?(
+              <div style={{ textAlign:"center", padding:"40px 0" }}>
+                <p style={{ margin:"0 0 6px", fontSize:32 }}>🗂</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  {selectedDay ? "No expenses this day" : `No expenses for ${periodLabel}`}
+                </p>
+              </div>
+            ):(
+              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt}/>
+            );
+          })()}
         </div>
       )}
 
