@@ -4543,6 +4543,120 @@ function LoanEntryPaymentSheet({ entry, person, direction, onSave, onClose, wall
   );
 }
 
+// ─── SHARE UTANG CARD ────────────────────────────────────────────────────────
+// Generates a styled PNG card via Canvas and shares via Web Share API (or downloads).
+// Zero API cost — pure client-side.
+async function generateUtangCard({ person, direction, totalRemaining, totalBorrowed, entries=[] }) {
+  const W = 600, H = 340;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const iOwe     = direction === "iowe";
+  const bgFrom   = iOwe ? "#1A0A0A" : "#0A1A0F";
+  const bgTo     = "#0A1628";
+  const accent   = iOwe ? "#FF6B6B" : "#4ADE80";
+  const accentDim = iOwe ? "#FF6B6B22" : "#4ADE8022";
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, bgFrom);
+  grad.addColorStop(1, bgTo);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, W, H, 24);
+  ctx.fill();
+
+  // Subtle accent orb top-right
+  const orbGrad = ctx.createRadialGradient(W-60, 60, 0, W-60, 60, 200);
+  orbGrad.addColorStop(0, accent + "18");
+  orbGrad.addColorStop(1, "transparent");
+  ctx.fillStyle = orbGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Top accent border line
+  ctx.fillStyle = accent + "80";
+  ctx.fillRect(0, 0, W, 2);
+
+  // bulsa. wordmark — top left
+  ctx.font = "700 15px 'DM Sans', sans-serif";
+  ctx.fillStyle = "#6B8CAD";
+  ctx.fillText("bulsa.", 28, 36);
+
+  // Direction label pill
+  const pillText = iOwe ? "I OWE" : "THEY OWE ME";
+  const pillW = ctx.measureText(pillText).width + 24;
+  ctx.fillStyle = accentDim;
+  ctx.beginPath();
+  ctx.roundRect(W - pillW - 28, 18, pillW, 28, 99);
+  ctx.fill();
+  ctx.font = "800 11px 'DM Sans', sans-serif";
+  ctx.fillStyle = accent;
+  ctx.textAlign = "right";
+  ctx.fillText(pillText, W - 28 - 12, 37);
+  ctx.textAlign = "left";
+
+  // Person name
+  ctx.font = "800 32px 'DM Sans', sans-serif";
+  ctx.fillStyle = "#E8EFF8";
+  ctx.fillText(person, 28, 96);
+
+  // Divider
+  ctx.fillStyle = "#1E3352";
+  ctx.fillRect(28, 112, W - 56, 1);
+
+  // Big amount
+  const amtStr = "₱" + Math.round(totalRemaining).toLocaleString();
+  ctx.font = "800 64px 'DM Sans', sans-serif";
+  ctx.fillStyle = accent;
+  ctx.fillText(amtStr, 28, 196);
+
+  // "remaining" label below amount
+  ctx.font = "500 14px 'DM Sans', sans-serif";
+  ctx.fillStyle = "#6B8CAD";
+  ctx.fillText(
+    totalBorrowed > totalRemaining
+      ? `₱${Math.round(totalBorrowed - totalRemaining).toLocaleString()} already paid`
+      : iOwe ? "total I owe" : "total they owe me",
+    28, 220
+  );
+
+  // Active loans list (up to 3)
+  const activeEntries = entries.filter(e => !e.settled).slice(0, 3);
+  if (activeEntries.length > 0) {
+    let ey = 256;
+    ctx.font = "700 11px 'DM Sans', sans-serif";
+    ctx.fillStyle = "#4A6A8A";
+    ctx.fillText("ACTIVE LOANS", 28, ey - 6);
+    ctx.fillStyle = "#1E3352";
+    ctx.fillRect(28, ey - 2, W - 56, 1);
+    ey += 8;
+    for (const e of activeEntries) {
+      const rem = Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
+      ctx.font = "600 13px 'DM Sans', sans-serif";
+      ctx.fillStyle = "#E8EFF8";
+      ctx.fillText(e.reason || "Loan", 28, ey + 13);
+      ctx.font = "700 13px 'DM Sans', sans-serif";
+      ctx.fillStyle = accent;
+      ctx.textAlign = "right";
+      ctx.fillText("₱" + Math.round(rem).toLocaleString(), W - 28, ey + 13);
+      ctx.textAlign = "left";
+      ey += 24;
+    }
+  }
+
+  // Bottom tagline
+  ctx.font = "500 12px 'DM Sans', sans-serif";
+  ctx.fillStyle = "#2E4468";
+  ctx.fillText("Track your utang at bulsa.app", 28, H - 18);
+
+  // Emoji accent
+  ctx.font = "28px serif";
+  ctx.fillText(iOwe ? "😬" : "🤑", W - 60, H - 14);
+
+  return new Promise(resolve => canvas.toBlob(blob => resolve(blob), "image/png", 0.95));
+}
+
 // ─── UTANG SCREEN ───────────────────────────────────────────────────────────
 
 function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets }) {
@@ -4553,6 +4667,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const [entrySheet, setEntrySheet] = useState(null);   // { utangId, entry|null } — add/edit a loan entry
   const [paySheet,   setPaySheet]   = useState(null);   // { utang, entry }
   const [confirm,    setConfirm]    = useState(null);
+  const [sharing,     setSharing]     = useState(null); // utang id being shared
   const [expanded,   setExpanded]   = useState({});     // { [utangId]: Set of expanded entryIds }
 
   const toggleEntry = (utangId, entryId) =>
@@ -4615,6 +4730,41 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const deleteUtang  = id  => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
   const markSettled  = id  => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled,settledAt:!x.settled?new Date().toISOString():null}:x));
   const deleteEntry  = (utangId,entryId) => setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
+
+  const shareUtangCard = async (u) => {
+    setSharing(u.id);
+    try {
+      const entries     = u.entries||[];
+      const totalBorrow = entries.reduce((s,e)=>s+e.amount,0);
+      const totalPaid2  = entries.reduce((s,e)=>(e.payments||[]).reduce((ss,p)=>ss+p.amount,0)+s,0);
+      const totalRem    = Math.max(totalBorrow - totalPaid2, 0);
+      const blob = await generateUtangCard({
+        person: u.person,
+        direction: u.direction,
+        totalRemaining: totalRem,
+        totalBorrowed: totalBorrow,
+        entries,
+      });
+      const file = new File([blob], `utang-${u.person.replace(/\s+/g,"-")}.png`, { type:"image/png" });
+      const shareText = u.direction==="iowe"
+        ? `Utang ko kay ${u.person}: ₱${Math.round(totalRem).toLocaleString()} pa ang hindi nabayaran`
+        : `${u.person} still owes me ₱${Math.round(totalRem).toLocaleString()} — tracked on bulsa.`;
+      if (navigator.canShare?.({ files:[file] })) {
+        await navigator.share({ files:[file], text:shareText });
+      } else {
+        // Fallback: download the image
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement("a"), { href:url, download:file.name });
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch(e) {
+      if (e?.name !== "AbortError") console.error("Share failed", e);
+    } finally {
+      setSharing(null);
+    }
+  };
 
   // Derived totals — entries-aware
   const entryRemaining = e => Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
@@ -4878,6 +5028,10 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                   <button onClick={()=>markSettled(u.id)} className="tap-btn"
                     style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
                     ✓ Settle all
+                  </button>
+                  <button onClick={()=>shareUtangCard(u)} disabled={sharing===u.id} className="tap-btn"
+                    style={{ background:`${C.sky}12`, border:`1px solid ${C.sky}35`, color:C.sky, borderRadius:10, padding:"9px 11px", cursor:sharing===u.id?"wait":"pointer", fontSize:12, opacity:sharing===u.id?0.6:1 }}>
+                    {sharing===u.id?"⏳":"📤"}
                   </button>
                   <button onClick={()=>setSheet(u)} className="tap-btn"
                     style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12 }}>✎</button>
@@ -6137,7 +6291,7 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
         {/* Value props */}
         <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
           {[
-            ["💸","Track every piso","Log expenses in seconds — snap a receipt or type it"],
+            ["💸","Track every piso","Log expenses in seconds with AI chat"],
             ["📅","Petsa de Peligro","Know exactly how long your money lasts"],
             ["🤝","Utang tracker","Never forget who owes you — or who you owe"],
           ].map(([icon, title, sub])=>(
@@ -6151,52 +6305,25 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
           ))}
         </div>
 
-        {/* Buttons — guest first (privacy-first positioning) */}
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
-
-          {/* PRIMARY: Use without account */}
-          <button onClick={onGuest} className="tap-btn" style={{
-            width:"100%", padding:"16px 24px", borderRadius:16,
-            background:C.gradAccent, border:"none",
-            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-            boxShadow:`0 4px 20px ${C.accentGlow}`,
-            transition:"opacity 0.2s",
-          }}>
-            <span style={{ fontSize:18 }}>🔒</span>
-            <span style={{ fontSize:15, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>
-              Start tracking — no account needed
-            </span>
-          </button>
-
-          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Your data stays on this device. Private by default.
-          </p>
-
-          {/* Divider */}
-          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"2px 0" }}>
-            <div style={{ flex:1, height:"0.5px", background:C.border }}/>
-            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or sync across devices</span>
-            <div style={{ flex:1, height:"0.5px", background:C.border }}/>
-          </div>
-
-          {/* SECONDARY: Google Sign-In */}
+        {/* Google Sign-In button */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
           <button onClick={onLogin} disabled={loading} className="tap-btn"
             style={{
-              width:"100%", padding:"13px 24px", borderRadius:14,
-              background:C.surface, border:`1px solid ${C.border}`,
-              cursor:loading?"wait":"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-              opacity:loading?0.7:1, transition:"opacity 0.2s",
+              width:"100%", padding:"16px 24px", borderRadius:16,
+              background:"#fff", border:"none", cursor:loading?"wait":"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+              boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
+              transition:"opacity 0.2s",
             }}>
-            <svg width="18" height="18" viewBox="0 0 48 48">
+            {/* Google "G" SVG mark */}
+            <svg width="22" height="22" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            <span style={{ fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-              {loading ? "Signing in…" : "Sign in with Google"}
+            <span style={{ fontSize:15, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
+              {loading ? "Signing in…" : "Continue with Google"}
             </span>
           </button>
 
@@ -6205,6 +6332,20 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
               {error}
             </p>
           )}
+
+          <button onClick={onGuest} className="tap-btn" style={{
+            width:"100%", padding:"14px 24px", borderRadius:16,
+            background:"none", border:`1px solid ${C.border}`,
+            color:C.textSub, fontSize:13, fontWeight:700,
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            transition:"opacity 0.2s",
+          }}>
+            Use without account
+          </button>
+
+          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+            Sign in to sync across devices. Guest data stays on this device only.
+          </p>
         </div>
 
       </div>
