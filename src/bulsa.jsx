@@ -3406,6 +3406,22 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
     [expenses, todayStr]
   );
 
+  const trendExps = useMemo(() => {
+    const now = new Date();
+    if (trendPeriod === "week") {
+      const ws = new Date(now); ws.setDate(now.getDate()-now.getDay()); ws.setHours(0,0,0,0);
+      return expenses.filter(e => e.ts && new Date(e.ts) >= ws);
+    }
+    if (trendPeriod === "month") {
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===now.getMonth() && new Date(e.ts).getFullYear()===now.getFullYear());
+    }
+    if (trendPeriod === "last") {
+      const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      return expenses.filter(e => e.ts && new Date(e.ts).getMonth()===lm.getMonth() && new Date(e.ts).getFullYear()===lm.getFullYear());
+    }
+    return expenses;
+  }, [expenses, trendPeriod]);
+
   const { weekTotal, weekByDay, weekMaxDay, weekPeakIdx, weekCount } = useMemo(() => {
     const wbd = Array(7).fill(0);
     trendExps.forEach(e => { if(e.ts) wbd[new Date(e.ts).getDay()] += e.amount; });
