@@ -3152,66 +3152,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   }, [hero, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday]);
 
   // ── Projected balance on payday ─────────────────────────────────────────────
-  const projection = useMemo(() => {
-    if (!runway || walletTotal <= 0) return null;
-    const daysLeft = runway.daysLeft;
-    const today    = new Date(); today.setHours(0,0,0,0);
-    const paydayDate = new Date(today);
-    paydayDate.setDate(today.getDate() + daysLeft);
-
-    // Only count subscriptions due STRICTLY BEFORE payday
-    // (on payday itself, salary arrives — those bills are paid from new income)
-    const subsBillsList = (subs||[])
-      .filter(s => {
-        if (s.active === false || !s.dueDate) return false;
-        const due = new Date(s.dueDate + "T00:00:00");
-        return due >= today && due < paydayDate;
-      });
-    const subsBills = subsBillsList.reduce((s, sub) => s + (sub.amount||0), 0);
-
-    // Only count utangs due before payday
-    const utangBillsList = (utangs||[])
-      .filter(u => {
-        if (u.settled || u.direction !== "iowe" || !u.dueDate) return false;
-        const due = new Date(u.dueDate + "T00:00:00");
-        return due >= today && due < paydayDate;
-      });
-    const utangBills = utangBillsList.reduce((s, u) => s + (u.amount||0), 0);
-
-    // Loans due ON payday come out of new salary — exclude entirely
-    // Loans due before payday count
-    const loanBillsList = (loans||[])
-      .filter(l => {
-        if (!l.nextDueDate || !l.monthlyAmount) return false;
-        const due = new Date(l.nextDueDate + "T00:00:00");
-        return due >= today && due < paydayDate;
-      });
-    const loanBills = loanBillsList.reduce((s, l) => s + (l.monthlyAmount||0), 0);
-
-    const expectedBills = subsBills + utangBills + loanBills;
-    const billItems = [
-      ...subsBillsList.map(s => ({ name: s.name, amount: s.amount, type: "sub" })),
-      ...utangBillsList.map(u => ({ name: `Bayad kay ${u.person}`, amount: u.amount, type: "utang" })),
-      ...loanBillsList.map(l => ({ name: l.name, amount: l.monthlyAmount, type: "loan" })),
-    ];
-
-    // Estimated remaining spend using daily LIMIT (not today's spend)
-    // Daily limit is the user's own budget — most accurate pace to project
-    const dailyRate    = dailyLimit > 0 ? dailyLimit : runway.allowedPerDay;
-    const estimatedSpend = dailyRate * daysLeft;
-
-    const projected = Math.floor(walletTotal - expectedBills - estimatedSpend);
-    const shortBy   = projected < 0 ? Math.abs(projected) : 0;
-    const reduceBy  = shortBy > 0 && daysLeft > 0 ? Math.ceil(shortBy / daysLeft) : 0;
-
-    return {
-      projected, shortBy, reduceBy,
-      expectedBills, billItems,
-      estimatedSpend, dailyRate, daysLeft,
-      paydayLabel: runway.label,
-    };
-  }, [runway, walletTotal, subs, loans, utangs, todaySpent, dailyLimit]);
-
   const todayPct = useMemo(() =>
     dailyLimit > 0
       ? Math.min((todaySpent/dailyLimit)*100, 100)
@@ -3352,28 +3292,19 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         )}
 
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          {/* Single context line — each number appears exactly once */}
           <p style={{ margin:0, fontSize:12, color:hero.status==="over"||hero.status==="tight"||hero.status==="peligro"?hero.color:C.textSub, fontFamily:FF, flex:1, fontWeight:hero.status==="over"?700:400, lineHeight:1.4 }}>
             {(()=>{
-              const limit   = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
-              const left    = Math.max(limit - todaySpent, 0);
-              const overBy  = Math.max(todaySpent - limit, 0);
-              const daysL   = runway?.daysLeft || 0;
-              const payLbl  = runway?.label || "";
-              const bal     = walletTotal || balance;
-              const newTgt  = overBy > 0 && daysL > 0 ? Math.max(Math.floor((bal - todaySpent) / daysL), 0) : 0;
-              if (hero.status === "over")
-                return `Over by ${fmt(overBy)} · new target ${fmt(newTgt)}/day`;
-              if (hero.status === "tight")
-                return `${fmt(left)} left · ${daysL}d to ${payLbl} · mag-ingat`;
-              if (hero.status === "peligro")
-                return `${daysL}d to payday · ${fmt(left)} left today`;
-              if (hero.status === "zero")
-                return limit > 0 ? `${fmt(limit)} to spend today · ${daysL}d to ${payLbl}` : `${daysL}d to ${payLbl}`;
-              if (hero.status === "empty")
-                return "Tap + to log your first expense";
-              // ok
-              return limit > 0 ? `${fmt(left)} left · ${daysL}d to ${payLbl}` : `${daysL}d to ${payLbl}`;
+              const limit  = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
+              const left   = limit - todaySpent; // negative = over
+              const daysL  = runway?.daysLeft || 0;
+              const payLbl = runway?.label || "payday";
+              if (hero.status === "empty") return "Tap + to log your first expense";
+              if (limit === 0) return daysL > 0 ? `${daysL} days remaining until ${payLbl}` : "";
+              const leftStr = left >= 0
+                ? `₱${Math.round(left).toLocaleString()} left out of ₱${Math.round(limit).toLocaleString()} daily limit`
+                : `-₱${Math.round(Math.abs(left)).toLocaleString()} left out of ₱${Math.round(limit).toLocaleString()} daily limit`;
+              const daysStr = daysL > 0 ? `${daysL} day${daysL!==1?"s":""} remaining until ${payLbl}` : "";
+              return [leftStr, daysStr].filter(Boolean).join(" · ");
             })()}
           </p>
           {budgetStreak !== null && budgetStreak > 0 && (
@@ -3383,70 +3314,65 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
           )}
         </div>
+
+        {/* 💡 Recommendation — inside the hero card, no extra card needed */}
+        {(()=>{
+          const limit    = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
+          const daysL    = runway?.daysLeft || 0;
+          if (!limit || !daysL || hero.status === "empty") return null;
+          const overBy   = todaySpent - limit;
+          const walBal   = walletTotal || balance || 0;
+          if (hero.status === "over" && overBy > limit * 0.3) {
+            // Significantly over — give adjusted daily target
+            const newTarget = Math.max(Math.floor((walBal - todaySpent) / daysL), 0);
+            return (
+              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.coral}25` }}>
+                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.coral, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                  To stay on track, limit spending to <strong style={{ color:C.coral }}>₱{newTarget.toLocaleString()}/day</strong> for the next {daysL} days.
+                </p>
+              </div>
+            );
+          }
+          if (hero.status === "over" && overBy <= limit * 0.3) {
+            // Slightly over
+            return (
+              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.gold}25` }}>
+                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.gold, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                  One low-spend day this week will put you back on track.
+                </p>
+              </div>
+            );
+          }
+          if (hero.status === "peligro" || (walBal > 0 && daysL > 0 && Math.floor(walBal/daysL) < limit * 0.5)) {
+            // Danger zone
+            const safePerDay = Math.max(Math.floor(walBal / daysL), 0);
+            return (
+              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.coral}25` }}>
+                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.coral, fontFamily:FF, letterSpacing:"0.04em" }}>⚠️ RECOMMENDATION</p>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                  Keep spending below <strong style={{ color:C.coral }}>₱{safePerDay.toLocaleString()}/day</strong>. Avoid non-essential purchases.
+                </p>
+              </div>
+            );
+          }
+          if ((hero.status === "ok" || hero.status === "zero") && todaySpent <= limit) {
+            // On track
+            const projectedSavings = Math.floor((limit - todaySpent) * daysL);
+            if (projectedSavings <= 0) return null;
+            return (
+              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.green}25` }}>
+                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.green, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
+                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                  You're on track. Potential savings by payday: <strong style={{ color:C.green }}>₱{projectedSavings.toLocaleString()}</strong>
+                </p>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
-
-      {/* ══ PROJECTED ON PAYDAY ═════════════════════════════════════════════ */}
-      {projection && (
-        <div style={{ background: projection.shortBy > 0 ? `${C.coral}0C` : `${C.green}0C`, border:`1.5px solid ${projection.shortBy>0?C.coral+"35":C.green+"35"}`, borderRadius:18, padding:"16px 18px", zIndex:1 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
-            <div>
-              <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
-                Projected on {projection.paydayLabel}
-              </p>
-              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>
-                After bills & estimated spend
-              </p>
-            </div>
-            <div style={{ textAlign:"right" }}>
-              <p style={{ margin:"0 0 1px", fontSize:22, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FF, letterSpacing:"-0.02em" }}>
-                {projection.shortBy > 0 ? `-₱${projection.shortBy.toLocaleString()}` : `₱${projection.projected.toLocaleString()}`}
-              </p>
-              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>
-                {projection.shortBy > 0 ? "short" : "remaining"}
-              </p>
-            </div>
-          </div>
-
-          {/* Itemized breakdown */}
-          <div style={{ display:"flex", flexDirection:"column", gap:5, borderTop:`1px solid ${projection.shortBy>0?C.coral+"20":C.green+"20"}`, paddingTop:10 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>💰 Current cash</span>
-              <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:FF }}>₱{Math.floor(walletTotal).toLocaleString()}</span>
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>📅 ₱{projection.dailyRate.toLocaleString()}/day × {projection.daysLeft}d</span>
-              <span style={{ fontSize:12, fontWeight:700, color:C.coral, fontFamily:FF }}>−₱{projection.estimatedSpend.toLocaleString()}</span>
-            </div>
-            {(projection.billItems||[]).map((item,i)=>(
-              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>
-                  {item.type==="sub"?"📱":item.type==="utang"?"🤝":"🏦"} {item.name}
-                </span>
-                <span style={{ fontSize:12, fontWeight:700, color:C.coral, fontFamily:FF }}>−₱{item.amount.toLocaleString()}</span>
-              </div>
-            ))}
-            {projection.billItems && projection.billItems.length===0 && (
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>📋 Bills before payday</span>
-                <span style={{ fontSize:12, fontWeight:700, color:C.green, fontFamily:FF }}>Wala</span>
-              </div>
-            )}
-          </div>
-
-          {projection.shortBy > 0 && projection.reduceBy > 0 && (
-            <div style={{ marginTop:10, background:`${C.coral}12`, borderRadius:10, padding:"8px 12px" }}>
-              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
-                ⚠️ Reduce spending by <strong style={{ color:C.coral }}>₱{projection.reduceBy.toLocaleString()}/day</strong> to avoid running short.
-              </p>
-            </div>
-          )}
-          {projection.shortBy===0 && (
-            <div style={{ marginTop:10, background:`${C.green}10`, borderRadius:10, padding:"8px 12px" }}>
-              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF }}>✅ You're on track to reach payday with money left.</p>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
       <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
