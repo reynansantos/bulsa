@@ -3033,6 +3033,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const fmt = useFmt();
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
   const [setupCardDismissed, setSetupCardDismissed] = useState(false);
+  const [projOpen,           setProjOpen]           = useState(false);
 
   // ── Core numbers — memoized so they only recompute when expenses/wallets change ──
   const todayStr   = new Date().toDateString();
@@ -3359,43 +3360,126 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </div>
         )}
 
-        {/* Sub info + streak inline */}
-        <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF, flex:1 }}>{hero.sub}</p>
-          {budgetStreak !== null && budgetStreak > 0 && (
-            <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3, marginLeft:8 }}>
-              <span style={{ fontSize:10 }}>🔥</span>
-              <span style={{ fontFamily:FF, fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
+        {/* ── CONSOLIDATED BOTTOM — sub line + streak + recovery target ── */}
+        <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10 }}>
+
+          {/* Row 1: context line + streak */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: runway||recommendation ? 10 : 0 }}>
+            <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF, flex:1, lineHeight:1.4 }}>{hero.sub}</p>
+            {budgetStreak !== null && budgetStreak > 0 && (
+              <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3, marginLeft:8 }}>
+                <span style={{ fontSize:10 }}>🔥</span>
+                <span style={{ fontFamily:FF, fontSize:11, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: three-column runway strip — daily limit | days left | new target or left today */}
+          {runway && hero.status !== "empty" && (()=>{
+            const limit      = dailyLimit > 0 ? dailyLimit : runway.allowedPerDay;
+            const overBy     = Math.max(todaySpent - limit, 0);
+            const newTarget  = overBy > 0 && runway.daysLeft > 0
+              ? Math.max(Math.floor((walletTotal || (balance)) - todaySpent) / runway.daysLeft, 0)
+              : null;
+            const leftToday  = Math.max(limit - todaySpent, 0);
+
+            return (
+              <div style={{ display:"flex", gap:6 }}>
+                {/* Daily limit */}
+                <div style={{ flex:1, background:`${C.surface}`, borderRadius:12, padding:"10px 12px", border:`1px solid ${hero.color}20` }}>
+                  <p style={{ margin:"0 0 2px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>Daily limit</p>
+                  <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:FF, letterSpacing:"-0.02em" }}>
+                    {hidden?"₱••••":`₱${limit.toLocaleString()}`}
+                  </p>
+                </div>
+
+                {/* Days to payday */}
+                <div style={{ flex:1, background:C.surface, borderRadius:12, padding:"10px 12px", border:`1px solid ${C.border}` }}>
+                  <p style={{ margin:"0 0 2px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>To payday</p>
+                  <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:FF, letterSpacing:"-0.02em" }}>
+                    {runway.daysLeft}<span style={{ fontSize:11, fontWeight:500, color:C.textSub }}> days</span>
+                  </p>
+                </div>
+
+                {/* Recovery target (over) OR left today (ok/tight) */}
+                <div style={{ flex:1, background: overBy>0?`${C.coral}10`:`${hero.color}10`, borderRadius:12, padding:"10px 12px", border:`1px solid ${overBy>0?C.coral+"30":hero.color+"20"}` }}>
+                  <p style={{ margin:"0 0 2px", fontSize:9, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FF }}>
+                    {overBy > 0 ? "New target" : "Left today"}
+                  </p>
+                  <p style={{ margin:0, fontSize:16, fontWeight:800, fontFamily:FF, letterSpacing:"-0.02em", color:overBy>0?C.coral:hero.color }}>
+                    {hidden ? "₱••••" : overBy > 0
+                      ? `₱${Math.floor(newTarget).toLocaleString()}`
+                      : `₱${leftToday.toLocaleString()}`
+                    }
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Row 3: recovery explanation — only when over budget */}
+          {recommendation && hero.status === "over" && runway && (() => {
+            const limit  = dailyLimit > 0 ? dailyLimit : runway.allowedPerDay;
+            const overBy = Math.max(todaySpent - limit, 0);
+            const newTarget = runway.daysLeft > 0
+              ? Math.max(Math.floor(((walletTotal || balance) - todaySpent) / runway.daysLeft), 0)
+              : 0;
+            return (
+              <div style={{ marginTop:8, background:`${C.coral}10`, borderRadius:10, padding:"8px 12px", display:"flex", gap:8, alignItems:"center" }}>
+                <span style={{ fontSize:14, flexShrink:0 }}>💡</span>
+                <p style={{ margin:0, fontSize:11, color:C.text, fontFamily:FF, lineHeight:1.55 }}>
+                  Over by <strong style={{ color:C.coral }}>₱{overBy.toLocaleString()}</strong> today. Spread across {runway.daysLeft} days → new target is <strong style={{ color:C.coral }}>₱{newTarget.toLocaleString()}/day</strong>.
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Tight — brief encouragement, no repetition */}
+          {hero.status === "tight" && (
+            <div style={{ marginTop:8, background:`${C.gold}10`, borderRadius:10, padding:"8px 12px" }}>
+              <p style={{ margin:0, fontSize:11, color:C.text, fontFamily:FF }}>
+                💛 Almost at your limit. Mag-ingat sa susunod na gastos.
+              </p>
             </div>
           )}
-        </div>
 
-        {/* Recommendation */}
-        {recommendation && hero.status !== "empty" && (
-          <div style={{ position:"relative", zIndex:1, marginTop:10, background:`${hero.color}12`, borderRadius:12, padding:"10px 14px", display:"flex", gap:10, alignItems:"flex-start" }}>
-            <span style={{ fontSize:16, flexShrink:0 }}>{recommendation.icon}</span>
-            <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.6 }}>{recommendation.text}</p>
-          </div>
-        )}
+          {/* Peligro — days + survival note */}
+          {hero.status === "peligro" && (
+            <div style={{ marginTop:8, background:`${C.coral}10`, borderRadius:10, padding:"8px 12px" }}>
+              <p style={{ margin:0, fontSize:11, color:C.text, fontFamily:FF }}>
+                🚨 {runway?.daysLeft}d na lang. Skip anything that isn't essential.
+              </p>
+            </div>
+          )}
+
+        </div>
       </div>
 
-      {/* ══ SURVIVAL STRIP ══════════════════════════════════════════════════ */}
-      {runway && hero.status !== "empty" && (
-        <div style={{ display:"flex", gap:8, zIndex:1 }}>
-          <div style={{ flex:1, background:C.surface, border:`1px solid ${runway.color}30`, borderRadius:14, padding:"12px 14px" }}>
-            <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Daily allowance</p>
-            <p style={{ margin:0, fontSize:20, fontWeight:800, color:runway.color, fontFamily:FF, letterSpacing:"-0.02em" }}>₱{runway.allowedPerDay.toLocaleString()}<span style={{ fontSize:12, fontWeight:500, color:C.textSub }}>/day</span></p>
-          </div>
-          <div style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px" }}>
-            <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Days to payday</p>
-            <p style={{ margin:0, fontSize:20, fontWeight:800, color:C.text, fontFamily:FF, letterSpacing:"-0.02em" }}>{runway.daysLeft}<span style={{ fontSize:12, fontWeight:500, color:C.textSub }}> days</span></p>
-          </div>
-        </div>
-      )}
-
-      {/* ══ PROJECTED ON PAYDAY ═════════════════════════════════════════════ */}
+      {/* ══ PROJECTED ON PAYDAY — collapsed by default ══════════════════════ */}
       {projection && (
-        <div style={{ background: projection.shortBy > 0 ? `${C.coral}0C` : `${C.green}0C`, border:`1.5px solid ${projection.shortBy>0?C.coral+"35":C.green+"35"}`, borderRadius:18, padding:"16px 18px", zIndex:1 }}>
+        <div style={{ background: projection.shortBy > 0 ? `${C.coral}0C` : `${C.green}0C`, border:`1.5px solid ${projection.shortBy>0?C.coral+"35":C.green+"35"}`, borderRadius:18, padding:"14px 18px", zIndex:1 }}>
+          {/* Tap header to expand/collapse */}
+          <button onClick={()=>setProjOpen(o=>!o)} className="tap-btn"
+            style={{ width:"100%", background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <p style={{ margin:"0 0 1px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF, textAlign:"left" }}>
+                Projected on {projection.paydayLabel}
+              </p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF, textAlign:"left" }}>
+                {projOpen ? "After bills & estimated spend" : projection.shortBy>0 ? `₱${projection.shortBy.toLocaleString()} short — tap to see breakdown` : `₱${projection.projected.toLocaleString()} remaining — tap to see breakdown`}
+              </p>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0, marginLeft:12 }}>
+              <p style={{ margin:0, fontSize:18, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FF, letterSpacing:"-0.02em" }}>
+                {projection.shortBy > 0 ? `-₱${projection.shortBy.toLocaleString()}` : `₱${projection.projected.toLocaleString()}`}
+              </p>
+              <span style={{ fontSize:13, color:C.textFaint, transition:"transform 0.2s", display:"inline-block", transform:projOpen?"rotate(180deg)":"rotate(0deg)" }}>▾</span>
+            </div>
+          </button>
+
+          {/* Expanded breakdown */}
+          {projOpen && (
+          <div style={{ marginTop:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
@@ -3452,6 +3536,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             <div style={{ marginTop:10, background:`${C.green}10`, borderRadius:10, padding:"8px 12px" }}>
               <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF }}>✅ You're on track to reach payday with money left.</p>
             </div>
+          )}
+          </div>
           )}
         </div>
       )}
