@@ -225,11 +225,10 @@ const CATS = [
 ];
 
 const MOODS = [
-  { id:"guilty",    emoji:"😬", label:"Guilty",    color:C.coral  },
-  { id:"deserved",  emoji:"✨", label:"Deserved",  color:C.gold   },
-  { id:"necessary", emoji:"📌", label:"Necessary", color:C.sky    },
-  { id:"impulsive", emoji:"🌀", label:"Impulsive", color:C.rose   },
-  { id:"happy",     emoji:"😊", label:"Happy",     color:C.green  },
+  { id:"stressed",  emoji:"😰", label:"Stressed",  color:C.coral  },
+  { id:"neutral",   emoji:"😐", label:"Neutral",   color:C.textSub },
+  { id:"happy",     emoji:"😊", label:"Happy",     color:C.gold   },
+  { id:"motivated", emoji:"🔥", label:"Motivated", color:C.green  },
 ];
 
 const LOAN_TYPES  = ["BNPL","Personal","Cash Loan","Credit Card","Student","Car Loan","Other"];
@@ -1291,7 +1290,6 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
   const [name,      setName]      = useState(isEdit ? editExpense.name : "");
   const [catId,     setCatId]     = useState(isEdit ? editExpense.catId : (prefillCat || "food"));
   const [moodId,    setMoodId]    = useState(isEdit ? editExpense.moodId : null);
-  const [moodStep,  setMoodStep]  = useState(false); // pre-confirm mood prompt
   const [walletId,  setWalletId]  = useState(isEdit ? (editExpense.walletId||null) : (wallets?.length ? wallets[0].id : null));
   const [isGrocery, setIsGrocery] = useState(isEdit ? editExpense.catId==="grocery" : (prefillCat === "grocery"));
   const [gInput,    setGInput]    = useState("");
@@ -1333,7 +1331,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
     const amtMatch = txt.match(/[₱p]?\s*(\d[\d,]*(?:\.\d+)?)/);
     const amt = amtMatch ? parseFloat(amtMatch[1].replace(/,/g,"")) : 0;
     const rest = txt.replace(/[₱p]?\s*\d[\d,]*(?:\.\d+)?/, " ").replace(/\s+/g," ").trim();
-    const moodMap = { stressed:"guilty", stress:"guilty", hirap:"guilty", pagod:"guilty", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
+    const moodMap = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
     let mid = null;
     for (const [kw,id] of Object.entries(moodMap)) { if (rest.includes(kw)) { mid=id; break; } }
     const catMap = [
@@ -1418,9 +1416,8 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
 
   const close = () => { setVis(false); setTimeout(onClose, 300); };
 
-  const save = (moodOverride) => {
+  const save = () => {
     if (!amount || +amount<=0) return;
-    const finalMood = moodOverride !== undefined ? moodOverride : moodId;
     const d = new Date(expDate+"T"+new Date().toTimeString().slice(0,8));
     const h=d.getHours(), mn=d.getMinutes().toString().padStart(2,"0");
     const isToday = expDate===today;
@@ -1429,7 +1426,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
       name:  name.trim() || catOf(isGrocery?"grocery":catId).label,
       amount: +amount,
       catId:  isGrocery?"grocery":catId,
-      moodId: finalMood,
+      moodId,
       photo:  isEdit ? editExpense.photo : null,
       groceryItems: gItems,
       walletId,
@@ -1609,7 +1606,21 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                 </div>
               )}
 
-
+              {/* Mood — always visible */}
+              <div>
+                <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>
+                  How did it feel? <span style={{ color:C.textFaint, fontWeight:400, textTransform:"none", letterSpacing:0 }}>· optional</span>
+                </p>
+                <div style={{ display:"flex", gap:6 }}>
+                  {MOODS.map(m=>(
+                    <button key={m.id} onClick={()=>{ haptic(); setMoodId(moodId===m.id?null:m.id); }} className="tap-btn"
+                      style={{ flex:1, padding:"10px 4px 8px", borderRadius:12, border:`2px solid ${moodId===m.id?m.color:C.border}`, background:moodId===m.id?m.color+"18":C.card, display:"flex", flexDirection:"column", alignItems:"center", gap:4, cursor:"pointer", transition:"all 0.13s" }}>
+                      <span style={{ fontSize:22 }}>{m.emoji}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:moodId===m.id?m.color:C.textSub, fontFamily:FF }}>{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Wallet picker — always visible if wallets exist */}
               {wallets&&wallets.length>0&&(
@@ -1652,41 +1663,13 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
             </div>
 
             {/* Save */}
-            <Btn onClick={()=>{ if(!canSave) return; if(isEdit){ save(); } else { setMoodStep(true); } }}
-              style={{ opacity:canSave?1:0.4, marginTop:showMore?18:0 }}>
-              {isEdit ? "Save changes ✓" : canSave ? `Save ${fmt(+amount)} →` : "Enter an amount"}
+            <Btn onClick={save} style={{ opacity:canSave?1:0.4, marginTop:showMore?18:0 }}>
+              {isEdit ? "Save changes ✓" : canSave ? `Save ${fmt(+amount)} ✓` : "Enter an amount"}
             </Btn>
           </div>
           )}
         </div>
       </div>
-
-      {/* ── Pre-confirm mood prompt ── */}
-      {moodStep && (
-        <>
-          <div onClick={()=>{ setMoodStep(false); save(); }} style={{ position:"fixed", inset:0, background:C.overlay, zIndex:302 }}/>
-          <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:420, background:C.surface, borderRadius:"24px 24px 0 0", border:`1px solid ${C.border}`, borderBottom:"none", zIndex:303, padding:"20px 20px 32px" }}>
-            <div style={{ width:36, height:4, borderRadius:99, background:C.border, margin:"0 auto 20px" }}/>
-            <p style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>Before you confirm —</p>
-            <p style={{ margin:"0 0 20px", fontSize:13, color:C.textSub, fontFamily:"DM Sans,sans-serif", textAlign:"center", lineHeight:1.5 }}>
-              How do you feel about this <strong style={{ color:C.accent }}>{fmt(+amount)}</strong> spend?
-            </p>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:14 }}>
-              {MOODS.map(m=>(
-                <button key={m.id} onClick={()=>{ setMoodId(m.id); setMoodStep(false); save(m.id); }} className="tap-btn"
-                  style={{ padding:"14px 6px 10px", borderRadius:14, border:`2px solid ${m.color}40`, background:`${m.color}12`, display:"flex", flexDirection:"column", alignItems:"center", gap:6, cursor:"pointer" }}>
-                  <span style={{ fontSize:26 }}>{m.emoji}</span>
-                  <span style={{ fontSize:11, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{m.label}</span>
-                </button>
-              ))}
-            </div>
-            <button onClick={()=>{ setMoodStep(false); save(null); }} className="tap-btn"
-              style={{ width:"100%", padding:"12px", borderRadius:12, border:`1px solid ${C.border}`, background:"none", color:C.textFaint, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
-              Skip — just save
-            </button>
-          </div>
-        </>
-      )}
     </>
   );
 }
@@ -1733,7 +1716,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
               <span style={{ fontSize:26 }}>{m.emoji}</span>
               <div>
                 <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:m.color, fontFamily:"DM Sans,sans-serif" }}>Feeling {m.label.toLowerCase()}</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="guilty"?"Heads up -- stress spending adds up.":m.id==="happy"?"Happy purchases are the best kind.":m.id==="motivated"?"Smart spending. In the zone.":"Neutral day, neutral spend."}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="stressed"?"Heads up -- stress spending adds up.":m.id==="happy"?"Happy purchases are the best kind.":m.id==="motivated"?"Smart spending. In the zone.":"Neutral day, neutral spend."}</p>
               </div>
             </div>
           )}
@@ -2799,10 +2782,10 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
   }
 
   // 4. MOOD-SPEND LINK: "You spend ₱890 more when stressed. Noticed?"
-  const stressSpend = expenses.filter(e=>e.moodId==="guilty"||e.moodId==="impulsive").reduce((s,e)=>s+e.amount,0);
-  const stressCount = expenses.filter(e=>e.moodId==="guilty"||e.moodId==="impulsive").length;
-  const neutralSpend = expenses.filter(e=>e.moodId==="necessary").reduce((s,e)=>s+e.amount,0);
-  const neutralCount = expenses.filter(e=>e.moodId==="necessary").length;
+  const stressSpend = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
+  const stressCount = expenses.filter(e=>e.moodId==="stressed").length;
+  const neutralSpend = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").reduce((s,e)=>s+e.amount,0);
+  const neutralCount = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").length;
   if (stressCount >= 3 && neutralCount >= 3) {
     const stressAvg = stressSpend / stressCount;
     const neutralAvg = neutralSpend / neutralCount;
@@ -2987,6 +2970,65 @@ function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
 }
 
 
+// ─── RECOMMENDATION ENGINE ──────────────────────────────────────────────────
+function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday }) {
+  const daysLeft    = runway?.daysLeft || 0;
+  const allowedDay  = runway?.allowedPerDay || dailyLimit || 0;
+  const cycleIncome = runway ? Math.floor(walletTotal) : 0;
+
+  // Expected bills before payday — active subs + loan installments due within cycle
+  const expectedBills = [
+    ...(subs||[]).filter(s=>s.active!==false&&s.type!=="recurring").map(s=>s.amount||0),
+    ...(loans||[]).filter(l=>l.monthlyAmount>0).map(l=>l.monthlyAmount),
+  ].reduce((s,a)=>s+a, 0);
+
+  const projectedBalance = walletTotal - expectedBills;
+  const safePerDay = daysLeft > 0 ? Math.floor(projectedBalance / daysLeft) : 0;
+
+  if (status === "over" || status === "tight") {
+    const overBy = todaySpent - (dailyLimit || allowedDay);
+    if (daysLeft > 0 && allowedDay > 0) {
+      const newDaily = Math.max(Math.floor((walletTotal - todaySpent) / daysLeft), 0);
+      if (overBy > allowedDay * 0.5) {
+        // Significantly over — give specific daily target
+        return {
+          icon: "💡",
+          text: `To stay on track, limit spending to ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}.`,
+        };
+      } else {
+        // Slightly over — one recovery day
+        return {
+          icon: "💡",
+          text: `One low-spend day this week will put you back on track. Target: ₱${newDaily.toLocaleString()} tomorrow.`,
+        };
+      }
+    }
+    return { icon:"💡", text:"Avoid non-essential purchases today. Every peso counts." };
+  }
+
+  if (status === "peligro") {
+    return {
+      icon: "⚠️",
+      text: `${daysLeft} days to go. Keep daily spending below ₱${safePerDay > 0 ? safePerDay.toLocaleString() : allowedDay.toLocaleString()}. Skip anything that isn't essential.`,
+    };
+  }
+
+  if (status === "good" || status === "zero") {
+    if (daysLeft > 0 && allowedDay > 0) {
+      const potentialSavings = (allowedDay - todaySpent) * daysLeft;
+      if (potentialSavings > 0) {
+        return {
+          icon: "✅",
+          text: `You're on track. Potential savings by payday: ₱${Math.floor(potentialSavings).toLocaleString()}.`,
+        };
+      }
+    }
+    return { icon:"✅", text:"You're on track. Keep it up." };
+  }
+
+  return null;
+}
+
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, onQuickLog, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
   const fmt = useFmt();
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
@@ -3031,6 +3073,46 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     const color = over ? C.coral : tight ? C.gold : petsaDePeligro ? C.coral : C.green;
     return { allowedPerDay, daysLeft, daysRemaining, pct, over, tight, petsaDePeligro, color, label: cycle.label };
   }, [payday, balance, todaySpent]);
+
+  // ── Recommendation engine ──────────────────────────────────────────────────
+  const recommendation = useMemo(() => {
+    if (!hero) return null;
+    return getRecommendation({
+      status:     hero.status,
+      todaySpent,
+      dailyLimit,
+      runway,
+      walletTotal: walletTotal || 0,
+      subs,
+      loans,
+      payday,
+    });
+  }, [hero, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday]);
+
+  // ── Projected balance on payday ─────────────────────────────────────────────
+  const projection = useMemo(() => {
+    if (!runway || walletTotal <= 0) return null;
+    const daysLeft = runway.daysLeft;
+
+    // Bills due before payday
+    const subsBills = (subs||[])
+      .filter(s => s.active!==false)
+      .reduce((s,sub) => s + (sub.amount||0), 0);
+    const loanBills = (loans||[])
+      .filter(l => l.monthlyAmount > 0)
+      .reduce((s,l) => s + l.monthlyAmount, 0);
+    const expectedBills = subsBills + loanBills;
+
+    // Estimated remaining spend at current daily pace
+    const avgDaily = daysLeft > 0 ? todaySpent || runway.allowedPerDay : 0;
+    const estimatedSpend = avgDaily * daysLeft;
+
+    const projected = Math.floor(walletTotal - expectedBills - estimatedSpend);
+    const shortBy   = projected < 0 ? Math.abs(projected) : 0;
+    const reduceBy  = shortBy > 0 && daysLeft > 0 ? Math.ceil(shortBy / daysLeft) : 0;
+
+    return { projected, shortBy, reduceBy, expectedBills, daysLeft, paydayLabel: runway.label };
+  }, [runway, walletTotal, subs, loans, todaySpent]);
 
   // ── Budget streak — THE most expensive computation. Memoized hard. ─────────
   // Only recomputes when expenses array or dailyLimit changes.
@@ -3251,7 +3333,76 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
           )}
         </div>
+
+        {/* Recommendation */}
+        {recommendation && hero.status !== "empty" && (
+          <div style={{ position:"relative", zIndex:1, marginTop:10, background:`${hero.color}12`, borderRadius:12, padding:"10px 14px", display:"flex", gap:10, alignItems:"flex-start" }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>{recommendation.icon}</span>
+            <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.6 }}>{recommendation.text}</p>
+          </div>
+        )}
       </div>
+
+      {/* ══ SURVIVAL STRIP ══════════════════════════════════════════════════ */}
+      {runway && hero.status !== "empty" && (
+        <div style={{ display:"flex", gap:8, zIndex:1 }}>
+          <div style={{ flex:1, background:C.surface, border:`1px solid ${runway.color}30`, borderRadius:14, padding:"12px 14px" }}>
+            <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Daily allowance</p>
+            <p style={{ margin:0, fontSize:20, fontWeight:800, color:runway.color, fontFamily:FF, letterSpacing:"-0.02em" }}>₱{runway.allowedPerDay.toLocaleString()}<span style={{ fontSize:12, fontWeight:500, color:C.textSub }}>/day</span></p>
+          </div>
+          <div style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px" }}>
+            <p style={{ margin:"0 0 2px", fontSize:10, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Days to payday</p>
+            <p style={{ margin:0, fontSize:20, fontWeight:800, color:C.text, fontFamily:FF, letterSpacing:"-0.02em" }}>{runway.daysLeft}<span style={{ fontSize:12, fontWeight:500, color:C.textSub }}> days</span></p>
+          </div>
+        </div>
+      )}
+
+      {/* ══ PROJECTED ON PAYDAY ═════════════════════════════════════════════ */}
+      {projection && (
+        <div style={{ background: projection.shortBy > 0 ? `${C.coral}0C` : `${C.green}0C`, border:`1.5px solid ${projection.shortBy>0?C.coral+"35":C.green+"35"}`, borderRadius:18, padding:"16px 18px", zIndex:1 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+            <div>
+              <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
+                Projected on {projection.paydayLabel}
+              </p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>
+                After bills & estimated spend
+              </p>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <p style={{ margin:"0 0 1px", fontSize:22, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FF, letterSpacing:"-0.02em" }}>
+                {projection.shortBy > 0 ? `-₱${projection.shortBy.toLocaleString()}` : `₱${projection.projected.toLocaleString()}`}
+              </p>
+              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>
+                {projection.shortBy > 0 ? "short" : "remaining"}
+              </p>
+            </div>
+          </div>
+
+          {/* Breakdown */}
+          <div style={{ display:"flex", flexDirection:"column", gap:6, borderTop:`1px solid ${projection.shortBy>0?C.coral+"20":C.green+"20"}`, paddingTop:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between" }}>
+              <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>💰 Current cash</span>
+              <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:FF }}>₱{Math.floor(walletTotal).toLocaleString()}</span>
+            </div>
+            {projection.expectedBills > 0 && (
+              <div style={{ display:"flex", justifyContent:"space-between" }}>
+                <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>📋 Expected bills</span>
+                <span style={{ fontSize:12, fontWeight:700, color:C.coral, fontFamily:FF }}>-₱{projection.expectedBills.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Shortfall recommendation */}
+          {projection.shortBy > 0 && projection.reduceBy > 0 && (
+            <div style={{ marginTop:10, background:`${C.coral}12`, borderRadius:10, padding:"8px 12px" }}>
+              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                ⚠️ Reduce spending by <strong style={{ color:C.coral }}>₱{projection.reduceBy.toLocaleString()}/day</strong> to avoid running short.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
       <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
@@ -4211,66 +4362,23 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
                 <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Emotional profile locked</p>
                 <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Tag mood on {2-moodLogs} more expense{2-moodLogs!==1?"s":""} to unlock.</p>
               </div>
-            ):(()=>{
-              const guiltyAmt    = expenses.filter(e=>e.moodId==="guilty").reduce((s,e)=>s+e.amount,0);
-              const deservedAmt  = expenses.filter(e=>e.moodId==="deserved").reduce((s,e)=>s+e.amount,0);
-              const necessaryAmt = expenses.filter(e=>e.moodId==="necessary").reduce((s,e)=>s+e.amount,0);
-              const impulsiveAmt = expenses.filter(e=>e.moodId==="impulsive").reduce((s,e)=>s+e.amount,0);
-
-              // Day-of-week guilty pattern
-              const guiltyByDay = Array(7).fill(0);
-              expenses.filter(e=>e.moodId==="guilty"&&e.ts).forEach(e=>{ guiltyByDay[new Date(e.ts).getDay()]+=e.amount; });
-              const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-              const peakDayIdx = guiltyByDay.indexOf(Math.max(...guiltyByDay));
-              const hasPeakDay = guiltyByDay[peakDayIdx] > 0;
-
-              return (
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {/* Guilty vs Deserved headline */}
-                  {(guiltyAmt>0||deservedAmt>0||necessaryAmt>0)&&(
-                    <Card style={{ background:`${C.coral}08`, border:`1px solid ${C.coral}25` }}>
-                      <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>This cycle's emotional spend</p>
-                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {[
-                          { id:"guilty",    label:"Guilty 😬",    amount:guiltyAmt,    color:C.coral },
-                          { id:"impulsive", label:"Impulsive 🌀", amount:impulsiveAmt, color:C.rose  },
-                          { id:"necessary", label:"Necessary 📌", amount:necessaryAmt, color:C.sky   },
-                          { id:"deserved",  label:"Deserved ✨",  amount:deservedAmt,  color:C.gold  },
-                        ].filter(x=>x.amount>0).map(x=>(
-                          <div key={x.id}>
-                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                              <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{x.label}</span>
-                              <span style={{ fontSize:13, fontWeight:800, color:x.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(x.amount)}</span>
-                            </div>
-                            <Bar pct={total>0?(x.amount/total)*100:0} color={x.color} h={4}/>
-                          </div>
-                        ))}
+            ):(
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {bymood.map(m=>(
+                  <Card key={m.id}>
+                    <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
+                      <span style={{ fontSize:28 }}>{m.emoji}</span>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p>
+                        <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} · {m.pct}% of spending</p>
                       </div>
-                      {/* Peak guilty day insight */}
-                      {hasPeakDay&&guiltyAmt>0&&(
-                        <p style={{ margin:"12px 0 0", fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.6, background:`${C.coral}10`, borderRadius:10, padding:"8px 12px" }}>
-                          💡 Most of your Guilty spends happen on <strong style={{ color:C.coral }}>{dayNames[peakDayIdx]}s</strong> — that's <strong style={{ color:C.coral }}>{fmt(guiltyByDay[peakDayIdx])}</strong> you could redirect next cycle.
-                        </p>
-                      )}
-                    </Card>
-                  )}
-                  {/* Per-mood breakdown */}
-                  {bymood.map(m=>(
-                    <Card key={m.id}>
-                      <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
-                        <span style={{ fontSize:28 }}>{m.emoji}</span>
-                        <div style={{ flex:1 }}>
-                          <p style={{ margin:"0 0 1px", fontSize:13, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{m.label}</p>
-                          <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.count} purchase{m.count>1?"s":""} · {m.pct}% of spending</p>
-                        </div>
-                        <p style={{ margin:0, fontSize:15, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p>
-                      </div>
-                      <Bar pct={m.pct} color={m.color} h={5}/>
-                    </Card>
-                  ))}
-                </div>
-              );
-            })()}
+                      <p style={{ margin:0, fontSize:15, fontWeight:800, color:m.color, fontFamily:"DM Sans,sans-serif" }}>{fmt(m.amount)}</p>
+                    </div>
+                    <Bar pct={m.pct} color={m.color} h={5}/>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Insights */}
