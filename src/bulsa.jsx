@@ -3074,65 +3074,6 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     return { allowedPerDay, daysLeft, daysRemaining, pct, over, tight, petsaDePeligro, color, label: cycle.label };
   }, [payday, balance, todaySpent]);
 
-  // ── Recommendation engine ──────────────────────────────────────────────────
-  const recommendation = useMemo(() => {
-    if (!hero) return null;
-    return getRecommendation({
-      status:     hero.status,
-      todaySpent,
-      dailyLimit,
-      runway,
-      walletTotal: walletTotal || 0,
-      subs,
-      loans,
-      payday,
-    });
-  }, [hero, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday]);
-
-  // ── Projected balance on payday ─────────────────────────────────────────────
-  const projection = useMemo(() => {
-    if (!runway || walletTotal <= 0) return null;
-    const daysLeft = runway.daysLeft;
-
-    // Bills due before payday
-    const subsBills = (subs||[])
-      .filter(s => s.active!==false)
-      .reduce((s,sub) => s + (sub.amount||0), 0);
-    const loanBills = (loans||[])
-      .filter(l => l.monthlyAmount > 0)
-      .reduce((s,l) => s + l.monthlyAmount, 0);
-    const expectedBills = subsBills + loanBills;
-
-    // Estimated remaining spend at current daily pace
-    const avgDaily = daysLeft > 0 ? todaySpent || runway.allowedPerDay : 0;
-    const estimatedSpend = avgDaily * daysLeft;
-
-    const projected = Math.floor(walletTotal - expectedBills - estimatedSpend);
-    const shortBy   = projected < 0 ? Math.abs(projected) : 0;
-    const reduceBy  = shortBy > 0 && daysLeft > 0 ? Math.ceil(shortBy / daysLeft) : 0;
-
-    return { projected, shortBy, reduceBy, expectedBills, daysLeft, paydayLabel: runway.label };
-  }, [runway, walletTotal, subs, loans, todaySpent]);
-
-  // ── Budget streak — THE most expensive computation. Memoized hard. ─────────
-  // Only recomputes when expenses array or dailyLimit changes.
-  const budgetStreak = useMemo(() => {
-    if (dailyLimit <= 0) return null;
-    let streak = 0;
-    const tod = new Date(); tod.setHours(0,0,0,0);
-    for (let i = 0; i < 365; i++) {
-      const d  = new Date(tod); d.setDate(tod.getDate() - i);
-      const ds = d.toDateString();
-      const daySpent = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === ds).reduce((s,e) => s + e.amount, 0);
-      const hasLogs  = expenses.some(e => e.ts && new Date(e.ts).toDateString() === ds);
-      if (i === 0) { if (daySpent <= dailyLimit) { streak++; continue; } else break; }
-      if (!hasLogs) break;
-      if (daySpent > dailyLimit) break;
-      streak++;
-    }
-    return streak;
-  }, [expenses, dailyLimit]);
-
   // ── Hero status ────────────────────────────────────────────────────────────
   const hero = useMemo(() => {
     const overLimit  = dailyLimit > 0 && todaySpent > dailyLimit;
@@ -3175,6 +3116,65 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         ? `${fmt(runway.allowedPerDay - todaySpent)} left today · ${runway.daysLeft}d to ${runway.label}`
         : `${fmt(balance)} across all wallets` };
   }, [dailyLimit, todaySpent, runway, expenses, balance, fmt]);
+
+  // ── Budget streak — THE most expensive computation. Memoized hard. ─────────
+  // Only recomputes when expenses array or dailyLimit changes.
+  const budgetStreak = useMemo(() => {
+    if (dailyLimit <= 0) return null;
+    let streak = 0;
+    const tod = new Date(); tod.setHours(0,0,0,0);
+    for (let i = 0; i < 365; i++) {
+      const d  = new Date(tod); d.setDate(tod.getDate() - i);
+      const ds = d.toDateString();
+      const daySpent = expenses.filter(e => e.ts && new Date(e.ts).toDateString() === ds).reduce((s,e) => s + e.amount, 0);
+      const hasLogs  = expenses.some(e => e.ts && new Date(e.ts).toDateString() === ds);
+      if (i === 0) { if (daySpent <= dailyLimit) { streak++; continue; } else break; }
+      if (!hasLogs) break;
+      if (daySpent > dailyLimit) break;
+      streak++;
+    }
+    return streak;
+  }, [expenses, dailyLimit]);
+
+  // ── Recommendation engine ──────────────────────────────────────────────────
+  const recommendation = useMemo(() => {
+    if (!hero) return null;
+    return getRecommendation({
+      status:     hero.status,
+      todaySpent,
+      dailyLimit,
+      runway,
+      walletTotal: walletTotal || 0,
+      subs,
+      loans,
+      payday,
+    });
+  }, [hero, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday]);
+
+  // ── Projected balance on payday ─────────────────────────────────────────────
+  const projection = useMemo(() => {
+    if (!runway || walletTotal <= 0) return null;
+    const daysLeft = runway.daysLeft;
+
+    // Bills due before payday
+    const subsBills = (subs||[])
+      .filter(s => s.active!==false)
+      .reduce((s,sub) => s + (sub.amount||0), 0);
+    const loanBills = (loans||[])
+      .filter(l => l.monthlyAmount > 0)
+      .reduce((s,l) => s + l.monthlyAmount, 0);
+    const expectedBills = subsBills + loanBills;
+
+    // Estimated remaining spend at current daily pace
+    const avgDaily = daysLeft > 0 ? todaySpent || runway.allowedPerDay : 0;
+    const estimatedSpend = avgDaily * daysLeft;
+
+    const projected = Math.floor(walletTotal - expectedBills - estimatedSpend);
+    const shortBy   = projected < 0 ? Math.abs(projected) : 0;
+    const reduceBy  = shortBy > 0 && daysLeft > 0 ? Math.ceil(shortBy / daysLeft) : 0;
+
+    return { projected, shortBy, reduceBy, expectedBills, daysLeft, paydayLabel: runway.label };
+  }, [runway, walletTotal, subs, loans, todaySpent]);
 
   const todayPct = useMemo(() =>
     dailyLimit > 0
