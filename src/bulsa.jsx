@@ -3374,47 +3374,22 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         })()}
       </div>
 
-      {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
-      <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
-        {/* Main log button */}
+      {/* ══ QUICK LOG — compact strip ════════════════════════════════════ */}
+      <div style={{ zIndex:1, display:"flex", gap:6, alignItems:"center" }}>
         <button onClick={onAdd} className="tap-btn" style={{
-          width:"100%", background:C.card, border:`1.5px solid ${C.accent}35`,
-          borderRadius:14, padding:"12px 16px", cursor:"pointer",
-          display:"flex", alignItems:"center", gap:12,
+          flex:1, background:C.card, border:`1px solid ${C.accent}30`,
+          borderRadius:11, padding:"9px 12px", cursor:"pointer",
+          display:"flex", alignItems:"center", gap:8,
         }}>
-          <div style={{ width:32, height:32, borderRadius:10, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
-            <span style={{ fontSize:16, color:"#fff", fontWeight:800 }}>+</span>
-          </div>
-          <div style={{ textAlign:"left", flex:1 }}>
-            <p style={{ margin:"0 0 1px", fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
-            <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub }}>Tap to log an expense</p>
-          </div>
-          <span style={{ color:C.accent, fontSize:20, opacity:0.5 }}>›</span>
+          <span style={{ fontSize:14, color:C.accent, fontWeight:800, flexShrink:0 }}>+</span>
+          <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.textSub }}>Ano ang ginastos mo?</span>
         </button>
-
-        {/* Quick amount buttons */}
-        <div style={{ display:"flex", gap:6 }}>
-          {[50, 100, 150, 200].map(amt => (
-            <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
-              style={{
-                flex:1, padding:"9px 4px", borderRadius:11,
-                background:C.surface, border:`1px solid ${C.border}`,
-                color:C.textSub, fontSize:12, fontWeight:800,
-                cursor:"pointer", fontFamily:FF, transition:"all 0.15s",
-              }}>
-              ₱{amt}
-            </button>
-          ))}
-          <button onClick={()=>onQuickLog(null, "food")} className="tap-btn"
-            style={{
-              flex:1, padding:"9px 4px", borderRadius:11,
-              background:`${C.accent}10`, border:`1px solid ${C.accent}30`,
-              color:C.accent, fontSize:14, fontWeight:800,
-              cursor:"pointer", fontFamily:FF,
-            }}>
-            🍜
+        {[50,100,200].map(amt=>(
+          <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
+            style={{ padding:"9px 10px", borderRadius:11, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:FF, flexShrink:0 }}>
+            ₱{amt}
           </button>
-        </div>
+        ))}
       </div>
 
       {/* ══ TODAY'S EXPENSES — top 3 ════════════════════════════════════════ */}
@@ -3461,23 +3436,22 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         )}
       </div>
 
-      {/* ══ WALLETS — inline pill row ═══════════════════════════════════════ */}
+      {/* ══ WALLETS — horizontal scroll, never wraps ══════════════════════ */}
       {wallets && wallets.length > 0 && (
         <div style={{ zIndex:1 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
             <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Wallets</p>
             <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FF }}>Manage →</button>
           </div>
-          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:2, scrollbarWidth:"none", WebkitOverflowScrolling:"touch" }}>
             {wallets.map(w=>(
               <button key={w.id} onClick={()=>onWalletTap&&onWalletTap(w.id)} className="tap-btn"
-                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
                 <div style={{ width:18, height:18, borderRadius:5, overflow:"hidden", flexShrink:0 }}><WalletIcon wallet={w} size={18}/></div>
                 <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.text }}>{w.name}</span>
                 <span style={{ fontFamily:FF, fontSize:12, color:hidden?C.textFaint:w.color, fontWeight:800, filter:hidden?"blur(5px)":"none", transition:"filter 0.2s" }}>
                   {hidden ? "••••" : fmt(w.balance)}
                 </span>
-                <span style={{ fontSize:10, color:C.textFaint }}>›</span>
               </button>
             ))}
           </div>
@@ -6323,47 +6297,55 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
           ))}
         </div>
 
-        {/* Google Sign-In button */}
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+        {/* CTAs — Guest first, Google secondary */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
+
+          {/* PRIMARY: Start immediately, no account needed */}
+          <button onClick={onGuest} className="tap-btn" style={{
+            width:"100%", padding:"17px 24px", borderRadius:16,
+            background:C.gradAccent, border:"none",
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+            boxShadow:`0 6px 24px ${C.accentGlow}`,
+          }}>
+            <span style={{ fontSize:20 }}>👤</span>
+            <span style={{ fontSize:15, fontWeight:800, color:"#fff" }}>Start now — no sign-in needed</span>
+          </button>
+
+          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
+            Data saved on this device · no account required
+          </p>
+
+          {/* Divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, margin:"2px 0" }}>
+            <div style={{ flex:1, height:1, background:C.border }}/>
+            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or sync across devices</span>
+            <div style={{ flex:1, height:1, background:C.border }}/>
+          </div>
+
+          {/* SECONDARY: Google sign-in */}
           <button onClick={onLogin} disabled={loading} className="tap-btn"
             style={{
-              width:"100%", padding:"16px 24px", borderRadius:16,
-              background:"#fff", border:"none", cursor:loading?"wait":"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:12,
-              boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
-              transition:"opacity 0.2s",
+              width:"100%", padding:"13px 24px", borderRadius:14,
+              background:C.surface, border:`1px solid ${C.border}`,
+              cursor:loading?"wait":"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+              opacity:loading?0.7:1, transition:"opacity 0.2s",
             }}>
-            {/* Google "G" SVG mark */}
-            <svg width="22" height="22" viewBox="0 0 48 48">
+            <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            <span style={{ fontSize:15, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
+            <span style={{ fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
               {loading ? "Signing in…" : "Continue with Google"}
             </span>
           </button>
 
           {error && (
-            <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
-              {error}
-            </p>
+            <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{error}</p>
           )}
-
-          <button onClick={onGuest} className="tap-btn" style={{
-            width:"100%", padding:"14px 24px", borderRadius:16,
-            background:"none", border:`1px solid ${C.border}`,
-            color:C.textSub, fontSize:13, fontWeight:700,
-            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-            transition:"opacity 0.2s",
-          }}>
-            Use without account
-          </button>
-
-          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Sign in to sync across devices. Guest data stays on this device only.
-          </p>
         </div>
 
       </div>
