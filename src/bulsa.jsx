@@ -4420,7 +4420,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
 
 // ─── UTANG ─────────────────────────────────────────────────────────────────
 
-// ─── UTANG ENTRY SHEET (one loan entry on a person's card) ─────────────────
+// ─── UTANG ENTRY SHEET ──────────────────────────────────────────────────────
 
 // ─── SHARE UTANG CARD ───────────────────────────────────────────────────────
 function shareUtangCard(person, entries, direction) {
@@ -4497,11 +4497,11 @@ function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[]
   };
 
   return (
-    <BottomSheet onClose={onClose} title={entry ? `Edit loan · ${person}` : `New loan · ${person}`}
+    <BottomSheet onClose={onClose} title={entry ? `Edit utang · ${person}` : `Add utang · ${person}`}
       footer={<div style={{ display:"flex", gap:10 }}>
         <Btn variant="outline" onClick={onClose}>Cancel</Btn>
         <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?`linear-gradient(135deg,${color},${color}bb)`:undefined, boxShadow:"none" }}>
-          {entry ? "Save changes" : "Add loan"}
+          {entry ? "Save changes" : "Add utang"}
         </Btn>
       </div>}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -4956,8 +4956,8 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
           <Card style={{ textAlign:"center", padding:"12px 16px" }}>
             <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
               Net: {theyOweTotal>=iOweTotal
-                ?<strong style={{ color:C.green }}>+{fmt(theyOweTotal-iOweTotal)} in your favor 🤑</strong>
-                :<strong style={{ color:C.coral }}>-{fmt(iOweTotal-theyOweTotal)} you owe more 😬</strong>}
+                ?<strong style={{ color:C.green }}>+{fmt(theyOweTotal-iOweTotal)} in your favor 💰</strong>
+                :<strong style={{ color:C.coral }}>-{fmt(iOweTotal-theyOweTotal)} you owe more 🙏</strong>}
             </p>
           </Card>
         )}
@@ -4993,12 +4993,12 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
               {/* Person header */}
               <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:10 }}>
                 <div style={{ width:44, height:44, borderRadius:14, background:u.direction==="iowe"?`${C.coral}15`:`${C.green}12`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
-                  {u.direction==="iowe"?"😬":"🤑"}
+                  {u.direction==="iowe"?"🤝":"💰"}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:"0 0 1px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
                   <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                    {u.direction==="iowe"?"I owe them":"They owe me"} · {entries.length} loan{entries.length!==1?"s":""}
+                    {u.direction==="iowe"?"I owe them":"They owe me"} · {entries.length} utang{entries.length!==1?"s":""}
                   </p>
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -5029,13 +5029,13 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                     const ePaid = (e.payments||[]).reduce((s,p)=>s+p.amount,0);
                     const eRem  = Math.max(e.amount-ePaid,0);
                     const ePct  = Math.min((ePaid/e.amount)*100,100);
-                    const isOpen = expanded[u.id]===e.id;
+                    const isOpen = entries.length===1 || expanded[u.id]===e.id;
                     const overdue = e.dueDate && !e.settled && new Date(e.dueDate)<new Date();
                     return (
                       <div key={e.id} style={{ background:C.bg, borderRadius:12, overflow:"hidden", border:`1px solid ${e.settled?C.border:overdue?C.coral+"40":color+"20"}` }}>
                         {/* Entry summary row — tap to expand */}
-                        <button onClick={()=>toggleEntry(u.id,e.id)} className="tap-btn"
-                          style={{ width:"100%", background:"none", border:"none", padding:"10px 12px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, textAlign:"left" }}>
+                        <button onClick={()=>entries.length>1&&toggleEntry(u.id,e.id)} className="tap-btn"
+                          style={{ width:"100%", background:"none", border:"none", padding:"10px 12px", cursor:entries.length>1?"pointer":"default", display:"flex", alignItems:"center", gap:10, textAlign:"left" }}>
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                               <p style={{ margin:0, fontSize:12, fontWeight:800, color:e.settled?C.textFaint:color, fontFamily:"DM Sans,sans-serif" }}>₱{e.amount.toLocaleString()}</p>
@@ -5128,14 +5128,21 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
 
               {/* Person-level actions */}
               {!u.settled&&(
-                <div style={{ display:"flex", gap:6 }}>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {/* Quick pay — only if there are active entries */}
+                  {entries.filter(e=>!e.settled).length > 0 && (
+                    <button onClick={()=>{ const first=entries.find(e=>!e.settled); if(first) setPaySheet({utang:u,entry:first}); }} className="tap-btn"
+                      style={{ flex:2, background:`${color}18`, border:`1.5px solid ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                      💸 Log payment
+                    </button>
+                  )}
                   <button onClick={()=>setEntrySheet({utangId:u.id,entry:null})} className="tap-btn"
-                    style={{ flex:2, background:`${color}12`, border:`1.5px dashed ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                    ＋ Add loan
+                    style={{ flex:entries.filter(e=>!e.settled).length>0?1:2, background:`${color}12`, border:`1.5px dashed ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                    ＋ Add utang
                   </button>
                   <button onClick={()=>markSettled(u.id)} className="tap-btn"
-                    style={{ flex:1, background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                    ✓ Settle all
+                    style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
+                    ✓
                   </button>
                   <button onClick={()=>shareUtangCard(u.person, u.entries||[], u.direction)} className="tap-btn"
                     style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>📤</button>
@@ -5174,7 +5181,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 <Card key={u.id} animDelay={i*40} style={{ opacity:0.55, border:`1px solid ${C.border}`, marginBottom:8 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                     <div style={{ width:40, height:40, borderRadius:12, background:`${color}10`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                      {u.direction==="iowe"?"😬":"🤑"}
+                      {u.direction==="iowe"?"🤝":"💰"}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
@@ -5217,7 +5224,7 @@ function UtangSheet({ utang, onSave, onClose }) {
           {utang?"Edit this person's name or direction.":"Add the person first, then log their individual loans one by one — each with its own amount, date, reason, and wallet."}
         </p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          {[{val:"iowe",label:"I owe them",emoji:"😬",color:C.coral},{val:"theyowe",label:"They owe me",emoji:"🤑",color:C.green}].map(opt=>(
+          {[{val:"iowe",label:"I owe them",emoji:"🤝",color:C.coral},{val:"theyowe",label:"They owe me",emoji:"💰",color:C.green}].map(opt=>(
             <button key={opt.val} onClick={()=>setDirection(opt.val)} className="tap-btn"
               style={{ padding:"14px 10px", borderRadius:14, border:`2px solid ${direction===opt.val?opt.color+"80":C.border}`, background:direction===opt.val?`${opt.color}12`:C.card, cursor:"pointer", textAlign:"center" }}>
               <p style={{ margin:"0 0 4px", fontSize:22 }}>{opt.emoji}</p>
