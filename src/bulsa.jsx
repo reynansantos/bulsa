@@ -2971,69 +2971,59 @@ function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
 
 
 // ─── RECOMMENDATION ENGINE ──────────────────────────────────────────────────
-function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans }) {
-  const daysLeft   = runway?.daysLeft || 0;
-  const originalDay = runway?.allowedPerDay || dailyLimit || 0;
-  if (!daysLeft || !originalDay) return null;
+function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday }) {
+  const daysLeft    = runway?.daysLeft || 0;
+  const allowedDay  = runway?.allowedPerDay || dailyLimit || 0;
+  const cycleIncome = runway ? Math.floor(walletTotal) : 0;
 
-  // Expected bills before payday (subs + loans)
-  const bills = [
+  // Expected bills before payday — active subs + loan installments due within cycle
+  const expectedBills = [
     ...(subs||[]).filter(s=>s.active!==false&&s.type!=="recurring").map(s=>s.amount||0),
     ...(loans||[]).filter(l=>l.monthlyAmount>0).map(l=>l.monthlyAmount),
   ].reduce((s,a)=>s+a, 0);
 
-  // Recalibrated daily target — remaining balance after today's spend and bills, spread over remaining days
-  const remainingBalance = Math.max((walletTotal||0) - todaySpent - bills, 0);
-  const newDaily = daysLeft > 0 ? Math.floor(remainingBalance / daysLeft) : 0;
+  const projectedBalance = walletTotal - expectedBills;
+  const safePerDay = daysLeft > 0 ? Math.floor(projectedBalance / daysLeft) : 0;
 
-  // How much over or under the original daily target
-  const overBy  = Math.max(todaySpent - originalDay, 0);
-  const underBy = Math.max(originalDay - todaySpent, 0);
-
-  // Projected savings if they maintain newDaily pace
-  const projectedSavings = underBy > 0 ? Math.floor(underBy * daysLeft) : 0;
-
-  if (status === "over") {
-    if (overBy > originalDay * 0.5) {
-      // Significantly over — recalibrate hard
-      return {
-        icon: "💡",
-        text: `You overspent by ₱${overBy.toLocaleString()} today. New target: spend below ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}  to stay on track.`,
-      };
-    } else {
-      // Slightly over — softer nudge with recalibrated target
-      return {
-        icon: "💡",
-        text: `Over by ₱${overBy.toLocaleString()} today. Limit tomorrow to ₱${Math.min(newDaily, originalDay).toLocaleString()} and you'll recover by payday.`,
-      };
+  if (status === "over" || status === "tight") {
+    const overBy = todaySpent - (dailyLimit || allowedDay);
+    if (daysLeft > 0 && allowedDay > 0) {
+      const newDaily = Math.max(Math.floor((walletTotal - todaySpent) / daysLeft), 0);
+      if (overBy > allowedDay * 0.5) {
+        // Significantly over — give specific daily target
+        return {
+          icon: "💡",
+          text: `To stay on track, limit spending to ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}.`,
+        };
+      } else {
+        // Slightly over — one recovery day
+        return {
+          icon: "💡",
+          text: `One low-spend day this week will put you back on track. Target: ₱${newDaily.toLocaleString()} tomorrow.`,
+        };
+      }
     }
-  }
-
-  if (status === "tight") {
-    return {
-      icon: "💡",
-      text: `Getting close to your limit. Keep today under ₱${originalDay.toLocaleString()} — that leaves ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}.`,
-    };
+    return { icon:"💡", text:"Avoid non-essential purchases today. Every peso counts." };
   }
 
   if (status === "peligro") {
     return {
       icon: "⚠️",
-      text: `${daysLeft} day${daysLeft!==1?"s":""} to payday. Keep spending below ₱${newDaily.toLocaleString()}/day. Skip everything non-essential.`,
+      text: `${daysLeft} days to go. Keep daily spending below ₱${safePerDay > 0 ? safePerDay.toLocaleString() : allowedDay.toLocaleString()}. Skip anything that isn't essential.`,
     };
   }
 
   if (status === "good" || status === "zero") {
-    if (underBy > 0 && projectedSavings > 0) {
-      return {
-        icon: "✅",
-        text: `You can spend up to ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}${projectedSavings > 200 ? ` — or save ₱${projectedSavings.toLocaleString()} by payday if you hold the line.` : "."}`,
-      };
+    if (daysLeft > 0 && allowedDay > 0) {
+      const potentialSavings = (allowedDay - todaySpent) * daysLeft;
+      if (potentialSavings > 0) {
+        return {
+          icon: "✅",
+          text: `You're on track. Potential savings by payday: ₱${Math.floor(potentialSavings).toLocaleString()}.`,
+        };
+      }
     }
-    return {
-      icon: "✅",
-      text: `You're on track. ₱${newDaily.toLocaleString()}/day available for the next ${daysLeft} day${daysLeft!==1?"s":""}. Good pace.`,
-    };
+    return { icon:"✅", text:"You're on track. Keep it up." };
   }
 
   return null;
@@ -3162,6 +3152,66 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   }, [hero, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday]);
 
   // ── Projected balance on payday ─────────────────────────────────────────────
+  const projection = useMemo(() => {
+    if (!runway || walletTotal <= 0) return null;
+    const daysLeft = runway.daysLeft;
+    const today    = new Date(); today.setHours(0,0,0,0);
+    const paydayDate = new Date(today);
+    paydayDate.setDate(today.getDate() + daysLeft);
+
+    // Only count subscriptions due STRICTLY BEFORE payday
+    // (on payday itself, salary arrives — those bills are paid from new income)
+    const subsBillsList = (subs||[])
+      .filter(s => {
+        if (s.active === false || !s.dueDate) return false;
+        const due = new Date(s.dueDate + "T00:00:00");
+        return due >= today && due < paydayDate;
+      });
+    const subsBills = subsBillsList.reduce((s, sub) => s + (sub.amount||0), 0);
+
+    // Only count utangs due before payday
+    const utangBillsList = (utangs||[])
+      .filter(u => {
+        if (u.settled || u.direction !== "iowe" || !u.dueDate) return false;
+        const due = new Date(u.dueDate + "T00:00:00");
+        return due >= today && due < paydayDate;
+      });
+    const utangBills = utangBillsList.reduce((s, u) => s + (u.amount||0), 0);
+
+    // Loans due ON payday come out of new salary — exclude entirely
+    // Loans due before payday count
+    const loanBillsList = (loans||[])
+      .filter(l => {
+        if (!l.nextDueDate || !l.monthlyAmount) return false;
+        const due = new Date(l.nextDueDate + "T00:00:00");
+        return due >= today && due < paydayDate;
+      });
+    const loanBills = loanBillsList.reduce((s, l) => s + (l.monthlyAmount||0), 0);
+
+    const expectedBills = subsBills + utangBills + loanBills;
+    const billItems = [
+      ...subsBillsList.map(s => ({ name: s.name, amount: s.amount, type: "sub" })),
+      ...utangBillsList.map(u => ({ name: `Bayad kay ${u.person}`, amount: u.amount, type: "utang" })),
+      ...loanBillsList.map(l => ({ name: l.name, amount: l.monthlyAmount, type: "loan" })),
+    ];
+
+    // Estimated remaining spend using daily LIMIT (not today's spend)
+    // Daily limit is the user's own budget — most accurate pace to project
+    const dailyRate    = dailyLimit > 0 ? dailyLimit : runway.allowedPerDay;
+    const estimatedSpend = dailyRate * daysLeft;
+
+    const projected = Math.floor(walletTotal - expectedBills - estimatedSpend);
+    const shortBy   = projected < 0 ? Math.abs(projected) : 0;
+    const reduceBy  = shortBy > 0 && daysLeft > 0 ? Math.ceil(shortBy / daysLeft) : 0;
+
+    return {
+      projected, shortBy, reduceBy,
+      expectedBills, billItems,
+      estimatedSpend, dailyRate, daysLeft,
+      paydayLabel: runway.label,
+    };
+  }, [runway, walletTotal, subs, loans, utangs, todaySpent, dailyLimit]);
+
   const todayPct = useMemo(() =>
     dailyLimit > 0
       ? Math.min((todaySpent/dailyLimit)*100, 100)
@@ -3294,27 +3344,57 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           </h2>
         </div>
 
-        {/* ── PROGRESS + ONE CONTEXT LINE + STREAK — nothing repeated ── */}
+        {/* ── PROGRESS BAR — visual only, no repeated text labels ── */}
         {hero.status !== "empty" && (dailyLimit > 0 || runway) && (
           <div style={{ position:"relative", zIndex:1, marginBottom:10 }}>
             <Bar pct={todayPct} color={hero.color} h={5}/>
           </div>
         )}
 
+        {/* ── SINGLE CONTEXT LINE + STREAK ── each number appears exactly once ── */}
         <div style={{ position:"relative", zIndex:1, borderTop:`1px solid ${hero.color}15`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <p style={{ margin:0, fontSize:12, color:hero.status==="over"||hero.status==="tight"||hero.status==="peligro"?hero.color:C.textSub, fontFamily:FF, flex:1, fontWeight:hero.status==="over"?700:400, lineHeight:1.4 }}>
+          <p style={{
+            margin:0, fontFamily:FF, flex:1, lineHeight:1.45,
+            fontSize: hero.status==="over" ? 13 : 12,
+            fontWeight: hero.status==="over" ? 700 : 400,
+            color: hero.status==="over" ? C.coral
+                 : hero.status==="tight" ? C.gold
+                 : hero.status==="peligro" ? C.coral
+                 : C.textSub,
+          }}>
             {(()=>{
-              const limit  = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
-              const left   = limit - todaySpent; // negative = over
+              const limit  = dailyLimit > 0 ? dailyLimit : (runway?.allowedPerDay || 0);
               const daysL  = runway?.daysLeft || 0;
-              const payLbl = runway?.label || "payday";
-              if (hero.status === "empty") return "Tap + to log your first expense";
-              if (limit === 0) return daysL > 0 ? `${daysL} days remaining until ${payLbl}` : "";
-              const leftStr = left >= 0
-                ? `₱${Math.round(left).toLocaleString()} left out of ₱${Math.round(limit).toLocaleString()} daily limit`
-                : `-₱${Math.round(Math.abs(left)).toLocaleString()} left out of ₱${Math.round(limit).toLocaleString()} daily limit`;
-              const daysStr = daysL > 0 ? `${daysL} day${daysL!==1?"s":""} remaining until ${payLbl}` : "";
-              return [leftStr, daysStr].filter(Boolean).join(" · ");
+              const payLbl = runway?.label || "";
+              const bal    = walletTotal !== null ? walletTotal : balance;
+
+              if (hero.status === "over") {
+                const overBy    = Math.max(todaySpent - limit, 0);
+                // New recommended: spread remaining balance over days left
+                const newPerDay = daysL > 0 ? Math.max(Math.floor(bal / daysL), 0) : 0;
+                return `Over by ${fmt(overBy)} today · ${daysL}d left · recommended ${fmt(newPerDay)}/day`;
+              }
+              if (hero.status === "tight") {
+                const left = Math.max(limit - todaySpent, 0);
+                return `${fmt(left)} left today · ${daysL}d to ${payLbl} · mag-ingat`;
+              }
+              if (hero.status === "peligro") {
+                const left = Math.max(limit - todaySpent, 0);
+                return `${daysL}d to payday · ${fmt(left)} left today`;
+              }
+              if (hero.status === "zero") {
+                return limit > 0
+                  ? `${fmt(limit)} to spend today · ${daysL}d to ${payLbl}`
+                  : daysL > 0 ? `${daysL}d to ${payLbl}` : "Nothing logged yet today";
+              }
+              if (hero.status === "empty") {
+                return "Tap + to log your first expense";
+              }
+              // ok
+              const left = Math.max(limit - todaySpent, 0);
+              return limit > 0
+                ? `${fmt(left)} left today · ${daysL}d to ${payLbl}`
+                : daysL > 0 ? `${daysL}d to ${payLbl}` : `${fmt(bal)} available`;
             })()}
           </p>
           {budgetStreak !== null && budgetStreak > 0 && (
@@ -3324,108 +3404,70 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             </div>
           )}
         </div>
-
-        {/* 💡 Recommendation — inside the hero card, no extra card needed */}
-        {(()=>{
-          const limit    = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
-          const daysL    = runway?.daysLeft || 0;
-          if (!limit || !daysL || hero.status === "empty") return null;
-          const overBy   = todaySpent - limit;
-          const walBal   = walletTotal || balance || 0;
-          if (hero.status === "over" && overBy > limit * 0.3) {
-            // Significantly over — give adjusted daily target
-            const newTarget = Math.max(Math.floor((walBal - todaySpent) / daysL), 0);
-            return (
-              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.coral}25` }}>
-                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.coral, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
-                  To stay on track, limit spending to <strong style={{ color:C.coral }}>₱{newTarget.toLocaleString()}/day</strong> for the next {daysL} days.
-                </p>
-              </div>
-            );
-          }
-          if (hero.status === "over" && overBy <= limit * 0.3) {
-            // Slightly over
-            return (
-              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.gold}25` }}>
-                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.gold, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
-                  One low-spend day this week will put you back on track.
-                </p>
-              </div>
-            );
-          }
-          if (hero.status === "peligro" || (walBal > 0 && daysL > 0 && Math.floor(walBal/daysL) < limit * 0.5)) {
-            // Danger zone
-            const safePerDay = Math.max(Math.floor(walBal / daysL), 0);
-            return (
-              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.coral}25` }}>
-                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.coral, fontFamily:FF, letterSpacing:"0.04em" }}>⚠️ RECOMMENDATION</p>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
-                  Keep spending below <strong style={{ color:C.coral }}>₱{safePerDay.toLocaleString()}/day</strong>. Avoid non-essential purchases.
-                </p>
-              </div>
-            );
-          }
-          if ((hero.status === "ok" || hero.status === "zero") && todaySpent <= limit) {
-            // On track
-            const projectedSavings = Math.floor((limit - todaySpent) * daysL);
-            if (projectedSavings <= 0) return null;
-            return (
-              <div style={{ marginTop:10, background:"rgba(0,0,0,0.2)", borderRadius:12, padding:"10px 14px", borderTop:`1px solid ${C.green}25` }}>
-                <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:C.green, fontFamily:FF, letterSpacing:"0.04em" }}>💡 RECOMMENDATION</p>
-                <p style={{ margin:0, fontSize:13, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
-                  You're on track. Potential savings by payday: <strong style={{ color:C.green }}>₱{projectedSavings.toLocaleString()}</strong>
-                </p>
-              </div>
-            );
-          }
-          return null;
-        })()}
       </div>
 
-      {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
-      <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
-        {/* Main log button */}
-        <button onClick={onAdd} className="tap-btn" style={{
-          width:"100%", background:C.card, border:`1.5px solid ${C.accent}35`,
-          borderRadius:14, padding:"12px 16px", cursor:"pointer",
-          display:"flex", alignItems:"center", gap:12,
-        }}>
-          <div style={{ width:32, height:32, borderRadius:10, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
-            <span style={{ fontSize:16, color:"#fff", fontWeight:800 }}>+</span>
+      {/* ══ PROJECTED ON PAYDAY ═════════════════════════════════════════════ */}
+      {projection && (
+        <div style={{ background: projection.shortBy > 0 ? `${C.coral}0C` : `${C.green}0C`, border:`1.5px solid ${projection.shortBy>0?C.coral+"35":C.green+"35"}`, borderRadius:18, padding:"16px 18px", zIndex:1 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+            <div>
+              <p style={{ margin:"0 0 2px", fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>
+                Projected on {projection.paydayLabel}
+              </p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>
+                After bills & estimated spend
+              </p>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <p style={{ margin:"0 0 1px", fontSize:22, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FF, letterSpacing:"-0.02em" }}>
+                {projection.shortBy > 0 ? `-₱${projection.shortBy.toLocaleString()}` : `₱${projection.projected.toLocaleString()}`}
+              </p>
+              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>
+                {projection.shortBy > 0 ? "short" : "remaining"}
+              </p>
+            </div>
           </div>
-          <div style={{ textAlign:"left", flex:1 }}>
-            <p style={{ margin:"0 0 1px", fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
-            <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub }}>Tap to log an expense</p>
-          </div>
-          <span style={{ color:C.accent, fontSize:20, opacity:0.5 }}>›</span>
-        </button>
 
-        {/* Quick amount buttons */}
-        <div style={{ display:"flex", gap:6 }}>
-          {[50, 100, 150, 200].map(amt => (
-            <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
-              style={{
-                flex:1, padding:"9px 4px", borderRadius:11,
-                background:C.surface, border:`1px solid ${C.border}`,
-                color:C.textSub, fontSize:12, fontWeight:800,
-                cursor:"pointer", fontFamily:FF, transition:"all 0.15s",
-              }}>
-              ₱{amt}
-            </button>
-          ))}
-          <button onClick={()=>onQuickLog(null, "food")} className="tap-btn"
-            style={{
-              flex:1, padding:"9px 4px", borderRadius:11,
-              background:`${C.accent}10`, border:`1px solid ${C.accent}30`,
-              color:C.accent, fontSize:14, fontWeight:800,
-              cursor:"pointer", fontFamily:FF,
-            }}>
-            🍜
-          </button>
+          {/* Itemized breakdown */}
+          <div style={{ display:"flex", flexDirection:"column", gap:5, borderTop:`1px solid ${projection.shortBy>0?C.coral+"20":C.green+"20"}`, paddingTop:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>💰 Current cash</span>
+              <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:FF }}>₱{Math.floor(walletTotal).toLocaleString()}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>📅 ₱{projection.dailyRate.toLocaleString()}/day × {projection.daysLeft}d</span>
+              <span style={{ fontSize:12, fontWeight:700, color:C.coral, fontFamily:FF }}>−₱{projection.estimatedSpend.toLocaleString()}</span>
+            </div>
+            {(projection.billItems||[]).map((item,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>
+                  {item.type==="sub"?"📱":item.type==="utang"?"🤝":"🏦"} {item.name}
+                </span>
+                <span style={{ fontSize:12, fontWeight:700, color:C.coral, fontFamily:FF }}>−₱{item.amount.toLocaleString()}</span>
+              </div>
+            ))}
+            {projection.billItems && projection.billItems.length===0 && (
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:12, color:C.textSub, fontFamily:FF }}>📋 Bills before payday</span>
+                <span style={{ fontSize:12, fontWeight:700, color:C.green, fontFamily:FF }}>Wala</span>
+              </div>
+            )}
+          </div>
+
+          {projection.shortBy > 0 && projection.reduceBy > 0 && (
+            <div style={{ marginTop:10, background:`${C.coral}12`, borderRadius:10, padding:"8px 12px" }}>
+              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF, lineHeight:1.6 }}>
+                ⚠️ Reduce spending by <strong style={{ color:C.coral }}>₱{projection.reduceBy.toLocaleString()}/day</strong> to avoid running short.
+              </p>
+            </div>
+          )}
+          {projection.shortBy===0 && (
+            <div style={{ marginTop:10, background:`${C.green}10`, borderRadius:10, padding:"8px 12px" }}>
+              <p style={{ margin:0, fontSize:12, color:C.text, fontFamily:FF }}>✅ You're on track to reach payday with money left.</p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* ══ TODAY'S EXPENSES — top 3 ════════════════════════════════════════ */}
       <div style={{ zIndex:1 }}>
@@ -3478,13 +3520,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
             <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Wallets</p>
             <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FF }}>Manage →</button>
           </div>
-          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:2,
+            scrollbarWidth:"none", msOverflowStyle:"none",
+            WebkitOverflowScrolling:"touch" }}>
             {wallets.map(w=>(
               <button key={w.id} onClick={()=>onWalletTap&&onWalletTap(w.id)} className="tap-btn"
-                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, background:C.card,
+                  border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px",
+                  cursor:"pointer", flexShrink:0 }}>
                 <div style={{ width:18, height:18, borderRadius:5, overflow:"hidden", flexShrink:0 }}><WalletIcon wallet={w} size={18}/></div>
-                <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.text }}>{w.name}</span>
-                <span style={{ fontFamily:FF, fontSize:12, color:hidden?C.textFaint:w.color, fontWeight:800, filter:hidden?"blur(5px)":"none", transition:"filter 0.2s" }}>
+                <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.text, whiteSpace:"nowrap" }}>{w.name}</span>
+                <span style={{ fontFamily:FF, fontSize:12, color:hidden?C.textFaint:w.color, fontWeight:800, filter:hidden?"blur(5px)":"none", transition:"filter 0.2s", whiteSpace:"nowrap" }}>
                   {hidden ? "••••" : fmt(w.balance)}
                 </span>
                 <span style={{ fontSize:10, color:C.textFaint }}>›</span>
@@ -6333,25 +6379,51 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
           ))}
         </div>
 
-        {/* Google Sign-In button */}
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+        {/* Buttons — guest first, Google second */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
+
+          {/* PRIMARY: Start without account */}
+          <button onClick={onGuest} className="tap-btn" style={{
+            width:"100%", padding:"16px 24px", borderRadius:16,
+            background:C.gradAccent, border:"none",
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+            boxShadow:`0 4px 20px ${C.accentGlow}`, transition:"opacity 0.2s",
+          }}>
+            <span style={{ fontSize:18 }}>🔒</span>
+            <span style={{ fontSize:15, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>
+              Start tracking — no account needed
+            </span>
+          </button>
+
+          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif", lineHeight:1.5 }}>
+            Private by default. Data stays on this device.
+          </p>
+
+          {/* Divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, height:"0.5px", background:C.border }}/>
+            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or back up to cloud</span>
+            <div style={{ flex:1, height:"0.5px", background:C.border }}/>
+          </div>
+
+          {/* SECONDARY: Google sign-in */}
           <button onClick={onLogin} disabled={loading} className="tap-btn"
             style={{
-              width:"100%", padding:"16px 24px", borderRadius:16,
-              background:"#fff", border:"none", cursor:loading?"wait":"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:12,
-              boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
-              transition:"opacity 0.2s",
+              width:"100%", padding:"13px 24px", borderRadius:14,
+              background:C.surface, border:`1px solid ${C.border}`,
+              cursor:loading?"wait":"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+              opacity:loading?0.7:1, transition:"opacity 0.2s",
             }}>
-            {/* Google "G" SVG mark */}
-            <svg width="22" height="22" viewBox="0 0 48 48">
+            <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            <span style={{ fontSize:15, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
-              {loading ? "Signing in…" : "Continue with Google"}
+            <span style={{ fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+              {loading ? "Signing in…" : "Sign in with Google"}
             </span>
           </button>
 
@@ -6360,20 +6432,6 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
               {error}
             </p>
           )}
-
-          <button onClick={onGuest} className="tap-btn" style={{
-            width:"100%", padding:"14px 24px", borderRadius:16,
-            background:"none", border:`1px solid ${C.border}`,
-            color:C.textSub, fontSize:13, fontWeight:700,
-            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-            transition:"opacity 0.2s",
-          }}>
-            Use without account
-          </button>
-
-          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-            Sign in to sync across devices. Guest data stays on this device only.
-          </p>
         </div>
 
       </div>
