@@ -4628,13 +4628,6 @@ function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[]
             </div>
           )}
         </div>
-
-        <div style={{ display:"flex", gap:10 }}>
-          <Btn variant="outline" onClick={onClose}>Cancel</Btn>
-          <Btn onClick={save} style={{ opacity:valid?1:0.4, background:valid?`linear-gradient(135deg,${color},${color}bb)`:undefined, boxShadow:"none" }}>
-            {entry ? "Save changes" : "Add loan"}
-          </Btn>
-        </div>
       </div>
     </BottomSheet>
   );
@@ -4839,7 +4832,46 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   };
 
   const deleteUtang  = id  => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
-  const markSettled  = id  => setUtangs(prev=>prev.map(x=>x.id===id?{...x,settled:!x.settled,settledAt:!x.settled?new Date().toISOString():null}:x));
+  const markSettled = (id) => {
+    const u = utangs.find(x => x.id === id);
+    if (!u) return;
+
+    const isSettling = !u.settled;
+
+    if (isSettling) {
+      // Calculate how much is still unpaid across all entries
+      const remaining = (u.entries||[])
+        .filter(e => !e.settled)
+        .reduce((s, e) => {
+          const paid = (e.payments||[]).reduce((ps, p) => ps + p.amount, 0);
+          return s + Math.max(e.amount - paid, 0);
+        }, 0);
+
+      if (remaining > 0) {
+        // Find most recently used wallet across all entries and payments
+        const allWalletIds = (u.entries||[]).flatMap(e =>
+          [...(e.payments||[]).map(p => p.walletId), e.walletId]
+        ).filter(Boolean);
+        const walletId = allWalletIds[allWalletIds.length - 1] || wallets[0]?.id;
+
+        if (walletId) {
+          if (u.direction === "theyowe") {
+            // They paid you back — add to your wallet
+            adjustWallet(walletId, +remaining);
+          } else {
+            // You paid them — deduct from your wallet
+            adjustWallet(walletId, -remaining);
+          }
+        }
+      }
+    }
+
+    setUtangs(prev => prev.map(x =>
+      x.id === id
+        ? { ...x, settled: !x.settled, settledAt: !x.settled ? new Date().toISOString() : null }
+        : x
+    ));
+  };
   const deleteEntry  = (utangId,entryId) => setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
 
   // Derived totals — entries-aware
