@@ -2971,59 +2971,69 @@ function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
 
 
 // ─── RECOMMENDATION ENGINE ──────────────────────────────────────────────────
-function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday }) {
-  const daysLeft    = runway?.daysLeft || 0;
-  const allowedDay  = runway?.allowedPerDay || dailyLimit || 0;
-  const cycleIncome = runway ? Math.floor(walletTotal) : 0;
+function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans }) {
+  const daysLeft   = runway?.daysLeft || 0;
+  const originalDay = runway?.allowedPerDay || dailyLimit || 0;
+  if (!daysLeft || !originalDay) return null;
 
-  // Expected bills before payday — active subs + loan installments due within cycle
-  const expectedBills = [
+  // Expected bills before payday (subs + loans)
+  const bills = [
     ...(subs||[]).filter(s=>s.active!==false&&s.type!=="recurring").map(s=>s.amount||0),
     ...(loans||[]).filter(l=>l.monthlyAmount>0).map(l=>l.monthlyAmount),
   ].reduce((s,a)=>s+a, 0);
 
-  const projectedBalance = walletTotal - expectedBills;
-  const safePerDay = daysLeft > 0 ? Math.floor(projectedBalance / daysLeft) : 0;
+  // Recalibrated daily target — remaining balance after today's spend and bills, spread over remaining days
+  const remainingBalance = Math.max((walletTotal||0) - todaySpent - bills, 0);
+  const newDaily = daysLeft > 0 ? Math.floor(remainingBalance / daysLeft) : 0;
 
-  if (status === "over" || status === "tight") {
-    const overBy = todaySpent - (dailyLimit || allowedDay);
-    if (daysLeft > 0 && allowedDay > 0) {
-      const newDaily = Math.max(Math.floor((walletTotal - todaySpent) / daysLeft), 0);
-      if (overBy > allowedDay * 0.5) {
-        // Significantly over — give specific daily target
-        return {
-          icon: "💡",
-          text: `To stay on track, limit spending to ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}.`,
-        };
-      } else {
-        // Slightly over — one recovery day
-        return {
-          icon: "💡",
-          text: `One low-spend day this week will put you back on track. Target: ₱${newDaily.toLocaleString()} tomorrow.`,
-        };
-      }
+  // How much over or under the original daily target
+  const overBy  = Math.max(todaySpent - originalDay, 0);
+  const underBy = Math.max(originalDay - todaySpent, 0);
+
+  // Projected savings if they maintain newDaily pace
+  const projectedSavings = underBy > 0 ? Math.floor(underBy * daysLeft) : 0;
+
+  if (status === "over") {
+    if (overBy > originalDay * 0.5) {
+      // Significantly over — recalibrate hard
+      return {
+        icon: "💡",
+        text: `You overspent by ₱${overBy.toLocaleString()} today. New target: spend below ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}  to stay on track.`,
+      };
+    } else {
+      // Slightly over — softer nudge with recalibrated target
+      return {
+        icon: "💡",
+        text: `Over by ₱${overBy.toLocaleString()} today. Limit tomorrow to ₱${Math.min(newDaily, originalDay).toLocaleString()} and you'll recover by payday.`,
+      };
     }
-    return { icon:"💡", text:"Avoid non-essential purchases today. Every peso counts." };
+  }
+
+  if (status === "tight") {
+    return {
+      icon: "💡",
+      text: `Getting close to your limit. Keep today under ₱${originalDay.toLocaleString()} — that leaves ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}.`,
+    };
   }
 
   if (status === "peligro") {
     return {
       icon: "⚠️",
-      text: `${daysLeft} days to go. Keep daily spending below ₱${safePerDay > 0 ? safePerDay.toLocaleString() : allowedDay.toLocaleString()}. Skip anything that isn't essential.`,
+      text: `${daysLeft} day${daysLeft!==1?"s":""} to payday. Keep spending below ₱${newDaily.toLocaleString()}/day. Skip everything non-essential.`,
     };
   }
 
   if (status === "good" || status === "zero") {
-    if (daysLeft > 0 && allowedDay > 0) {
-      const potentialSavings = (allowedDay - todaySpent) * daysLeft;
-      if (potentialSavings > 0) {
-        return {
-          icon: "✅",
-          text: `You're on track. Potential savings by payday: ₱${Math.floor(potentialSavings).toLocaleString()}.`,
-        };
-      }
+    if (underBy > 0 && projectedSavings > 0) {
+      return {
+        icon: "✅",
+        text: `You can spend up to ₱${newDaily.toLocaleString()}/day for the next ${daysLeft} day${daysLeft!==1?"s":""}${projectedSavings > 200 ? ` — or save ₱${projectedSavings.toLocaleString()} by payday if you hold the line.` : "."}`,
+      };
     }
-    return { icon:"✅", text:"You're on track. Keep it up." };
+    return {
+      icon: "✅",
+      text: `You're on track. ₱${newDaily.toLocaleString()}/day available for the next ${daysLeft} day${daysLeft!==1?"s":""}. Good pace.`,
+    };
   }
 
   return null;
@@ -3374,22 +3384,47 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         })()}
       </div>
 
-      {/* ══ QUICK LOG — compact strip ════════════════════════════════════ */}
-      <div style={{ zIndex:1, display:"flex", gap:6, alignItems:"center" }}>
+      {/* ══ QUICK LOG ══════════════════════════════════════════════════════ */}
+      <div style={{ zIndex:1, display:"flex", flexDirection:"column", gap:8 }}>
+        {/* Main log button */}
         <button onClick={onAdd} className="tap-btn" style={{
-          flex:1, background:C.card, border:`1px solid ${C.accent}30`,
-          borderRadius:11, padding:"9px 12px", cursor:"pointer",
-          display:"flex", alignItems:"center", gap:8,
+          width:"100%", background:C.card, border:`1.5px solid ${C.accent}35`,
+          borderRadius:14, padding:"12px 16px", cursor:"pointer",
+          display:"flex", alignItems:"center", gap:12,
         }}>
-          <span style={{ fontSize:14, color:C.accent, fontWeight:800, flexShrink:0 }}>+</span>
-          <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.textSub }}>Ano ang ginastos mo?</span>
+          <div style={{ width:32, height:32, borderRadius:10, background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 4px 12px ${C.accentGlow}` }}>
+            <span style={{ fontSize:16, color:"#fff", fontWeight:800 }}>+</span>
+          </div>
+          <div style={{ textAlign:"left", flex:1 }}>
+            <p style={{ margin:"0 0 1px", fontFamily:FF, fontSize:14, fontWeight:800, color:C.text }}>Ano ang ginastos mo?</p>
+            <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub }}>Tap to log an expense</p>
+          </div>
+          <span style={{ color:C.accent, fontSize:20, opacity:0.5 }}>›</span>
         </button>
-        {[50,100,200].map(amt=>(
-          <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
-            style={{ padding:"9px 10px", borderRadius:11, background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:FF, flexShrink:0 }}>
-            ₱{amt}
+
+        {/* Quick amount buttons */}
+        <div style={{ display:"flex", gap:6 }}>
+          {[50, 100, 150, 200].map(amt => (
+            <button key={amt} onClick={()=>onQuickLog(amt)} className="tap-btn"
+              style={{
+                flex:1, padding:"9px 4px", borderRadius:11,
+                background:C.surface, border:`1px solid ${C.border}`,
+                color:C.textSub, fontSize:12, fontWeight:800,
+                cursor:"pointer", fontFamily:FF, transition:"all 0.15s",
+              }}>
+              ₱{amt}
+            </button>
+          ))}
+          <button onClick={()=>onQuickLog(null, "food")} className="tap-btn"
+            style={{
+              flex:1, padding:"9px 4px", borderRadius:11,
+              background:`${C.accent}10`, border:`1px solid ${C.accent}30`,
+              color:C.accent, fontSize:14, fontWeight:800,
+              cursor:"pointer", fontFamily:FF,
+            }}>
+            🍜
           </button>
-        ))}
+        </div>
       </div>
 
       {/* ══ TODAY'S EXPENSES — top 3 ════════════════════════════════════════ */}
@@ -3436,22 +3471,23 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         )}
       </div>
 
-      {/* ══ WALLETS — horizontal scroll, never wraps ══════════════════════ */}
+      {/* ══ WALLETS — inline pill row ═══════════════════════════════════════ */}
       {wallets && wallets.length > 0 && (
         <div style={{ zIndex:1 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
             <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FF }}>Wallets</p>
             <button onClick={()=>setScreen("accounts")} style={{ background:"none", border:"none", color:C.accent, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FF }}>Manage →</button>
           </div>
-          <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:2, scrollbarWidth:"none", WebkitOverflowScrolling:"touch" }}>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
             {wallets.map(w=>(
               <button key={w.id} onClick={()=>onWalletTap&&onWalletTap(w.id)} className="tap-btn"
-                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1.5px solid ${w.color}40`, borderRadius:99, padding:"7px 13px", cursor:"pointer" }}>
                 <div style={{ width:18, height:18, borderRadius:5, overflow:"hidden", flexShrink:0 }}><WalletIcon wallet={w} size={18}/></div>
                 <span style={{ fontFamily:FF, fontSize:12, fontWeight:700, color:C.text }}>{w.name}</span>
                 <span style={{ fontFamily:FF, fontSize:12, color:hidden?C.textFaint:w.color, fontWeight:800, filter:hidden?"blur(5px)":"none", transition:"filter 0.2s" }}>
                   {hidden ? "••••" : fmt(w.balance)}
                 </span>
+                <span style={{ fontSize:10, color:C.textFaint }}>›</span>
               </button>
             ))}
           </div>
@@ -6297,55 +6333,47 @@ function LoginScreen({ onLogin, onGuest, loading, error }) {
           ))}
         </div>
 
-        {/* CTAs — Guest first, Google secondary */}
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
-
-          {/* PRIMARY: Start immediately, no account needed */}
-          <button onClick={onGuest} className="tap-btn" style={{
-            width:"100%", padding:"17px 24px", borderRadius:16,
-            background:C.gradAccent, border:"none",
-            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-            boxShadow:`0 6px 24px ${C.accentGlow}`,
-          }}>
-            <span style={{ fontSize:20 }}>👤</span>
-            <span style={{ fontSize:15, fontWeight:800, color:"#fff" }}>Start now — no sign-in needed</span>
-          </button>
-
-          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>
-            Data saved on this device · no account required
-          </p>
-
-          {/* Divider */}
-          <div style={{ display:"flex", alignItems:"center", gap:10, margin:"2px 0" }}>
-            <div style={{ flex:1, height:1, background:C.border }}/>
-            <span style={{ fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>or sync across devices</span>
-            <div style={{ flex:1, height:1, background:C.border }}/>
-          </div>
-
-          {/* SECONDARY: Google sign-in */}
+        {/* Google Sign-In button */}
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
           <button onClick={onLogin} disabled={loading} className="tap-btn"
             style={{
-              width:"100%", padding:"13px 24px", borderRadius:14,
-              background:C.surface, border:`1px solid ${C.border}`,
-              cursor:loading?"wait":"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-              opacity:loading?0.7:1, transition:"opacity 0.2s",
+              width:"100%", padding:"16px 24px", borderRadius:16,
+              background:"#fff", border:"none", cursor:loading?"wait":"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+              boxShadow:"0 2px 16px rgba(0,0,0,0.25)", opacity:loading?0.7:1,
+              transition:"opacity 0.2s",
             }}>
-            <svg width="18" height="18" viewBox="0 0 48 48">
+            {/* Google "G" SVG mark */}
+            <svg width="22" height="22" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            <span style={{ fontSize:13, fontWeight:700, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+            <span style={{ fontSize:15, fontWeight:800, color:"#111", fontFamily:"DM Sans,sans-serif" }}>
               {loading ? "Signing in…" : "Continue with Google"}
             </span>
           </button>
 
           {error && (
-            <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>{error}</p>
+            <p style={{ margin:0, textAlign:"center", fontSize:12, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>
+              {error}
+            </p>
           )}
+
+          <button onClick={onGuest} className="tap-btn" style={{
+            width:"100%", padding:"14px 24px", borderRadius:16,
+            background:"none", border:`1px solid ${C.border}`,
+            color:C.textSub, fontSize:13, fontWeight:700,
+            cursor:"pointer", fontFamily:"DM Sans,sans-serif",
+            transition:"opacity 0.2s",
+          }}>
+            Use without account
+          </button>
+
+          <p style={{ margin:0, textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+            Sign in to sync across devices. Guest data stays on this device only.
+          </p>
         </div>
 
       </div>
