@@ -4764,87 +4764,6 @@ function LoanEntryPaymentSheet({ entry, person, direction, onSave, onClose, wall
 
 // ─── UTANG SCREEN ───────────────────────────────────────────────────────────
 
-
-// ─── SWIPE TO DELETE ────────────────────────────────────────────────────────
-function SwipeToDelete({ onDelete, children, disabled=false }) {
-  const [dx,        setDx]        = useState(0);
-  const [swiping,   setSwiping]   = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
-  const startX  = useRef(null);
-  const THRESHOLD = 80; // px to trigger reveal
-  const DELETE_AT = 160; // px to auto-delete
-
-  const onTouchStart = e => {
-    if (disabled) return;
-    startX.current = e.touches[0].clientX;
-    setSwiping(true);
-    setConfirmed(false);
-  };
-
-  const onTouchMove = e => {
-    if (startX.current === null || disabled) return;
-    const diff = startX.current - e.touches[0].clientX;
-    if (diff < 0) { setDx(0); return; } // only left swipe
-    setDx(Math.min(diff, DELETE_AT + 20));
-  };
-
-  const onTouchEnd = () => {
-    if (disabled) return;
-    setSwiping(false);
-    startX.current = null;
-    if (dx >= DELETE_AT) {
-      // Auto-delete
-      onDelete();
-      setDx(0);
-    } else if (dx >= THRESHOLD) {
-      // Snap to reveal delete button
-      setDx(THRESHOLD);
-      setConfirmed(true);
-    } else {
-      setDx(0);
-      setConfirmed(false);
-    }
-  };
-
-  const reset = () => { setDx(0); setConfirmed(false); };
-
-  return (
-    <div style={{ position:"relative", overflow:"hidden", borderRadius:18 }}>
-      {/* Red delete reveal behind the card */}
-      <div style={{
-        position:"absolute", top:0, right:0, bottom:0,
-        width: THRESHOLD + 20,
-        background: C.coral,
-        display:"flex", alignItems:"center", justifyContent:"center",
-        borderRadius:"0 18px 18px 0",
-        flexDirection:"column", gap:4,
-      }}>
-        <span style={{ fontSize:20 }}>🗑</span>
-        <span style={{ fontSize:10, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif" }}>
-          {dx >= DELETE_AT ? "Release!" : "Delete"}
-        </span>
-      </div>
-      {/* The card itself — slides left */}
-      <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        style={{
-          transform:`translateX(-${dx}px)`,
-          transition: swiping ? "none" : "transform 0.25s ease",
-          position:"relative", zIndex:1,
-        }}
-      >
-        {children}
-        {/* Tap anywhere on card to reset when revealed */}
-        {confirmed && (
-          <div onClick={reset} style={{ position:"absolute", inset:0, zIndex:2, cursor:"pointer" }}/>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets }) {
   const [utangTab,   setUtangTab]   = useState("personal");
   const fmt = useFmt();
@@ -5069,8 +4988,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
           const totalPaid     = entries.reduce((s,e)=>(e.payments||[]).reduce((ss,p)=>ss+p.amount,0)+s,0);
           const pct           = totalBorrowed>0?Math.min((totalPaid/totalBorrowed)*100,100):0;
           return (
-            <SwipeToDelete key={u.id} onDelete={()=>deleteUtang(u.id)} disabled={!!u.settled}>
-            <Card animDelay={i*40} style={{ opacity:u.settled?0.65:1, border:`1.5px solid ${u.settled?C.border:color+"40"}` }}>
+            <Card key={u.id} animDelay={i*40} style={{ opacity:u.settled?0.65:1, border:`1.5px solid ${u.settled?C.border:color+"40"}` }}>
 
               {/* Person header */}
               <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:10 }}>
@@ -5208,40 +5126,33 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 <p style={{ margin:"0 0 10px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>No loans yet — tap below to add one</p>
               )}
 
-              {/* Person-level actions */}
+              {/* Person-level actions — max 4, all labelled */}
               {!u.settled&&(
-                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                  {/* Quick pay — only if there are active entries */}
-                  {entries.filter(e=>!e.settled).length > 0 && (
-                    <button onClick={()=>{ const first=entries.find(e=>!e.settled); if(first) setPaySheet({utang:u,entry:first}); }} className="tap-btn"
-                      style={{ flex:2, background:`${color}18`, border:`1.5px solid ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                      💸 Log payment
-                    </button>
-                  )}
-                  <button onClick={()=>setEntrySheet({utangId:u.id,entry:null})} className="tap-btn"
-                    style={{ flex:entries.filter(e=>!e.settled).length>0?1:2, background:`${color}12`, border:`1.5px dashed ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                    ＋ Add utang
+                <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:6 }}>
+                  {/* Primary: Log payment */}
+                  <button onClick={()=>{ const first=entries.find(e=>!e.settled); if(first) setPaySheet({utang:u,entry:first}); }} className="tap-btn"
+                    style={{ background:`${color}18`, border:`1.5px solid ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:5, opacity:entries.filter(e=>!e.settled).length>0?1:0.35 }}>
+                    💸 Log payment
                   </button>
+                  {/* Settle */}
                   <button onClick={()=>markSettled(u.id)} className="tap-btn"
-                    style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700 }}>
-                    ✓
+                    style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                    ✓ Settle
                   </button>
-                  <button onClick={()=>shareUtangCard(u.person, u.entries||[], u.direction)} className="tap-btn"
-                    style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>📤</button>
+                  {/* Edit */}
                   <button onClick={()=>setSheet(u)} className="tap-btn"
-                    style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12 }}>✎</button>
-                  {confirm===u.id?(
-                    <button onClick={()=>deleteUtang(u.id)} className="tap-btn"
-                      style={{ background:C.coral, border:"none", borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
-                  ):(
-                    <button onClick={()=>setConfirm(u.id)} className="tap-btn"
-                      style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>🗑</button>
-                  )}
+                    style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                    ✎ Edit
+                  </button>
+                  {/* Delete */}
+                  <button onClick={()=>setConfirm(confirm===u.id?null:u.id)} className="tap-btn"
+                    style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                    🗑 Delete
+                  </button>
                 </div>
               )}
 
             </Card>
-            </SwipeToDelete>
           );
         })}
 
