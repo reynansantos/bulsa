@@ -5096,23 +5096,7 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                                 ))}
                               </div>
                             )}
-                            {/* Entry actions */}
-                            {!e.settled&&(
-                              <div style={{ display:"flex", gap:6 }}>
-                                <button onClick={()=>setPaySheet({utang:u,entry:e})} className="tap-btn"
-                                  style={{ flex:2, background:`${color}15`, border:`1px solid ${color}40`, color, borderRadius:9, padding:"8px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
-                                  💸 Log payment
-                                </button>
-                                <button onClick={()=>setEntrySheet({utangId:u.id,entry:e})} className="tap-btn"
-                                  style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif" }}>
-                                  ✎
-                                </button>
-                                <button onClick={()=>deleteEntry(u.id,e.id)} className="tap-btn"
-                                  style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"8px 10px", cursor:"pointer", fontSize:12 }}>
-                                  🗑
-                                </button>
-                              </div>
-                            )}
+
                           </div>
                         )}
                       </div>
