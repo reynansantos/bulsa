@@ -5096,7 +5096,23 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                                 ))}
                               </div>
                             )}
-
+                            {/* Entry actions */}
+                            {!e.settled&&(
+                              <div style={{ display:"flex", gap:6 }}>
+                                <button onClick={()=>setPaySheet({utang:u,entry:e})} className="tap-btn"
+                                  style={{ flex:2, background:`${color}15`, border:`1px solid ${color}40`, color, borderRadius:9, padding:"8px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800 }}>
+                                  💸 Log payment
+                                </button>
+                                <button onClick={()=>setEntrySheet({utangId:u.id,entry:e})} className="tap-btn"
+                                  style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"8px 11px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif" }}>
+                                  ✎
+                                </button>
+                                <button onClick={()=>deleteEntry(u.id,e.id)} className="tap-btn"
+                                  style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:9, padding:"8px 10px", cursor:"pointer", fontSize:12 }}>
+                                  🗑
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -5132,13 +5148,27 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                     style={{ background:`${C.sky}14`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>📤</button>
                   <button onClick={()=>setSheet(u)} className="tap-btn"
                     style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12 }}>✎</button>
-                  {confirm===u.id?(
-                    <button onClick={()=>deleteUtang(u.id)} className="tap-btn"
-                      style={{ background:C.coral, border:"none", borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, color:"#fff" }}>✓</button>
-                  ):(
+                  {confirm!==u.id&&(
                     <button onClick={()=>setConfirm(u.id)} className="tap-btn"
-                      style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 10px", cursor:"pointer", fontSize:13 }}>🗑</button>
+                      style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 12px", cursor:"pointer", fontSize:11, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>🗑 Delete</button>
                   )}
+                </div>
+              )}
+
+              {/* Delete confirmation — full-width row, clearly labelled */}
+              {confirm===u.id&&!u.settled&&(
+                <div style={{ marginTop:8, background:`${C.coral}0C`, border:`1.5px solid ${C.coral}40`, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif", flex:1 }}>
+                    Delete <strong style={{ color:C.coral }}>{u.person}</strong>'s utang?
+                  </p>
+                  <button onClick={()=>setConfirm(null)} className="tap-btn"
+                    style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:9, padding:"7px 14px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"DM Sans,sans-serif" }}>
+                    Cancel
+                  </button>
+                  <button onClick={()=>{ deleteUtang(u.id); setConfirm(null); }} className="tap-btn"
+                    style={{ background:C.coral, border:"none", color:"#fff", borderRadius:9, padding:"7px 14px", cursor:"pointer", fontSize:12, fontWeight:800, fontFamily:"DM Sans,sans-serif" }}>
+                    Yes, delete
+                  </button>
                 </div>
               )}
 
