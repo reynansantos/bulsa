@@ -4247,7 +4247,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
                 </p>
               </div>
             ):(
-              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt} onDelete={handleDelete}/>
+              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt}/>
             );
           })()}
         </div>
