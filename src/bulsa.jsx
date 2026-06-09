@@ -3,7 +3,7 @@ import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucid
 
 // ─── FIREBASE ──────────────────────────────────────────────────────────────
 import { initializeApp }                                          from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc }                     from "firebase/firestore";
 
 // ─── FIREBASE CONFIG ───────────────────────────────────────────────────────
@@ -3721,38 +3721,61 @@ function InsightsTab({ expenses, income, dailyLimit, setDailyLimit }) {
 
 // ─── SWIPEABLE ROW ───────────────────────────────────────────────────────────
 function SwipeableRow({ children, onDelete }) {
-  const [dx,      setDx]      = useState(0);
-  const [active,  setActive]  = useState(false); // only true once user starts swiping
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const locked = useRef(null);
+  const [dx,     setDx]    = useState(0);
+  const [active, setActive] = useState(false);
+  const rowRef   = useRef(null);
+  const startX   = useRef(0);
+  const startY   = useRef(0);
+  const locked   = useRef(null);
+  const dxRef    = useRef(0); // mirror of dx for use inside non-React listener
   const THRESHOLD = 72;
 
-  const onTouchStart = e => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    locked.current = null;
-  };
-  const onTouchMove = e => {
-    const dX = e.touches[0].clientX - startX.current;
-    const dY = e.touches[0].clientY - startY.current;
-    if (!locked.current) locked.current = Math.abs(dX) > Math.abs(dY) ? "h" : "v";
-    if (locked.current === "v") return;
-    if (dX > 0) { setDx(0); return; }
-    e.preventDefault();
-    setActive(true);
-    setDx(Math.max(dX, -THRESHOLD - 20));
-  };
-  const onTouchEnd = () => {
-    if (dx <= -THRESHOLD) setDx(-THRESHOLD);
-    else { setDx(0); setActive(false); }
-  };
+  // Keep dxRef in sync with dx state
+  useEffect(() => { dxRef.current = dx; }, [dx]);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+
+    const onTouchStart = e => {
+      startX.current = e.touches[0].clientX;
+      startY.current = e.touches[0].clientY;
+      locked.current = null;
+    };
+
+    // Registered as { passive: false } so preventDefault() is allowed on Android Chrome
+    const onTouchMove = e => {
+      const dX = e.touches[0].clientX - startX.current;
+      const dY = e.touches[0].clientY - startY.current;
+      if (!locked.current) locked.current = Math.abs(dX) > Math.abs(dY) ? "h" : "v";
+      if (locked.current === "v") return; // let vertical scroll through
+      if (dX > 0) { setDx(0); return; }
+      e.preventDefault(); // safe — listener is non-passive
+      setActive(true);
+      setDx(Math.max(dX, -THRESHOLD - 20));
+    };
+
+    const onTouchEnd = () => {
+      if (dxRef.current <= -THRESHOLD) setDx(-THRESHOLD);
+      else { setDx(0); setActive(false); }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove",  onTouchMove,  { passive: false }); // non-passive = can preventDefault
+    el.addEventListener("touchend",   onTouchEnd,   { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove",  onTouchMove);
+      el.removeEventListener("touchend",   onTouchEnd);
+    };
+  }, []);
+
   const reset = () => { setDx(0); setActive(false); };
   const handleDelete = () => { try { navigator.vibrate?.(18); } catch {} onDelete(); };
 
   return (
     <div style={{ position:"relative", borderRadius:12, overflow:"hidden" }}>
-      {/* Delete zone — only rendered when actively swiping */}
       {active && (
         <div style={{ position:"absolute", right:0, top:0, bottom:0, width:THRESHOLD,
           background:C.coral, display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -3763,7 +3786,7 @@ function SwipeableRow({ children, onDelete }) {
           </button>
         </div>
       )}
-      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+      <div ref={rowRef}
         onClick={dx < -10 ? reset : undefined}
         style={{ transform:`translateX(${dx}px)`,
           transition:active?"none":"transform 0.25s cubic-bezier(0.25,1,0.5,1)",
@@ -6793,20 +6816,52 @@ export default function Bulsa() {
   }, [name, income, dailyLimit, payday, incomeSources, budgets, expenses, wallets, loans, goals, utangs, subs, onboarded]);
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
+  // Android PWA blocks popups — detect and use redirect instead.
+  // iOS Safari and desktop Chrome use popup (faster, no page reload).
+  const isAndroidPWA = () => {
+    const ua = navigator.userAgent || "";
+    const isAndroid = /android/i.test(ua);
+    const isPWA = window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone === true;
+    return isAndroid && isPWA;
+  };
+
   const handleGoogleLogin = async () => {
     setLoginLoading(true);
     setLoginError("");
     try {
-      await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged above handles the rest
+      if (isAndroidPWA()) {
+        // Redirect flow — page will reload, getRedirectResult handles the rest
+        await signInWithRedirect(auth, googleProvider);
+        // execution stops here on Android PWA (page reloads)
+      } else {
+        await signInWithPopup(auth, googleProvider);
+        // onAuthStateChanged handles the rest
+      }
     } catch (err) {
       if (err.code !== "auth/popup-closed-by-user") {
         setLoginError("Sign-in failed. Please try again.");
       }
-    } finally {
       setLoginLoading(false);
     }
   };
+
+  // Handle redirect result on app load (Android PWA returns here after Google)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(result => {
+        if (result?.user) {
+          // onAuthStateChanged will fire and handle user state
+          setLoginLoading(false);
+        }
+      })
+      .catch(err => {
+        if (err.code !== "auth/no-redirect-operation-pending") {
+          setLoginError("Sign-in failed. Please try again.");
+        }
+        setLoginLoading(false);
+      });
+  }, []);
 
   const handleSignOut = async () => {
     await signOut(auth);
