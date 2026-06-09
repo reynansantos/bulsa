@@ -172,7 +172,7 @@ class AppErrorBoundary extends React.Component {
     if (!this.state.crashed) return this.props.children;
     const msg = this.state.error?.message || "Unknown error";
     return (
-      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
+      <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
         <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
           <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>😵</div>
           <div>
@@ -4160,7 +4160,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
               {/* Month picker dropdown */}
               <select value={`${pickYear}-${pickMonth}`}
                 onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
-                style={{ flex:1.2, padding:"8px 6px", borderRadius:8, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:500, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
+                style={{ flex:1.2, padding:"8px 6px", borderRadius:8, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:500, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none" }}>
                 {monthOptions.map(o=>(
                   <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
                 ))}
@@ -6614,7 +6614,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 function LoginScreen({ onLogin, onGuest, loading, error }) {
   return (
     <div style={{
-      background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
+      background: C.bg, height:"100vh", display:"flex", alignItems:"center",
       justifyContent:"center", padding:"0 24px",
     }}>
       <GlobalStyles/>
@@ -7093,7 +7093,7 @@ export default function Bulsa() {
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
   if (user === undefined) {
     return (
-      <div style={{ background:C.bg, height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:C.bg, height:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
         <GlobalStyles/>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
           <BulsaLogo size={56}/>
@@ -7112,9 +7112,9 @@ export default function Bulsa() {
   return (
     <AppErrorBoundary>
     <HideCtx.Provider value={hidden}>
-    <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
+    <div style={{ background:C.bg, height:"100vh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
-      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100vh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
         {/* Sync status pill */}
         {syncStatus !== "idle" && (
