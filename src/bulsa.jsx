@@ -172,7 +172,7 @@ class AppErrorBoundary extends React.Component {
     if (!this.state.crashed) return this.props.children;
     const msg = this.state.error?.message || "Unknown error";
     return (
-      <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
+      <div style={{ background:C.bg, minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"DM Sans,sans-serif" }}>
         <div style={{ maxWidth:340, width:"100%", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
           <div style={{ width:72, height:72, borderRadius:20, background:`${C.coral}18`, border:`2px solid ${C.coral}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>😵</div>
           <div>
@@ -4128,7 +4128,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
               {/* Month picker dropdown */}
               <select value={`${pickYear}-${pickMonth}`}
                 onChange={e=>{ const [y,m]=e.target.value.split("-"); setPickMonth(+m); setPickYear(+y); setPeriod("pick"); }}
-                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none" }}>
+                style={{ flex:1.2, padding:"8px 6px", borderRadius:10, border:`1px solid ${period==="pick"?C.accent+"60":C.border}`, background:period==="pick"?`${C.accent}12`:C.card, color:period==="pick"?C.accent:C.textSub, fontSize:11, fontWeight:700, fontFamily:"DM Sans,sans-serif", cursor:"pointer", outline:"none", colorScheme:"dark" }}>
                 {monthOptions.map(o=>(
                   <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>{o.label}</option>
                 ))}
@@ -4424,17 +4424,34 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
 
 // ─── SHARE UTANG CARD ───────────────────────────────────────────────────────
 function shareUtangCard(person, entries, direction) {
-  const total   = entries.reduce((s,e)=>s+e.amount,0);
-  const paid    = entries.reduce((s,e)=>s+(e.payments||[]).reduce((p,x)=>p+x.amount,0),0);
+  const total     = entries.reduce((s,e)=>s+e.amount,0);
+  const paid      = entries.reduce((s,e)=>s+(e.payments||[]).reduce((p,x)=>p+x.amount,0),0);
   const remaining = Math.max(total - paid, 0);
-  const verb    = direction==="iowe" ? "I owe" : "owes me";
-  const text    = `💸 ${person} ${verb} ₱${remaining.toLocaleString()} on bulsa.\n\nTrack your IOUs at bulsa-app.vercel.app`;
+
+  // Find nearest due date across entries
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dueDates = entries.map(e=>e.dueDate).filter(Boolean).map(d=>new Date(d+"T00:00:00")).sort((a,b)=>a-b);
+  const nearestDue = dueDates[0];
+  const daysUntilDue = nearestDue ? Math.round((nearestDue-today)/(1000*60*60*24)) : null;
+
+  let dueLine = "";
+  if (daysUntilDue !== null) {
+    if (daysUntilDue < 0)      dueLine = `\n⚠️ This was due ${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue)!==1?"s":""} ago.`;
+    else if (daysUntilDue===0) dueLine = `\n📅 This is due today.`;
+    else if (daysUntilDue<=7)  dueLine = `\n📅 Due in ${daysUntilDue} day${daysUntilDue!==1?"s":""}.`;
+  }
+
+  const text = direction==="iowe"
+    ? `Hi ${person}! 👋 Just a reminder — I still owe you ₱${remaining.toLocaleString()}.${dueLine}\n\nTracked via bulsa. 📱`
+    : `Hi ${person}! 👋 Just a reminder — you owe me ₱${remaining.toLocaleString()}.${dueLine}\n\nTracked via bulsa. 📱`;
+
   if (navigator.share) {
-    navigator.share({ title:"bulsa. Utang", text }).catch(()=>{});
+    navigator.share({ title:"bulsa. Utang Reminder", text }).catch(()=>{});
   } else {
     navigator.clipboard?.writeText(text).then(()=>alert("Copied to clipboard!")).catch(()=>{});
   }
 }
+
 
 
 function UtangEntrySheet({ person, direction, entry, onSave, onClose, wallets=[] }) {
@@ -4996,8 +5013,19 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                   {u.direction==="iowe"?"🤝":"💰"}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ margin:"0 0 1px", fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
-                  <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                    <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{u.person}</p>
+                    {(()=>{
+                      const t2=new Date(); t2.setHours(0,0,0,0);
+                      const dues=(u.entries||[]).map(e=>e.dueDate).filter(Boolean).map(d=>new Date(d+"T00:00:00")).sort((a,b)=>a-b);
+                      const nd=dues[0]; if(!nd) return null;
+                      const diff=Math.round((nd-t2)/(1000*60*60*24));
+                      if(diff<0)  return <span style={{ background:`${C.coral}20`,color:C.coral,fontSize:10,fontWeight:800,borderRadius:99,padding:"2px 8px",fontFamily:"DM Sans,sans-serif" }}>⚠️ {Math.abs(diff)}d overdue</span>;
+                      if(diff<=3) return <span style={{ background:`${C.gold}20`,color:C.gold,fontSize:10,fontWeight:800,borderRadius:99,padding:"2px 8px",fontFamily:"DM Sans,sans-serif" }}>📅 Due in {diff}d</span>;
+                      return null;
+                    })()}
+                  </div>
+                  <p style={{ margin:"1px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
                     {u.direction==="iowe"?"I owe them":"They owe me"} · {entries.length} utang{entries.length!==1?"s":""}
                   </p>
                 </div>
@@ -5126,29 +5154,61 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                 <p style={{ margin:"0 0 10px", fontSize:12, color:C.textFaint, fontFamily:"DM Sans,sans-serif", textAlign:"center" }}>No loans yet — tap below to add one</p>
               )}
 
-              {/* Person-level actions — max 4, all labelled */}
+              {/* Person-level actions */}
               {!u.settled&&(
-                <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:6 }}>
-                  {/* Primary: Log payment */}
-                  <button onClick={()=>{ const first=entries.find(e=>!e.settled); if(first) setPaySheet({utang:u,entry:first}); }} className="tap-btn"
-                    style={{ background:`${color}18`, border:`1.5px solid ${color}50`, color, borderRadius:10, padding:"9px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:5, opacity:entries.filter(e=>!e.settled).length>0?1:0.35 }}>
-                    💸 Log payment
-                  </button>
-                  {/* Settle */}
-                  <button onClick={()=>markSettled(u.id)} className="tap-btn"
-                    style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                    ✓ Settle
-                  </button>
-                  {/* Edit */}
-                  <button onClick={()=>setSheet(u)} className="tap-btn"
-                    style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                    ✎ Edit
-                  </button>
-                  {/* Delete */}
-                  <button onClick={()=>setConfirm(confirm===u.id?null:u.id)} className="tap-btn"
-                    style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"9px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                    🗑 Delete
-                  </button>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {/* Row 1: Primary actions */}
+                  <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:6 }}>
+                    {/* Log payment — always tappable, opens entry picker if multiple */}
+                    <button onClick={()=>{
+                      const active = entries.filter(e=>!e.settled);
+                      if (active.length===0) {
+                        // No entries yet — open add entry sheet
+                        setEntrySheet({utangId:u.id, entry:null});
+                      } else if (active.length===1) {
+                        setPaySheet({utang:u, entry:active[0]});
+                      } else {
+                        // Multiple entries — open first unpaid one
+                        setPaySheet({utang:u, entry:active[0]});
+                      }
+                    }} className="tap-btn"
+                      style={{ background:`${color}18`, border:`1.5px solid ${color}50`, color, borderRadius:10, padding:"10px", cursor:"pointer", fontSize:12, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                      💸 Log payment
+                    </button>
+                    {/* Add another utang under this person */}
+                    <button onClick={()=>setEntrySheet({utangId:u.id, entry:null})} className="tap-btn"
+                      style={{ background:`${color}0C`, border:`1.5px dashed ${color}50`, color, borderRadius:10, padding:"10px 6px", cursor:"pointer", fontSize:11, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                      ＋ Add utang
+                    </button>
+                  </div>
+                  {/* Row 2: Secondary actions */}
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:6 }}>
+                    {/* Settle */}
+                    <button onClick={()=>markSettled(u.id)} className="tap-btn"
+                      style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:10, padding:"8px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      ✓ Settle
+                    </button>
+                    {/* Share / nudge */}
+                    <button onClick={()=>shareUtangCard(u.person, entries, u.direction)} className="tap-btn"
+                      style={{ background:`${C.sky}10`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:10, padding:"8px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      📤 Share
+                    </button>
+                    {/* Edit — opens full entry editor */}
+                    <button onClick={()=>{
+                      const active = entries.filter(e=>!e.settled);
+                      if (active.length===1) setEntrySheet({utangId:u.id, entry:active[0]});
+                      else if (entries.length>0) setEntrySheet({utangId:u.id, entry:entries[0]});
+                      else setSheet(u);
+                    }} className="tap-btn"
+                      style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:10, padding:"8px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      ✎ Edit
+                    </button>
+                    {/* Delete */}
+                    <button onClick={()=>setConfirm(confirm===u.id?null:u.id)} className="tap-btn"
+                      style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:10, padding:"8px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      🗑 Delete
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -6380,7 +6440,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
 function LoginScreen({ onLogin, onGuest, loading, error }) {
   return (
     <div style={{
-      background: C.bg, height:"100vh", display:"flex", alignItems:"center",
+      background: C.bg, height:"100dvh", display:"flex", alignItems:"center",
       justifyContent:"center", padding:"0 24px",
     }}>
       <GlobalStyles/>
@@ -6827,7 +6887,7 @@ export default function Bulsa() {
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
   if (user === undefined) {
     return (
-      <div style={{ background:C.bg, height:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:C.bg, height:"100dvh", display:"flex", alignItems:"center", justifyContent:"center" }}>
         <GlobalStyles/>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
           <BulsaLogo size={56}/>
@@ -6846,9 +6906,9 @@ export default function Bulsa() {
   return (
     <AppErrorBoundary>
     <HideCtx.Provider value={hidden}>
-    <div style={{ background:C.bg, height:"100vh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
+    <div style={{ background:C.bg, height:"100dvh", display:"flex", justifyContent:"center", overflow:"hidden" }}>
       <GlobalStyles/>
-      <div style={{ width:"100%", maxWidth:420, height:"100vh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
+      <div style={{ width:"100%", maxWidth:420, height:"100dvh", background:C.bg, display:"flex", flexDirection:"column", paddingTop:"env(safe-area-inset-top)" }}>
 
         {/* Sync status pill */}
         {syncStatus !== "idle" && (
