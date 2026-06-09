@@ -4040,7 +4040,7 @@ function SpendingDonut({ expenses, budgets={}, cycleExp=null }) {
 
 // ─── EXPENSES SCREEN ────────────────────────────────────────────────────────
 
-function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBudgets={}, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs: rawSubs=[], setSubs, payday, setScreen=()=>{}, wallets=[] }) {
+function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBudgets={}, setBudgets, onAdd, dailyLimit, setDailyLimit, income, subs: rawSubs=[], setSubs, payday, setScreen=()=>{}, wallets=[], setWallets }) {
   const fmt = useFmt();
   // Safety normalize props
   const expenses = Array.isArray(rawExpenses) ? rawExpenses : [];
@@ -4090,7 +4090,16 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
   );
 
   const handleEdit     = exp => setEditExp(exp);
-  const handleDelete   = id  => setExpenses(prev=>prev.filter(e=>e.id!==id));
+  const handleDelete = id => {
+    // Refund wallet balance when deleting an expense
+    const exp = (rawExpenses||[]).find(e=>e.id===id);
+    if (exp?.walletId && exp?.amount && setWallets) {
+      setWallets(prev => prev.map(w =>
+        w.id === exp.walletId ? { ...w, balance: w.balance + exp.amount } : w
+      ));
+    }
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  };
   const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
   const handleAddPhoto = (id, photo) => {
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
@@ -4270,7 +4279,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
                 </p>
               </div>
             ):(
-              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt} onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
+              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt}/>
             );
           })()}
         </div>
@@ -7070,7 +7079,7 @@ export default function Bulsa() {
 
   const screens = {
     home:     wrap("Home",          <HomeScreen expenses={safeExpenses} budgets={safeBudgets} income={income} name={name} loans={safeLoans} goals={safeGoals} setGoals={setGoals} setScreen={setScreen} onAdd={()=>setAddOpen(true)} onQuickLog={handleQuickLog} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} avatar={avatar} utangs={safeUtangs} wallets={safeWallets} hidden={hidden} setHidden={setHidden} subs={safeSubs} payday={payday} showInstallBanner={showInstallBanner} onInstall={handleInstall} onDismissInstall={()=>setShowInstallBanner(false)} lastBackup={lastBackup} onWalletTap={handleWalletTap} autoLoggedSubs={autoLoggedSubs} onDismissAutoLog={()=>setAutoLoggedSubs([])}/>),
-    expenses: wrap("Expenses",      <ExpensesScreen expenses={safeExpenses} setExpenses={setExpenses} budgets={safeBudgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={safeSubs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={safeWallets}/>),
+    expenses: wrap("Expenses",      <ExpensesScreen expenses={safeExpenses} setExpenses={setExpenses} budgets={safeBudgets} setBudgets={setBudgets} onAdd={()=>setAddOpen(true)} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} income={income} subs={safeSubs} setSubs={setSubs} payday={payday} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
     loans:    wrap("Loans",         <LoansScreen loans={safeLoans} setLoans={setLoans} setScreen={setScreen}/>),
     goals:    wrap("Goals",         <GoalsScreen goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
     wallets:  wrap("Wallets",       <WalletsScreen wallets={safeWallets} setWallets={setWallets} setScreen={setScreen}/>),
