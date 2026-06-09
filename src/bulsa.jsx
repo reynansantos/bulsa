@@ -4270,7 +4270,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
                 </p>
               </div>
             ):(
-              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt}/>
+              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt} onDelete={id=>setExpenses(p=>p.filter(e=>e.id!==id))}/>
             );
           })()}
         </div>
