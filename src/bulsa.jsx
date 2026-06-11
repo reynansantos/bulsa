@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo, createContext, useContext } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat, Settings } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────────────────────────────
 import { initializeApp }                                          from "firebase/app";
@@ -1434,28 +1434,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
       time:  `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
       ts:    new Date(expDate+"T"+(isToday?new Date().toTimeString().slice(0,8):"12:00:00")).toISOString()
     });
-    if (onDeductWallet) {
-      if (!isEdit) {
-        // New expense — straight deduct
-        if (walletId) onDeductWallet(walletId, +amount);
-      } else {
-        // Editing — reverse old wallet, apply new wallet
-        const oldWalletId  = editExpense.walletId || null;
-        const oldAmount    = editExpense.amount    || 0;
-        const newWalletId  = walletId;
-        const newAmount    = +amount;
-
-        if (oldWalletId === newWalletId) {
-          // Same wallet — just adjust the difference
-          const diff = newAmount - oldAmount;
-          if (diff !== 0) onDeductWallet(oldWalletId, diff); // positive = extra deduct, negative = refund
-        } else {
-          // Wallet changed — refund old, deduct new
-          if (oldWalletId) onDeductWallet(oldWalletId, -oldAmount); // negative = refund
-          if (newWalletId) onDeductWallet(newWalletId, +newAmount); // positive = deduct
-        }
-      }
-    }
+    if (walletId && onDeductWallet && !isEdit) onDeductWallet(walletId, +amount);
     close();
   };
 
@@ -3297,11 +3276,11 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       {/* ── SETUP NUDGE ── */}
       {!setupCardDismissed && (
         <SetupCard income={income} wallets={wallets} name={name}
-          onSetup={()=>setScreen("profile")}
+          onSetup={()=>setScreen("settings")}
           onDismiss={()=>setSetupCardDismissed(true)}/>
       )}
       {income <= 0 && setupCardDismissed && (
-        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+        <div onClick={()=>setScreen("settings")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
           <span style={{ fontSize:16 }}>💸</span>
           <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span></p>
           <span style={{ color:C.gold, fontSize:14 }}>›</span>
@@ -3311,7 +3290,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       {/* ── HEADER — one line ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-          <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer", flexShrink:0 }}>
+          <div onClick={()=>setScreen("settings")} className="tap-btn" style={{ cursor:"pointer", flexShrink:0 }}>
             {avatar
               ? <img src={avatar} alt="av" style={{ width:34, height:34, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
               : <div style={{ width:34, height:34, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", fontFamily:FF }}>{name?name.charAt(0).toUpperCase():"?"}</div>
@@ -6259,48 +6238,78 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
     r.readAsDataURL(f);
   };
 
-  return (
-    <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h2 style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:26, fontWeight:800, color:C.text }}>Profile</h2>
-        <button onClick={()=>setScreen("survive")} style={{ background:C.accentGlow, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:12, padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Survive →</button>
-      </div>
+  const FF = "DM Sans,sans-serif";
+  const SectionHead = ({emoji, label}) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, marginTop:6 }}>
+      <span style={{ fontSize:14 }}>{emoji}</span>
+      <p style={{ margin:0, fontSize:11, fontWeight:800, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.09em", fontFamily:FF }}>{label}</p>
+    </div>
+  );
 
-      {/* Avatar + Name + Bio card */}
-      <Card style={{ background:"linear-gradient(145deg,#0F2240,#1C2B42)", border:`1px solid ${C.accent}30` }}>
-        <input ref={avatarRef} type="file" accept="image/*" style={{ display:"none" }} onChange={onAvatarFile}/>
-        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:14 }}>
-          <div onClick={pickAvatar} style={{ position:"relative", flexShrink:0, cursor:"pointer" }}>
-            {avatar?(
-              <img src={avatar} alt="avatar" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
-            ):(
-              <div style={{ width:64, height:64, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", fontFamily:"DM Sans,sans-serif", boxShadow:`0 0 20px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
-            )}
-            <div style={{ position:"absolute", bottom:0, right:0, width:22, height:22, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, border:`2px solid ${C.card}` }}>📷</div>
+  return (
+    <div className="screen-wrap" style={{ padding:"22px 18px 24px", display:"flex", flexDirection:"column", gap:0 }}>
+
+      {/* ── HEADER ── */}
+      <h2 style={{ margin:"0 0 18px", fontFamily:FF, fontSize:24, fontWeight:800, color:C.text }}>Settings</h2>
+
+      {/* ══ SECTION 1: YOU ══════════════════════════════════════════════════ */}
+      <SectionHead emoji="👤" label="You"/>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
+
+        {/* Avatar + Name */}
+        <Card style={{ background:"linear-gradient(145deg,#0F2240,#1C2B42)", border:`1px solid ${C.accent}30` }}>
+          <input ref={avatarRef} type="file" accept="image/*" style={{ display:"none" }} onChange={onAvatarFile}/>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <div onClick={pickAvatar} style={{ position:"relative", flexShrink:0, cursor:"pointer" }}>
+              {avatar?(
+                <img src={avatar} alt="avatar" style={{ width:56, height:56, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
+              ):(
+                <div style={{ width:56, height:56, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:"#fff", fontFamily:FF, boxShadow:`0 0 20px ${C.accentGlow}` }}>{name?name.charAt(0).toUpperCase():"?"}</div>
+              )}
+              <div style={{ position:"absolute", bottom:0, right:0, width:20, height:20, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, border:`2px solid ${C.card}` }}>📷</div>
+            </div>
+            <div style={{ flex:1 }}>
+              {editName?(
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter"){ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); } if(e.key==="Escape") setEditName(false); }}
+                    style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:8, padding:"7px 11px", color:C.text, fontSize:15, fontWeight:800, outline:"none", fontFamily:FF }}/>
+                  <button onClick={()=>{ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); }} style={{ background:C.gradAccent, border:"none", borderRadius:8, padding:"7px 13px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FF }}>Save</button>
+                </div>
+              ):(
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <p style={{ margin:0, fontSize:18, fontWeight:800, color:C.text, fontFamily:FF }}>{name||"Set your name"}</p>
+                  <button onClick={()=>{ setNameInput(name); setEditName(true); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"3px 9px", fontSize:11, cursor:"pointer", fontFamily:FF, fontWeight:500 }}>Edit</button>
+                </div>
+              )}
+              <p style={{ margin:"3px 0 0", fontSize:11, color:C.textSub, fontFamily:FF }}>
+                {user ? `☁️ Synced · ${user.displayName||user.email||""}` : "📱 Device only"}
+              </p>
+            </div>
           </div>
-          <div style={{ flex:1 }}>
-            {editName?(
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==="Enter"){ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); } if(e.key==="Escape") setEditName(false); }}
-                  style={{ flex:1, background:C.surface, border:`1px solid ${C.accent}50`, borderRadius:8, padding:"8px 12px", color:C.text, fontSize:16, fontWeight:800, outline:"none", fontFamily:"DM Sans,sans-serif" }}/>
-                <button onClick={()=>{ if(nameInput.trim()) setName(nameInput.trim()); setEditName(false); }} style={{ background:C.gradAccent, border:"none", borderRadius:8, padding:"8px 14px", color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Save</button>
-              </div>
-            ):(
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <p style={{ margin:0, fontSize:20, fontWeight:800, color:C.text, fontFamily:"DM Sans,sans-serif" }}>{name||"Set your name"}</p>
-                <button onClick={()=>{ setNameInput(name); setEditName(true); }} style={{ background:C.surface, border:`1px solid ${C.border}`, color:C.textSub, borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif", fontWeight:500 }}>Edit</button>
-              </div>
-            )}
-            <p style={{ margin:"3px 0 0", fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>bulsa. member</p>
-          </div>
+        </Card>
+
+        {/* Stats row — logged / moods / photos / savings rate */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8 }}>
+          {[
+            ["Logged",  expenses.length,                       C.accent],
+            ["Moods",   moodLogs,                              C.rose],
+            ["Photos",  photoLogs,                             C.sky],
+            ["Saved",   income>0?savePct+"%":"—",              savePct>=20?C.green:C.coral],
+          ].map(([lbl,val,clr])=>(
+            <Card key={lbl} style={{ textAlign:"center", padding:"12px 6px" }}>
+              <p style={{ margin:"0 0 3px", fontSize:20, fontWeight:700, color:clr, fontFamily:FF }}>{val}</p>
+              <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>{lbl}</p>
+            </Card>
+          ))}
         </div>
 
-      </Card>
-
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-        {[["Logged",expenses.length,C.accent],["Moods",moodLogs,C.rose],["Photos",photoLogs,C.sky]].map(([lbl,val,clr])=>(<Card key={lbl} style={{ textAlign:"center", padding:"14px 8px" }}><p style={{ margin:"0 0 4px", fontSize:22, fontWeight:600, color:clr, fontFamily:"DM Sans,sans-serif" }}>{val}</p><p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{lbl}</p></Card>))}
       </div>
+
+      {/* ══ SECTION 2: MONEY SETUP ══════════════════════════════════════════ */}
+      <div style={{ height:1, background:C.border, marginBottom:18 }}/>
+      <SectionHead emoji="💰" label="Money setup"/>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
 
       <div>
         <SLabel>Income Sources</SLabel>
@@ -6431,6 +6440,13 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
           </div>
         </Card>
       </div>
+
+      </div>
+
+      {/* ══ SECTION 3: DATA ════════════════════════════════════════════════ */}
+      <div style={{ height:1, background:C.border, marginBottom:18 }}/>
+      <SectionHead emoji="💾" label="Data & backup"/>
+      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24 }}>
 
       {!editIncome&&(
         <Card style={{ background:savePct>=20?`${C.green}0C`:`${C.coral}0C`, border:`1px solid ${savePct>=20?C.green:C.coral}30` }}>
@@ -6572,6 +6588,13 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
         )}
       </div>
 
+      </div>
+
+      {/* ══ SECTION 4: TIPS & ACCOUNT ══════════════════════════════════════ */}
+      <div style={{ height:1, background:C.border, marginBottom:18 }}/>
+      <SectionHead emoji="⚡" label="Tips & account"/>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
+
       {/* Back Tap / Quick Tap setup guide */}
       <div style={{ background:`${C.sky}08`, border:`1px solid ${C.sky}25`, borderRadius:16, padding:"16px 18px" }}>
         <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:800, color:C.sky, fontFamily:"DM Sans,sans-serif" }}>⚡ Log expenses in 1 tap</p>
@@ -6595,7 +6618,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
         </p>
       </div>
 
-      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 - built for Filipinos 🇵🇭</p>
+      <p style={{ margin:"4px 0 0", textAlign:"center", fontSize:11, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>bulsa. v1.2 · built for Filipinos 🇵🇭</p>
 
       {/* Account section */}
       {user ? (
@@ -6627,6 +6650,8 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
           </button>
         </div>
       )}
+      </div>
+
     </div>
   );
 }
@@ -7071,7 +7096,6 @@ export default function Bulsa() {
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
   const handleDeductWallet = useCallback((walletId, amount) => {
-    // amount > 0 = deduct, amount < 0 = refund (credit back)
     setWallets(prev => prev.map(w =>
       w.id === walletId ? { ...w, balance: Math.max(w.balance - amount, 0) } : w
     ));
@@ -7109,7 +7133,7 @@ export default function Bulsa() {
     utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
     accounts: wrap("Accounts",      <AccountsScreen wallets={safeWallets} setWallets={setWallets} goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
     survive:  wrap("Survive",       <SurviveScreen expenses={safeExpenses} income={income} loans={safeLoans} goals={safeGoals} payday={payday} setScreen={setScreen} budgets={safeBudgets}/>),
-    profile:  wrap("Profile",       <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
+    settings: wrap("Settings",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
