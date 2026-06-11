@@ -7050,10 +7050,42 @@ export default function Bulsa() {
             fetch(e.request).catch(() => caches.match(e.request))
           );
         });
+        self.addEventListener("message", e => {
+          if (e.data === "SKIP_WAITING") self.skipWaiting();
+        });
       `;
       const swBlob = new Blob([swCode], { type:"application/javascript" });
       const swUrl  = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl, { scope:"/" }).catch(()=>{});
+
+      navigator.serviceWorker.register(swUrl, { scope:"/", updateViaCache:"none" })
+        .then(reg => {
+          // Check for updates every 60 seconds
+          setInterval(() => reg.update(), 60000);
+
+          // When a new SW is waiting, tell it to skip waiting immediately
+          const onNewSW = (sw) => {
+            if (!sw) return;
+            if (sw.state === "installed") {
+              sw.postMessage("SKIP_WAITING");
+            } else {
+              sw.addEventListener("statechange", () => {
+                if (sw.state === "installed") sw.postMessage("SKIP_WAITING");
+              });
+            }
+          };
+
+          if (reg.waiting) onNewSW(reg.waiting);
+          reg.addEventListener("updatefound", () => onNewSW(reg.installing));
+        })
+        .catch(() => {});
+
+      // When a new SW takes control — reload to get fresh assets
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
     }
   }, []);
 
