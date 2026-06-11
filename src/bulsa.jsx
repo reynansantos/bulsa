@@ -1434,7 +1434,28 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
       time:  `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
       ts:    new Date(expDate+"T"+(isToday?new Date().toTimeString().slice(0,8):"12:00:00")).toISOString()
     });
-    if (walletId && onDeductWallet && !isEdit) onDeductWallet(walletId, +amount);
+    if (onDeductWallet) {
+      if (!isEdit) {
+        // New expense — straight deduct
+        if (walletId) onDeductWallet(walletId, +amount);
+      } else {
+        // Editing — reverse old wallet, apply new wallet
+        const oldWalletId  = editExpense.walletId || null;
+        const oldAmount    = editExpense.amount    || 0;
+        const newWalletId  = walletId;
+        const newAmount    = +amount;
+
+        if (oldWalletId === newWalletId) {
+          // Same wallet — just adjust the difference
+          const diff = newAmount - oldAmount;
+          if (diff !== 0) onDeductWallet(oldWalletId, diff); // positive = extra deduct, negative = refund
+        } else {
+          // Wallet changed — refund old, deduct new
+          if (oldWalletId) onDeductWallet(oldWalletId, -oldAmount); // negative = refund
+          if (newWalletId) onDeductWallet(newWalletId, +newAmount); // positive = deduct
+        }
+      }
+    }
     close();
   };
 
@@ -7050,6 +7071,7 @@ export default function Bulsa() {
   const moodCount  = expenses.filter(e=>e.moodId).length;
   const handleSave = useCallback(exp=>setExpenses(prev=>[exp,...prev]),[]);
   const handleDeductWallet = useCallback((walletId, amount) => {
+    // amount > 0 = deduct, amount < 0 = refund (credit back)
     setWallets(prev => prev.map(w =>
       w.id === walletId ? { ...w, balance: Math.max(w.balance - amount, 0) } : w
     ));
