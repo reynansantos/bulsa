@@ -4279,7 +4279,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
                 </p>
               </div>
             ):(
-              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt}/>
+              <ExpenseListView expenses={listExp} onDetail={setDetail} fmt={fmt} onDelete={handleDelete}/>
             );
           })()}
         </div>
