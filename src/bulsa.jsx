@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo, createContext, useContext } from "react";
-import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat, Settings } from "lucide-react";
+import { Home, Receipt, Zap, Handshake, User, Plus, Wallet, Repeat } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────────────────────────────
 import { initializeApp }                                          from "firebase/app";
@@ -3276,11 +3276,11 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       {/* ── SETUP NUDGE ── */}
       {!setupCardDismissed && (
         <SetupCard income={income} wallets={wallets} name={name}
-          onSetup={()=>setScreen("settings")}
+          onSetup={()=>setScreen("profile")}
           onDismiss={()=>setSetupCardDismissed(true)}/>
       )}
       {income <= 0 && setupCardDismissed && (
-        <div onClick={()=>setScreen("settings")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
           <span style={{ fontSize:16 }}>💸</span>
           <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span></p>
           <span style={{ color:C.gold, fontSize:14 }}>›</span>
@@ -3290,7 +3290,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       {/* ── HEADER — one line ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", zIndex:1 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-          <div onClick={()=>setScreen("settings")} className="tap-btn" style={{ cursor:"pointer", flexShrink:0 }}>
+          <div onClick={()=>setScreen("profile")} className="tap-btn" style={{ cursor:"pointer", flexShrink:0 }}>
             {avatar
               ? <img src={avatar} alt="av" style={{ width:34, height:34, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.accent}60` }}/>
               : <div style={{ width:34, height:34, borderRadius:"50%", background:C.gradAccent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", fontFamily:FF }}>{name?name.charAt(0).toUpperCase():"?"}</div>
@@ -7176,7 +7176,7 @@ export default function Bulsa() {
     utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
     accounts: wrap("Accounts",      <AccountsScreen wallets={safeWallets} setWallets={setWallets} goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
     survive:  wrap("Survive",       <SurviveScreen expenses={safeExpenses} income={income} loans={safeLoans} goals={safeGoals} payday={payday} setScreen={setScreen} budgets={safeBudgets}/>),
-    settings: wrap("Settings",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
+    profile:  wrap("Profile",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
