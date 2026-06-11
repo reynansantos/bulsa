@@ -6133,6 +6133,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
   const [confirmClear, setCC]       = useState(false);
+  const [incomeOpen,   setIncomeOpen] = useState(false);
   const [addingSource, setAddingSource] = useState(false);
   const [srcName,      setSrcName]     = useState("");
   const [srcAmount,    setSrcAmount]   = useState("");
@@ -6250,7 +6251,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
     <div className="screen-wrap" style={{ padding:"22px 18px 24px", display:"flex", flexDirection:"column", gap:0 }}>
 
       {/* ── HEADER ── */}
-      <h2 style={{ margin:"0 0 18px", fontFamily:FF, fontSize:24, fontWeight:800, color:C.text }}>Profile</h2>
+      <h2 style={{ margin:"0 0 18px", fontFamily:FF, fontSize:24, fontWeight:800, color:C.text }}>Settings</h2>
 
       {/* ══ SECTION 1: YOU ══════════════════════════════════════════════════ */}
       <SectionHead emoji="👤" label="You"/>
@@ -6312,21 +6313,30 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
 
       <div>
-        <SLabel>Income Sources</SLabel>
+        {/* Income — collapsible summary card */}
+        <Card style={{ border:`1px solid ${incomeOpen?C.accent+"50":C.accent+"25"}`, background:`${C.accent}06`, padding:"14px 16px", marginBottom: incomeOpen ? 8 : 0 }}>
+          <button onClick={()=>setIncomeOpen(v=>!v)} className="tap-btn"
+            style={{ width:"100%", background:"none", border:"none", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", padding:0 }}>
+            <div style={{ textAlign:"left" }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Monthly Income</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
+                {(incomeSources||[]).length>0
+                  ? `${(incomeSources||[]).length} source${(incomeSources||[]).length!==1?"s":""}`
+                  : income>0 ? "Single income" : "Not set"}
+              </p>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <p style={{ margin:0, fontSize:22, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalIncome)}</p>
+              <span style={{ color:C.textFaint, fontSize:14, transition:"transform 0.2s", display:"inline-block", transform:incomeOpen?"rotate(90deg)":"rotate(0deg)" }}>›</span>
+            </div>
+          </button>
+        </Card>
+
+        {incomeOpen&&(
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
 
-          {/* Total bar */}
-          <Card style={{ border:`1px solid ${C.accent}30`, background:`${C.accent}08`, padding:"14px 16px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div>
-                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Total Monthly Income</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>
-                  {(incomeSources||[]).length>0?`${(incomeSources||[]).length} source${(incomeSources||[]).length!==1?"s":""}`: "Single income"}
-                </p>
-              </div>
-              <p style={{ margin:0, fontSize:26, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalIncome)}</p>
-            </div>
-          </Card>
+          {/* Blank spacer where the old total bar was */}
+          <div/>
 
           {/* Sources */}
           {(incomeSources||[]).map((src)=>{
@@ -6410,6 +6420,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
             <button onClick={()=>setAddingSource(true)} style={{ width:"100%", padding:"12px", borderRadius:12, border:`2px dashed ${C.accent}35`, background:C.accentGlow, color:C.accent, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>+ Add income source</button>
           )}
         </div>
+        )} {/* end incomeOpen */}
       </div>
 
       {/* Payday setting */}
@@ -7133,7 +7144,7 @@ export default function Bulsa() {
     utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
     accounts: wrap("Accounts",      <AccountsScreen wallets={safeWallets} setWallets={setWallets} goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
     survive:  wrap("Survive",       <SurviveScreen expenses={safeExpenses} income={income} loans={safeLoans} goals={safeGoals} payday={payday} setScreen={setScreen} budgets={safeBudgets}/>),
-    settings: wrap("Profile",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
+    settings: wrap("Settings",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
   };
 
   // ── Loading state (waiting for Firebase auth to resolve) ─────────────────
