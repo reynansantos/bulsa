@@ -4809,6 +4809,10 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
   const toggleEntry = (utangId, entryId) =>
     setExpanded(p=>({ ...p, [utangId]: p[utangId]===entryId ? null : entryId }));
 
+  // Remaining unpaid amount for an entry / person — needed by delete + settle logic
+  const entryRemaining = e => Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
+  const personRemaining = u => (u.entries||[]).filter(e=>!e.settled).reduce((s,e)=>s+entryRemaining(e),0);
+
   // Adjust wallet balance
   const adjustWallet = (walletId, delta) => {
     if (!walletId || !setWallets) return;
@@ -4872,7 +4876,19 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
     setPaySheet(null);
   };
 
-  const deleteUtang  = id  => { setUtangs(prev=>prev.filter(x=>x.id!==id)); setConfirm(null); };
+  // Deleting an utang person — reverse any wallet effect from unsettled "theyowe" entries.
+  // (iowe entries never touched a wallet on creation, so nothing to reverse for those.)
+  const deleteUtang  = id  => {
+    const u = utangs.find(x=>x.id===id);
+    if (u && u.direction==="theyowe" && !u.settled) {
+      (u.entries||[]).filter(e=>!e.settled).forEach(e=>{
+        const remaining = entryRemaining(e);
+        if (remaining>0 && e.walletId) adjustWallet(e.walletId, +remaining); // refund what's still out
+      });
+    }
+    setUtangs(prev=>prev.filter(x=>x.id!==id));
+    setConfirm(null);
+  };
   const markSettled = (id) => {
     const u = utangs.find(x => x.id === id);
     if (!u) return;
@@ -4913,12 +4929,18 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
         : x
     ));
   };
-  const deleteEntry  = (utangId,entryId) => setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
+  // Deleting a single loan entry — same reversal logic, scoped to one entry.
+  const deleteEntry  = (utangId,entryId) => {
+    const u = utangs.find(x=>x.id===utangId);
+    const e = u?.entries?.find(x=>x.id===entryId);
+    if (u && e && u.direction==="theyowe" && !e.settled) {
+      const remaining = entryRemaining(e);
+      if (remaining>0 && e.walletId) adjustWallet(e.walletId, +remaining);
+    }
+    setUtangs(prev=>prev.map(u=>u.id!==utangId?u:{...u,entries:(u.entries||[]).filter(e=>e.id!==entryId)}));
+  };
 
   // Derived totals — entries-aware
-  const entryRemaining = e => Math.max(e.amount - (e.payments||[]).reduce((s,p)=>s+p.amount,0), 0);
-  const personRemaining = u => (u.entries||[]).filter(e=>!e.settled).reduce((s,e)=>s+entryRemaining(e),0);
-
   const iOwe        = utangs.filter(u=>u.direction==="iowe"   &&!u.settled);
   const theyOwe     = utangs.filter(u=>u.direction==="theyowe"&&!u.settled);
   const settled     = utangs.filter(u=>u.settled);
