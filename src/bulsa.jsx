@@ -6176,7 +6176,8 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
-  const [confirmClear, setCC]       = useState(false);
+  const [confirmClear, setCC]        = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [incomeOpen,   setIncomeOpen] = useState(false);
   const [addingSource, setAddingSource] = useState(false);
   const [srcName,      setSrcName]     = useState("");
@@ -6295,7 +6296,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
     <div className="screen-wrap" style={{ padding:"22px 18px 24px", display:"flex", flexDirection:"column", gap:0 }}>
 
       {/* ── HEADER ── */}
-      <h2 style={{ margin:"0 0 18px", fontFamily:FF, fontSize:24, fontWeight:800, color:C.text }}>Settings</h2>
+      <h2 style={{ margin:"0 0 18px", fontFamily:FF, fontSize:24, fontWeight:800, color:C.text }}>Profile</h2>
 
       {/* ══ SECTION 1: YOU ══════════════════════════════════════════════════ */}
       <SectionHead emoji="👤" label="You"/>
@@ -6644,6 +6645,60 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
       </div>
 
       </div>
+
+      {/* ── RESET ALL DATA ─────────────────────────────────────────────────── */}
+      {!confirmReset ? (
+        <Card style={{ padding:"14px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:8, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🔄</div>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:FF }}>Reset all data</p>
+              <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:FF }}>Clears expenses, utang, wallets, subs, loans, goals</p>
+            </div>
+            <button onClick={()=>setConfirmReset(true)}
+              style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:FF }}>
+              Reset
+            </button>
+          </div>
+        </Card>
+      ) : (
+        <Card style={{ background:`${C.coral}10`, border:`2px solid ${C.coral}60`, padding:"18px" }}>
+          <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:14 }}>
+            <span style={{ fontSize:24, flexShrink:0 }}>⚠️</span>
+            <div>
+              <p style={{ margin:"0 0 4px", fontSize:14, fontWeight:800, color:C.text, fontFamily:FF }}>Reset everything?</p>
+              <p style={{ margin:0, fontSize:12, color:C.textSub, fontFamily:FF, lineHeight:1.6 }}>
+                This will permanently delete all your:
+              </p>
+              <div style={{ margin:"8px 0", display:"flex", flexDirection:"column", gap:4 }}>
+                {["💸 Expenses","🤝 Utang & loans","💳 Wallets & balances","📱 Subscriptions","🎯 Goals","📊 Budgets","💰 Income sources"].map(item=>(
+                  <p key={item} style={{ margin:0, fontSize:12, color:C.coral, fontFamily:FF, fontWeight:700 }}>{item}</p>
+                ))}
+              </div>
+              <p style={{ margin:"8px 0 0", fontSize:12, color:C.textSub, fontFamily:FF, lineHeight:1.5 }}>
+                Your name, avatar, payday setting, and daily limit are kept. This <strong style={{ color:C.coral }}>cannot be undone.</strong>
+              </p>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn variant="outline" onClick={()=>setConfirmReset(false)}>Cancel</Btn>
+            <Btn onClick={()=>{
+              setExpenses([]);
+              setUtangs([]);
+              setLoans([]);
+              setWallets([]);
+              setSubs([]);
+              setGoals([]);
+              setBudgets({});
+              setIncome(0);
+              setIncomeSources([]);
+              setConfirmReset(false);
+            }} style={{ background:C.coral, boxShadow:"none", flex:1 }}>
+              Yes, reset everything
+            </Btn>
+          </div>
+        </Card>
+      )}
 
       {/* ══ SECTION 4: TIPS & ACCOUNT ══════════════════════════════════════ */}
       <div style={{ height:1, background:C.border, marginBottom:18 }}/>
