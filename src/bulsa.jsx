@@ -6161,7 +6161,8 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
-  const [confirmClear, setCC]       = useState(false);
+  const [confirmClear, setCC]           = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [incomeOpen,   setIncomeOpen] = useState(false);
   const [addingSource, setAddingSource] = useState(false);
   const [srcName,      setSrcName]     = useState("");
@@ -6606,13 +6607,14 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
           {expenses.length>0&&<p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{expenses.length} transactions ready to export</p>}
         </Card>
 
+        {/* Clear expenses only */}
         {!confirmClear?(
           <Card style={{ padding:"14px 16px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:38, height:38, borderRadius:8, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets transaction history only</p>
               </div>
               <button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button>
             </div>
@@ -6623,6 +6625,40 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
             <div style={{ display:"flex", gap:8 }}>
               <Btn variant="outline" onClick={()=>setCC(false)}>Cancel</Btn>
               <Btn onClick={()=>{ setExpenses([]); setCC(false); }} style={{ background:C.coral, boxShadow:"none" }}>Yes, clear</Btn>
+            </div>
+          </Card>
+        )}
+
+        {/* Reset ALL data */}
+        {!confirmReset?(
+          <Card style={{ padding:"14px 16px", border:`1px solid ${C.coral}50`, background:`${C.coral}06` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:8, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>⚠️</div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Reset all data</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Clears expenses, wallets, utang, loans, goals, subs — everything</p>
+              </div>
+              <button onClick={()=>setConfirmReset(true)} style={{ background:C.coral, border:"none", color:"#fff", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Reset</button>
+            </div>
+          </Card>
+        ):(
+          <Card style={{ background:`${C.coral}12`, border:`2px solid ${C.coral}60`, padding:"18px" }}>
+            <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>⚠️ Reset everything?</p>
+            <p style={{ margin:"0 0 14px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
+              This will wipe all expenses, wallets, utang, loans, goals, and subscriptions. Your name and settings are kept. This cannot be undone.
+            </p>
+            <div style={{ display:"flex", gap:8 }}>
+              <Btn variant="outline" onClick={()=>setConfirmReset(false)}>Cancel</Btn>
+              <Btn onClick={()=>{
+                setExpenses([]);
+                setWallets([]);
+                setUtangs([]);
+                setLoans([]);
+                setGoals([]);
+                setSubs([]);
+                setBudgets({});
+                setConfirmReset(false);
+              }} style={{ background:C.coral, boxShadow:"none" }}>Yes, reset all</Btn>
             </div>
           </Card>
         )}
