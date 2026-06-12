@@ -5185,11 +5185,18 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
                     style={{ background:`${C.sky}10`, border:`1px solid ${C.sky}30`, color:C.sky, borderRadius:8, padding:"9px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
                     📤 Share
                   </button>
-                  {/* Delete */}
-                  <button onClick={()=>setConfirm(confirm===u.id?null:u.id)} className="tap-btn"
-                    style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:8, padding:"9px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:500, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
-                    🗑 Delete
-                  </button>
+                  {/* Delete — tap once to confirm, tap again to delete */}
+                  {confirm===u.id?(
+                    <button onClick={()=>deleteUtang(u.id)} className="tap-btn"
+                      style={{ background:C.coral, border:"none", color:"#fff", borderRadius:8, padding:"9px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      ✓ Confirm
+                    </button>
+                  ):(
+                    <button onClick={()=>setConfirm(u.id)} className="tap-btn"
+                      style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}35`, color:C.coral, borderRadius:8, padding:"9px 4px", cursor:"pointer", fontSize:10, fontFamily:"DM Sans,sans-serif", fontWeight:500, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                      🗑 Delete
+                    </button>
+                  )}
                 </div>
               )}
 
