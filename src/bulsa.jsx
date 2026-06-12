@@ -4796,7 +4796,7 @@ function LoanEntryPaymentSheet({ entry, person, direction, onSave, onClose, wall
 
 // ─── UTANG SCREEN ───────────────────────────────────────────────────────────
 
-function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets }) {
+function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[], setWallets, setExpenses=()=>{} }) {
   const [utangTab,   setUtangTab]   = useState("personal");
   const fmt = useFmt();
   const [view,       setView]       = useState("all");
@@ -4916,8 +4916,23 @@ function UtangScreen({ utangs, setUtangs, loans, setLoans, setScreen, wallets=[]
             // They paid you back — add to your wallet
             adjustWallet(walletId, +remaining);
           } else {
-            // You paid them — deduct from your wallet
+            // You paid them — deduct from your wallet AND log as expense
             adjustWallet(walletId, -remaining);
+            const wallet = wallets.find(w => w.id === walletId);
+            const now = new Date();
+            setExpenses(prev => [{
+              id:       uid(),
+              name:     `Utang · ${u.person}`,
+              amount:   remaining,
+              catId:    "other",
+              moodId:   null,
+              note:     `Settled utang with ${u.person}`,
+              walletId,
+              walletName: wallet?.name || null,
+              date:     "Today",
+              time:     `${now.getHours()%12||12}:${String(now.getMinutes()).padStart(2,"0")} ${now.getHours()>=12?"PM":"AM"}`,
+              ts:       now.toISOString(),
+            }, ...prev]);
           }
         }
       }
@@ -6161,8 +6176,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
   const [editName,    setEditName]    = useState(false);
   const [incInput,    setIncInput]    = useState(String(income));
   const [nameInput,   setNameInput]   = useState(name);
-  const [confirmClear, setCC]           = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmClear, setCC]       = useState(false);
   const [incomeOpen,   setIncomeOpen] = useState(false);
   const [addingSource, setAddingSource] = useState(false);
   const [srcName,      setSrcName]     = useState("");
@@ -6607,14 +6621,13 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
           {expenses.length>0&&<p style={{ margin:"8px 0 0", fontSize:10, color:C.textFaint, fontFamily:"DM Sans,sans-serif" }}>{expenses.length} transactions ready to export</p>}
         </Card>
 
-        {/* Clear expenses only */}
         {!confirmClear?(
           <Card style={{ padding:"14px 16px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:38, height:38, borderRadius:8, background:`${C.coral}14`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🗑️</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Clear all expenses</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets transaction history only</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Resets your transaction history</p>
               </div>
               <button onClick={()=>setCC(true)} style={{ background:`${C.coral}14`, border:`1px solid ${C.coral}30`, color:C.coral, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Clear</button>
             </div>
@@ -6625,40 +6638,6 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
             <div style={{ display:"flex", gap:8 }}>
               <Btn variant="outline" onClick={()=>setCC(false)}>Cancel</Btn>
               <Btn onClick={()=>{ setExpenses([]); setCC(false); }} style={{ background:C.coral, boxShadow:"none" }}>Yes, clear</Btn>
-            </div>
-          </Card>
-        )}
-
-        {/* Reset ALL data */}
-        {!confirmReset?(
-          <Card style={{ padding:"14px 16px", border:`1px solid ${C.coral}50`, background:`${C.coral}06` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:38, height:38, borderRadius:8, background:`${C.coral}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>⚠️</div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:"0 0 2px", fontSize:13, fontWeight:700, color:C.text, fontFamily:"DM Sans,sans-serif" }}>Reset all data</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>Clears expenses, wallets, utang, loans, goals, subs — everything</p>
-              </div>
-              <button onClick={()=>setConfirmReset(true)} style={{ background:C.coral, border:"none", color:"#fff", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>Reset</button>
-            </div>
-          </Card>
-        ):(
-          <Card style={{ background:`${C.coral}12`, border:`2px solid ${C.coral}60`, padding:"18px" }}>
-            <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:C.coral, fontFamily:"DM Sans,sans-serif" }}>⚠️ Reset everything?</p>
-            <p style={{ margin:"0 0 14px", fontSize:13, color:C.text, fontFamily:"DM Sans,sans-serif", lineHeight:1.6 }}>
-              This will wipe all expenses, wallets, utang, loans, goals, and subscriptions. Your name and settings are kept. This cannot be undone.
-            </p>
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn variant="outline" onClick={()=>setConfirmReset(false)}>Cancel</Btn>
-              <Btn onClick={()=>{
-                setExpenses([]);
-                setWallets([]);
-                setUtangs([]);
-                setLoans([]);
-                setGoals([]);
-                setSubs([]);
-                setBudgets({});
-                setConfirmReset(false);
-              }} style={{ background:C.coral, boxShadow:"none" }}>Yes, reset all</Btn>
             </div>
           </Card>
         )}
@@ -7238,7 +7217,7 @@ export default function Bulsa() {
     goals:    wrap("Goals",         <GoalsScreen goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen}/>),
     wallets:  wrap("Wallets",       <WalletsScreen wallets={safeWallets} setWallets={setWallets} setScreen={setScreen}/>),
     subs:     wrap("Subscriptions", <SubscriptionsScreen subs={safeSubs} setSubs={setSubs} setScreen={setScreen} setExpenses={setExpenses} wallets={safeWallets}/>),
-    utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets}/>),
+    utang:    wrap("Utang",         <UtangScreen utangs={safeUtangs} setUtangs={setUtangs} loans={safeLoans} setLoans={setLoans} setScreen={setScreen} wallets={safeWallets} setWallets={setWallets} setExpenses={setExpenses}/>),
     accounts: wrap("Accounts",      <AccountsScreen wallets={safeWallets} setWallets={setWallets} goals={safeGoals} setGoals={setGoals} income={income} setScreen={setScreen} focusWalletId={focusWalletId} onFocusClear={()=>setFocusWalletId(null)}/>),
     survive:  wrap("Survive",       <SurviveScreen expenses={safeExpenses} income={income} loans={safeLoans} goals={safeGoals} payday={payday} setScreen={setScreen} budgets={safeBudgets}/>),
     profile:  wrap("Profile",      <ProfileScreen income={income} setIncome={setIncome} incomeSources={safeIncomeSrc} setIncomeSources={setIncomeSources} name={name} setName={setName} avatar={avatar} setAvatar={setAvatar} expenses={safeExpenses} setExpenses={setExpenses} loans={safeLoans} setLoans={setLoans} goals={safeGoals} setGoals={setGoals} utangs={safeUtangs} setUtangs={setUtangs} wallets={safeWallets} setWallets={setWallets} budgets={safeBudgets} setBudgets={setBudgets} subs={safeSubs} setSubs={setSubs} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} setScreen={setScreen} payday={payday} setPayday={setPayday} onSignOut={handleSignOut} user={user}/>),
