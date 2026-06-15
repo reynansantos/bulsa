@@ -4100,7 +4100,38 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
     }
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
-  const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
+  const handleSaveEdit = updated => {
+    // Find the original expense to know what to refund
+    const original = expenses.find(e => e.id === updated.id);
+
+    if (original && setWallets) {
+      const oldWalletId  = original.walletId;
+      const newWalletId  = updated.walletId;
+      const oldAmount    = Number(original.amount) || 0;
+      const newAmount    = Number(updated.amount)  || 0;
+
+      setWallets(prev => prev.map(w => {
+        let balance = w.balance;
+
+        // Step 1 — refund the old wallet (reverse the original deduction)
+        if (oldWalletId && w.id === oldWalletId) {
+          balance += oldAmount;
+        }
+
+        // Step 2 — deduct from the new wallet
+        if (newWalletId && w.id === newWalletId) {
+          balance -= newAmount;
+        }
+
+        return w.id === oldWalletId || w.id === newWalletId
+          ? { ...w, balance: Math.max(balance, 0) }
+          : w;
+      }));
+    }
+
+    setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
+    setEditExp(null);
+  };
   const handleAddPhoto = (id, photo) => {
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
