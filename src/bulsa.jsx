@@ -2944,27 +2944,120 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
 // ─── SETUP NUDGE CARD ────────────────────────────────────────────────────────
-function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
-  const missing = [];
-  if (!name)                          missing.push({ icon:"👋", text:"Add your name" });
-  if (!income || income <= 0)         missing.push({ icon:"💸", text:"Set monthly income" });
-  if (!wallets || wallets.length===0) missing.push({ icon:"👛", text:"Add a wallet" });
-  if (missing.length === 0) return null;
+function SetupChecklist({ income, wallets, expenses, onGoProfile, onGoAccounts, onAdd, onDismiss }) {
+  const steps = [
+    {
+      id:     "income",
+      done:   income > 0,
+      emoji:  "💸",
+      label:  "Set your income",
+      sub:    "Unlock runway & daily limit",
+      action: onGoProfile,
+      color:  C.accent,
+    },
+    {
+      id:     "wallet",
+      done:   wallets && wallets.length > 0,
+      emoji:  "👛",
+      label:  "Add a wallet",
+      sub:    "GCash, Maya, cash — where your money lives",
+      action: onGoAccounts,
+      color:  C.sky,
+    },
+    {
+      id:     "expense",
+      done:   expenses && expenses.length > 0,
+      emoji:  "📝",
+      label:  "Log your first expense",
+      sub:    "Kahit ₱15 na pandesal. Simula na.",
+      action: onAdd,
+      color:  C.green,
+    },
+  ];
+
+  const doneCount = steps.filter(s => s.done).length;
+  const allDone   = doneCount === steps.length;
+  const nextStep  = steps.find(s => !s.done);
+  const pct       = Math.round((doneCount / steps.length) * 100);
+
+  // Auto-dismiss silently once all steps complete
+  if (allDone) return null;
+
   return (
-    <div style={{ background:`${C.accent}0E`, border:`1px solid ${C.accent}30`, borderRadius:16, padding:"14px 16px", position:"relative" }}>
+    <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}22`, borderRadius:16, padding:"14px 16px", position:"relative", zIndex:1 }}>
+
+      {/* Header row */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-        <div>
-          <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:C.text }}>Finish setting up bulsa.</p>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>{missing.length} thing{missing.length!==1?"s":""} left — takes 30 seconds</p>
+        <div style={{ flex:1 }}>
+          <p style={{ margin:"0 0 2px", fontFamily:FF, fontSize:13, fontWeight:800, color:C.text }}>
+            {doneCount === 0 ? "Welcome to bulsa. 👋" : doneCount === 1 ? "Maganda! Isa pa." : "Almost ready — last step!"}
+          </p>
+          <p style={{ margin:"0 0 8px", fontFamily:FF, fontSize:11, color:C.textSub }}>
+            {3 - doneCount} step{3 - doneCount !== 1 ? "s" : ""} left · less than a minute
+          </p>
+          {/* Progress bar */}
+          <div style={{ background:C.border, borderRadius:99, height:4, overflow:"hidden" }}>
+            <div style={{ width:`${pct}%`, height:"100%", background:C.gradAccent, borderRadius:99, transition:"width 0.4s ease" }}/>
+          </div>
         </div>
-        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
+        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", lineHeight:1, marginLeft:12, flexShrink:0, padding:"0 0 0 4px" }}>×</button>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
-        {missing.map((m,i)=>(<div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:14 }}>{m.icon}</span><span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub }}>{m.text}</span></div>))}
+
+      {/* Steps */}
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {steps.map((step, i) => {
+          const isNext = step === nextStep;
+          return (
+            <button key={step.id}
+              onClick={step.done ? undefined : step.action}
+              disabled={step.done}
+              className={step.done ? "" : "tap-btn"}
+              style={{
+                display:"flex", alignItems:"center", gap:10,
+                background: step.done ? `${step.color}08` : isNext ? `${step.color}14` : C.surface,
+                border: `1px solid ${step.done ? step.color+"25" : isNext ? step.color+"50" : C.border}`,
+                borderRadius:12, padding:"10px 12px",
+                cursor: step.done ? "default" : "pointer",
+                textAlign:"left", width:"100%",
+                opacity: !step.done && !isNext ? 0.5 : 1,
+                transition:"all 0.18s",
+              }}>
+
+              {/* Step circle */}
+              <div style={{
+                width:32, height:32, borderRadius:8, flexShrink:0,
+                background: step.done ? `${step.color}20` : isNext ? step.color : C.card,
+                border: `2px solid ${step.done ? step.color+"50" : isNext ? step.color : C.border}`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize: step.done ? 14 : 16,
+              }}>
+                {step.done ? "✓" : step.emoji}
+              </div>
+
+              {/* Text */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{
+                  margin:"0 0 1px", fontFamily:FF, fontSize:13, fontWeight:800,
+                  color: step.done ? C.textFaint : C.text,
+                  textDecoration: step.done ? "line-through" : "none",
+                }}>
+                  {step.label}
+                </p>
+                {!step.done && (
+                  <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub, lineHeight:1.4 }}>
+                    {step.sub}
+                  </p>
+                )}
+              </div>
+
+              {/* Arrow — only on next step */}
+              {isNext && (
+                <span style={{ color:step.color, fontSize:16, flexShrink:0 }}>›</span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      <button onClick={onSetup} style={{ background:C.gradAccent, border:"none", borderRadius:8, padding:"10px 0", width:"100%", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#fff", cursor:"pointer" }}>
-        Set up now →
-      </button>
     </div>
   );
 }
@@ -3273,18 +3366,17 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       )}
 
-      {/* ── SETUP NUDGE ── */}
+      {/* ── SETUP CHECKLIST — shows until all 3 steps complete ── */}
       {!setupCardDismissed && (
-        <SetupCard income={income} wallets={wallets} name={name}
-          onSetup={()=>setScreen("profile")}
-          onDismiss={()=>setSetupCardDismissed(true)}/>
-      )}
-      {income <= 0 && setupCardDismissed && (
-        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
-          <span style={{ fontSize:16 }}>💸</span>
-          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span></p>
-          <span style={{ color:C.gold, fontSize:14 }}>›</span>
-        </div>
+        <SetupChecklist
+          income={income}
+          wallets={wallets}
+          expenses={expenses}
+          onGoProfile={()=>setScreen("profile")}
+          onGoAccounts={()=>setScreen("accounts")}
+          onAdd={onAdd}
+          onDismiss={()=>setSetupCardDismissed(true)}
+        />
       )}
 
       {/* ── HEADER — one line ── */}
@@ -4100,38 +4192,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
     }
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
-  const handleSaveEdit = updated => {
-    // Find the original expense to know what to refund
-    const original = expenses.find(e => e.id === updated.id);
-
-    if (original && setWallets) {
-      const oldWalletId  = original.walletId;
-      const newWalletId  = updated.walletId;
-      const oldAmount    = Number(original.amount) || 0;
-      const newAmount    = Number(updated.amount)  || 0;
-
-      setWallets(prev => prev.map(w => {
-        let balance = w.balance;
-
-        // Step 1 — refund the old wallet (reverse the original deduction)
-        if (oldWalletId && w.id === oldWalletId) {
-          balance += oldAmount;
-        }
-
-        // Step 2 — deduct from the new wallet
-        if (newWalletId && w.id === newWalletId) {
-          balance -= newAmount;
-        }
-
-        return w.id === oldWalletId || w.id === newWalletId
-          ? { ...w, balance: Math.max(balance, 0) }
-          : w;
-      }));
-    }
-
-    setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
-    setEditExp(null);
-  };
+  const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
   const handleAddPhoto = (id, photo) => {
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
