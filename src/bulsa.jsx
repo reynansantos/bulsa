@@ -2944,126 +2944,158 @@ function GoalNudge({ goals, setGoals, underAmount, onDismiss }) {
 // ─── HOME ──────────────────────────────────────────────────────────────────
 
 // ─── SETUP NUDGE CARD ────────────────────────────────────────────────────────
-function SetupChecklist({ income, wallets, expenses, onGoProfile, onGoAccounts, onAdd, onDismiss }) {
-  const steps = [
-    {
-      id:     "income",
-      done:   income > 0,
-      emoji:  "💸",
-      label:  "Set your income",
-      sub:    "Unlock runway & daily limit",
-      action: onGoProfile,
-      color:  C.accent,
-    },
-    {
-      id:     "wallet",
-      done:   wallets && wallets.length > 0,
-      emoji:  "👛",
-      label:  "Add a wallet",
-      sub:    "GCash, Maya, cash — where your money lives",
-      action: onGoAccounts,
-      color:  C.sky,
-    },
-    {
-      id:     "expense",
-      done:   expenses && expenses.length > 0,
-      emoji:  "📝",
-      label:  "Log your first expense",
-      sub:    "Kahit ₱15 na pandesal. Simula na.",
-      action: onAdd,
-      color:  C.green,
-    },
-  ];
-
-  const doneCount = steps.filter(s => s.done).length;
-  const allDone   = doneCount === steps.length;
-  const nextStep  = steps.find(s => !s.done);
-  const pct       = Math.round((doneCount / steps.length) * 100);
-
-  // Auto-dismiss silently once all steps complete
-  if (allDone) return null;
-
+function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
+  const missing = [];
+  if (!name)                          missing.push({ icon:"👋", text:"Add your name" });
+  if (!income || income <= 0)         missing.push({ icon:"💸", text:"Set monthly income" });
+  if (!wallets || wallets.length===0) missing.push({ icon:"👛", text:"Add a wallet" });
+  if (missing.length === 0) return null;
   return (
-    <div style={{ background:`${C.accent}08`, border:`1px solid ${C.accent}22`, borderRadius:16, padding:"14px 16px", position:"relative", zIndex:1 }}>
-
-      {/* Header row */}
+    <div style={{ background:`${C.accent}0E`, border:`1px solid ${C.accent}30`, borderRadius:16, padding:"14px 16px", position:"relative" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-        <div style={{ flex:1 }}>
-          <p style={{ margin:"0 0 2px", fontFamily:FF, fontSize:13, fontWeight:800, color:C.text }}>
-            {doneCount === 0 ? "Welcome to bulsa. 👋" : doneCount === 1 ? "Maganda! Isa pa." : "Almost ready — last step!"}
-          </p>
-          <p style={{ margin:"0 0 8px", fontFamily:FF, fontSize:11, color:C.textSub }}>
-            {3 - doneCount} step{3 - doneCount !== 1 ? "s" : ""} left · less than a minute
-          </p>
-          {/* Progress bar */}
-          <div style={{ background:C.border, borderRadius:99, height:4, overflow:"hidden" }}>
-            <div style={{ width:`${pct}%`, height:"100%", background:C.gradAccent, borderRadius:99, transition:"width 0.4s ease" }}/>
-          </div>
+        <div>
+          <p style={{ margin:"0 0 2px", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:C.text }}>Finish setting up bulsa.</p>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:C.textSub }}>{missing.length} thing{missing.length!==1?"s":""} left — takes 30 seconds</p>
         </div>
-        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", lineHeight:1, marginLeft:12, flexShrink:0, padding:"0 0 0 4px" }}>×</button>
+        <button onClick={onDismiss} style={{ background:"none", border:"none", color:C.textFaint, fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
       </div>
-
-      {/* Steps */}
-      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-        {steps.map((step, i) => {
-          const isNext = step === nextStep;
-          return (
-            <button key={step.id}
-              onClick={step.done ? undefined : step.action}
-              disabled={step.done}
-              className={step.done ? "" : "tap-btn"}
-              style={{
-                display:"flex", alignItems:"center", gap:10,
-                background: step.done ? `${step.color}08` : isNext ? `${step.color}14` : C.surface,
-                border: `1px solid ${step.done ? step.color+"25" : isNext ? step.color+"50" : C.border}`,
-                borderRadius:12, padding:"10px 12px",
-                cursor: step.done ? "default" : "pointer",
-                textAlign:"left", width:"100%",
-                opacity: !step.done && !isNext ? 0.5 : 1,
-                transition:"all 0.18s",
-              }}>
-
-              {/* Step circle */}
-              <div style={{
-                width:32, height:32, borderRadius:8, flexShrink:0,
-                background: step.done ? `${step.color}20` : isNext ? step.color : C.card,
-                border: `2px solid ${step.done ? step.color+"50" : isNext ? step.color : C.border}`,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize: step.done ? 14 : 16,
-              }}>
-                {step.done ? "✓" : step.emoji}
-              </div>
-
-              {/* Text */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{
-                  margin:"0 0 1px", fontFamily:FF, fontSize:13, fontWeight:800,
-                  color: step.done ? C.textFaint : C.text,
-                  textDecoration: step.done ? "line-through" : "none",
-                }}>
-                  {step.label}
-                </p>
-                {!step.done && (
-                  <p style={{ margin:0, fontFamily:FF, fontSize:11, color:C.textSub, lineHeight:1.4 }}>
-                    {step.sub}
-                  </p>
-                )}
-              </div>
-
-              {/* Arrow — only on next step */}
-              {isNext && (
-                <span style={{ color:step.color, fontSize:16, flexShrink:0 }}>›</span>
-              )}
-            </button>
-          );
-        })}
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
+        {missing.map((m,i)=>(<div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:14 }}>{m.icon}</span><span style={{ fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub }}>{m.text}</span></div>))}
       </div>
+      <button onClick={onSetup} style={{ background:C.gradAccent, border:"none", borderRadius:8, padding:"10px 0", width:"100%", fontFamily:"DM Sans,sans-serif", fontSize:13, fontWeight:800, color:"#fff", cursor:"pointer" }}>
+        Set up now →
+      </button>
     </div>
   );
 }
 
 
-// ─── RECOMMENDATION ENGINE ──────────────────────────────────────────────────
+// ─── STREAK CELEBRATION MODAL ─────────────────────────────────────────────
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+
+function StreakCelebration({ streak, onClose }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Animate in
+    const t = setTimeout(() => setVisible(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  const close = () => {
+    setVisible(false);
+    setTimeout(onClose, 300);
+  };
+
+  const config = streak >= 100 ? {
+    emoji: "🏆", color: C.gold,
+    headline: "100 Days!",
+    sub: "Isang daan na araw ng tipid. Ikaw talaga.",
+    msg: `💰 ${streak} days on budget! Hindi biro 'yan. bulsa. app helped me track every piso.`,
+  } : streak >= 60 ? {
+    emoji: "💎", color: "#A78BFA",
+    headline: "60 Days Strong!",
+    sub: "Dalawang buwang di nag-overspend. Galing.",
+    msg: `💎 ${streak}-day streak! 2 months of staying on budget with bulsa.`,
+  } : streak >= 30 ? {
+    emoji: "🌟", color: C.gold,
+    headline: "Isang buwan!",
+    sub: "30 days on budget. Hindi lahat nakakagawa nito.",
+    msg: `🌟 30-day budget streak! Isang buwang tipid. Proud of this one! #bulsa #tipid`,
+  } : streak >= 14 ? {
+    emoji: "🔥", color: C.accent,
+    headline: "2 Weeks!",
+    sub: "Dalawang linggong under budget. Keep it up!",
+    msg: `🔥 ${streak}-day streak on bulsa.! Dalawang linggo ng tamang gastos. 💪`,
+  } : streak >= 7 ? {
+    emoji: "⚡", color: C.lime,
+    headline: "Isang linggo!",
+    sub: "7 days under budget. Hindi madali 'yan.",
+    msg: `⚡ ${streak} days on budget! One week of staying tipid with bulsa. 🇵🇭`,
+  } : {
+    emoji: "✨", color: C.sky,
+    headline: "3-Day Streak!",
+    sub: "Tatlong araw na under budget. Magaling!",
+    msg: `✨ ${streak}-day budget streak on bulsa.! Simula pa lang ito. 💸`,
+  };
+
+  const share = () => {
+    if (navigator.share) {
+      navigator.share({ text: config.msg }).catch(()=>{});
+    } else {
+      navigator.clipboard?.writeText(config.msg).then(()=>alert("Copied! I-paste sa group chat mo."));
+    }
+  };
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, zIndex:9999,
+      background:`rgba(8,14,28,${visible?0.92:0})`,
+      display:"flex", alignItems:"center", justifyContent:"center",
+      padding:24, transition:"background 0.3s ease",
+    }} onClick={close}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{
+          background:`linear-gradient(145deg,#0F2240,#1C2B42)`,
+          border:`2px solid ${config.color}50`,
+          borderRadius:24, padding:"32px 24px",
+          maxWidth:340, width:"100%",
+          textAlign:"center",
+          boxShadow:`0 0 80px ${config.color}30`,
+          transform:visible?"scale(1)":"scale(0.85)",
+          opacity:visible?1:0,
+          transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease",
+        }}>
+
+        {/* Big emoji */}
+        <div style={{ fontSize:72, marginBottom:16, lineHeight:1, animation:"scaleIn 0.4s ease 0.1s both" }}>
+          {config.emoji}
+        </div>
+
+        {/* Streak number — the hero */}
+        <div style={{ marginBottom:8 }}>
+          <span style={{ fontFamily:FF, fontSize:80, fontWeight:800, color:config.color, letterSpacing:"-0.04em", lineHeight:1 }}>
+            {streak}
+          </span>
+          <span style={{ fontFamily:FF, fontSize:24, fontWeight:800, color:config.color, opacity:0.7 }}> days</span>
+        </div>
+
+        {/* Headline */}
+        <p style={{ margin:"0 0 8px", fontFamily:FF, fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>
+          {config.headline}
+        </p>
+        <p style={{ margin:"0 0 28px", fontFamily:FF, fontSize:14, color:C.textSub, lineHeight:1.6 }}>
+          {config.sub}
+        </p>
+
+        {/* Dot indicator for milestone progress */}
+        <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:28 }}>
+          {STREAK_MILESTONES.map(m=>(
+            <div key={m} style={{
+              width: m===streak?12:6,
+              height:6, borderRadius:99,
+              background: streak>=m ? config.color : C.border,
+              transition:"all 0.3s",
+            }}/>
+          ))}
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <button onClick={share} className="tap-btn"
+            style={{ width:"100%", padding:"14px", borderRadius:12, background:`linear-gradient(135deg,${config.color},${config.color}cc)`, border:"none", color:"#111", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:FF, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            📤 Ibahagi sa group chat
+          </button>
+          <button onClick={close} className="tap-btn"
+            style={{ width:"100%", padding:"12px", borderRadius:12, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FF }}>
+            Salamat! Ituloy ko pa.
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
 function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday }) {
   const daysLeft    = runway?.daysLeft || 0;
   const allowedDay  = runway?.allowedPerDay || dailyLimit || 0;
@@ -3126,6 +3158,8 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
   const fmt = useFmt();
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
   const [setupCardDismissed, setSetupCardDismissed] = useState(false);
+  const [celebratedStreaks,  setCelebratedStreaks]  = useLocalStorage("bulsa_celebrated_streaks", []);
+  const [showStreakCelebration, setShowStreakCelebration] = useState(false);
 
   // ── Core numbers — memoized so they only recompute when expenses/wallets change ──
   const todayStr   = new Date().toDateString();
@@ -3229,7 +3263,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     return streak;
   }, [expenses, dailyLimit]);
 
-  // ── Recommendation engine ──────────────────────────────────────────────────
+  // ── Trigger celebration when hitting a streak milestone ────────────────────
+  useEffect(() => {
+    if (!budgetStreak || budgetStreak < 3) return;
+    const milestone = STREAK_MILESTONES.find(m => budgetStreak === m);
+    if (!milestone) return;
+    if (celebratedStreaks.includes(milestone)) return;
+    // Show celebration and mark this milestone as seen
+    setShowStreakCelebration(true);
+    setCelebratedStreaks(prev => [...prev, milestone]);
+  }, [budgetStreak]);
   const recommendation = useMemo(() => {
     if (!hero) return null;
     return getRecommendation({
@@ -3366,17 +3409,18 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         </div>
       )}
 
-      {/* ── SETUP CHECKLIST — shows until all 3 steps complete ── */}
+      {/* ── SETUP NUDGE ── */}
       {!setupCardDismissed && (
-        <SetupChecklist
-          income={income}
-          wallets={wallets}
-          expenses={expenses}
-          onGoProfile={()=>setScreen("profile")}
-          onGoAccounts={()=>setScreen("accounts")}
-          onAdd={onAdd}
-          onDismiss={()=>setSetupCardDismissed(true)}
-        />
+        <SetupCard income={income} wallets={wallets} name={name}
+          onSetup={()=>setScreen("profile")}
+          onDismiss={()=>setSetupCardDismissed(true)}/>
+      )}
+      {income <= 0 && setupCardDismissed && (
+        <div onClick={()=>setScreen("profile")} style={{ background:`${C.gold}10`, border:`1px solid ${C.gold}30`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+          <span style={{ fontSize:16 }}>💸</span>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:12, color:C.textSub, flex:1 }}>Set your income to unlock <span style={{ color:C.gold, fontWeight:700 }}>runway & daily limit</span></p>
+          <span style={{ color:C.gold, fontSize:14 }}>›</span>
+        </div>
       )}
 
       {/* ── HEADER — one line ── */}
@@ -3647,6 +3691,14 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
       {/* ══ GOAL NUDGE ══════════════════════════════════════════════════════ */}
       {underBudgetAmt > 0 && goals && goals.length > 0 && (
         <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
+      )}
+
+      {/* ══ STREAK CELEBRATION ══════════════════════════════════════════════ */}
+      {showStreakCelebration && budgetStreak && (
+        <StreakCelebration
+          streak={budgetStreak}
+          onClose={()=>setShowStreakCelebration(false)}
+        />
       )}
 
     </div>
