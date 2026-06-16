@@ -2971,60 +2971,46 @@ function SetupCard({ income, wallets, name, onSetup, onDismiss }) {
 
 
 // ─── STREAK CELEBRATION MODAL ─────────────────────────────────────────────
+// Celebrates staying UNDER DAILY BUDGET for consecutive days — not zero spend.
+// A ₱45 pandesal still counts as long as you're under your limit!
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
 
 function StreakCelebration({ streak, onClose }) {
   const [visible, setVisible] = useState(false);
+  useEffect(() => { const t = setTimeout(()=>setVisible(true), 50); return ()=>clearTimeout(t); }, []);
 
-  useEffect(() => {
-    // Animate in
-    const t = setTimeout(() => setVisible(true), 50);
-    return () => clearTimeout(t);
-  }, []);
-
-  const close = () => {
-    setVisible(false);
-    setTimeout(onClose, 300);
-  };
+  const close = () => { setVisible(false); setTimeout(onClose, 280); };
 
   const config = streak >= 100 ? {
-    emoji: "🏆", color: C.gold,
-    headline: "100 Days!",
-    sub: "Isang daan na araw ng tipid. Ikaw talaga.",
-    msg: `💰 ${streak} days on budget! Hindi biro 'yan. bulsa. app helped me track every piso.`,
+    emoji:"🏆", color:C.gold,
+    headline:"100 Days Under Budget!",
+    sub:"Isang daan na araw ng under limit. Hindi biro 'yan — ikaw talaga.",
+    msg:`🏆 ${streak} days under my daily budget! bulsa. app helped me track every piso. Ikaw rin kaya! 🇵🇭`,
   } : streak >= 60 ? {
-    emoji: "💎", color: "#A78BFA",
-    headline: "60 Days Strong!",
-    sub: "Dalawang buwang di nag-overspend. Galing.",
-    msg: `💎 ${streak}-day streak! 2 months of staying on budget with bulsa.`,
+    emoji:"💎", color:"#A78BFA",
+    headline:"60 Days Tipid!",
+    sub:"Dalawang buwan na under budget ka. Galing. Wala kang overspend.",
+    msg:`💎 ${streak} days under budget with bulsa.! 2 months ng tamang gastos. 💸`,
   } : streak >= 30 ? {
-    emoji: "🌟", color: C.gold,
-    headline: "Isang buwan!",
-    sub: "30 days on budget. Hindi lahat nakakagawa nito.",
-    msg: `🌟 30-day budget streak! Isang buwang tipid. Proud of this one! #bulsa #tipid`,
+    emoji:"🌟", color:C.gold,
+    headline:"Isang Buwan!",
+    sub:"30 araw na under sa daily limit. Hindi lahat nakakagawa nito.",
+    msg:`🌟 30 days under my daily budget! Isang buwang tipid — proud of this. #bulsa #tipid 🇵🇭`,
   } : streak >= 14 ? {
-    emoji: "🔥", color: C.accent,
-    headline: "2 Weeks!",
-    sub: "Dalawang linggong under budget. Keep it up!",
-    msg: `🔥 ${streak}-day streak on bulsa.! Dalawang linggo ng tamang gastos. 💪`,
+    emoji:"🔥", color:C.accent,
+    headline:"Dalawang Linggo!",
+    sub:"14 araw na under budget. Kahit may gastos araw-araw, nananatili kang tipid.",
+    msg:`🔥 ${streak} days under my daily limit on bulsa.! Dalawang linggo ng disiplina. 💪`,
   } : streak >= 7 ? {
-    emoji: "⚡", color: C.lime,
-    headline: "Isang linggo!",
-    sub: "7 days under budget. Hindi madali 'yan.",
-    msg: `⚡ ${streak} days on budget! One week of staying tipid with bulsa. 🇵🇭`,
+    emoji:"⚡", color:C.lime,
+    headline:"Isang Linggo ng Tipid!",
+    sub:"7 araw na under sa daily limit mo. Nagastos ka, pero hindi ka nag-overspend.",
+    msg:`⚡ ${streak} days under budget! One week of staying within my daily limit. bulsa. app 🇵🇭`,
   } : {
-    emoji: "✨", color: C.sky,
-    headline: "3-Day Streak!",
-    sub: "Tatlong araw na under budget. Magaling!",
-    msg: `✨ ${streak}-day budget streak on bulsa.! Simula pa lang ito. 💸`,
-  };
-
-  const share = () => {
-    if (navigator.share) {
-      navigator.share({ text: config.msg }).catch(()=>{});
-    } else {
-      navigator.clipboard?.writeText(config.msg).then(()=>alert("Copied! I-paste sa group chat mo."));
-    }
+    emoji:"✨", color:C.sky,
+    headline:"3 Days Under Budget!",
+    sub:"Tatlong araw na hindi ka nag-overspend. Kahit may gastos — disiplina 'yan!",
+    msg:`✨ ${streak} days under my daily budget on bulsa.! Simula pa lang ito. 💸 #tipid`,
   };
 
   return (
@@ -3034,68 +3020,67 @@ function StreakCelebration({ streak, onClose }) {
       display:"flex", alignItems:"center", justifyContent:"center",
       padding:24, transition:"background 0.3s ease",
     }} onClick={close}>
-      <div onClick={e=>e.stopPropagation()}
-        style={{
-          background:`linear-gradient(145deg,#0F2240,#1C2B42)`,
-          border:`2px solid ${config.color}50`,
-          borderRadius:24, padding:"32px 24px",
-          maxWidth:340, width:"100%",
-          textAlign:"center",
-          boxShadow:`0 0 80px ${config.color}30`,
-          transform:visible?"scale(1)":"scale(0.85)",
-          opacity:visible?1:0,
-          transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease",
-        }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:`linear-gradient(145deg,#0F2240,#1C2B42)`,
+        border:`2px solid ${config.color}50`,
+        borderRadius:24, padding:"32px 24px",
+        maxWidth:340, width:"100%", textAlign:"center",
+        boxShadow:`0 0 80px ${config.color}25`,
+        transform:visible?"scale(1)":"scale(0.85)",
+        opacity:visible?1:0,
+        transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease",
+      }}>
 
-        {/* Big emoji */}
-        <div style={{ fontSize:72, marginBottom:16, lineHeight:1, animation:"scaleIn 0.4s ease 0.1s both" }}>
-          {config.emoji}
+        <div style={{ fontSize:68, marginBottom:12, lineHeight:1 }}>{config.emoji}</div>
+
+        {/* Big streak number */}
+        <div style={{ marginBottom:6 }}>
+          <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:72, fontWeight:800, color:config.color, letterSpacing:"-0.04em", lineHeight:1 }}>{streak}</span>
+          <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:config.color, opacity:0.7 }}> days</span>
         </div>
 
-        {/* Streak number — the hero */}
-        <div style={{ marginBottom:8 }}>
-          <span style={{ fontFamily:FF, fontSize:80, fontWeight:800, color:config.color, letterSpacing:"-0.04em", lineHeight:1 }}>
-            {streak}
-          </span>
-          <span style={{ fontFamily:FF, fontSize:24, fontWeight:800, color:config.color, opacity:0.7 }}> days</span>
+        <p style={{ margin:"0 0 6px", fontFamily:"DM Sans,sans-serif", fontSize:20, fontWeight:800, color:"#E8EFF8", letterSpacing:"-0.02em" }}>{config.headline}</p>
+        <p style={{ margin:"0 0 8px", fontFamily:"DM Sans,sans-serif", fontSize:12, color:"#6B8CAD", lineHeight:1.6 }}>{config.sub}</p>
+
+        {/* What counts — clarification */}
+        <div style={{ background:`${config.color}12`, border:`1px solid ${config.color}30`, borderRadius:10, padding:"8px 12px", marginBottom:24 }}>
+          <p style={{ margin:0, fontFamily:"DM Sans,sans-serif", fontSize:11, color:`#E8EFF8`, lineHeight:1.55 }}>
+            💡 Hindi kailangan na zero ang gastos. Basta under ka sa daily limit mo — bilang 'yan!
+          </p>
         </div>
 
-        {/* Headline */}
-        <p style={{ margin:"0 0 8px", fontFamily:FF, fontSize:22, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>
-          {config.headline}
-        </p>
-        <p style={{ margin:"0 0 28px", fontFamily:FF, fontSize:14, color:C.textSub, lineHeight:1.6 }}>
-          {config.sub}
-        </p>
-
-        {/* Dot indicator for milestone progress */}
-        <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:28 }}>
+        {/* Milestone dots */}
+        <div style={{ display:"flex", justifyContent:"center", gap:5, marginBottom:24 }}>
           {STREAK_MILESTONES.map(m=>(
             <div key={m} style={{
-              width: m===streak?12:6,
-              height:6, borderRadius:99,
-              background: streak>=m ? config.color : C.border,
+              height:5, borderRadius:99,
+              width: m===streak?16:6,
+              background: streak>=m ? config.color : "#1E3352",
               transition:"all 0.3s",
             }}/>
           ))}
         </div>
 
-        {/* Buttons */}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button onClick={share} className="tap-btn"
-            style={{ width:"100%", padding:"14px", borderRadius:12, background:`linear-gradient(135deg,${config.color},${config.color}cc)`, border:"none", color:"#111", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:FF, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          <button onClick={()=>{
+            const text = config.msg;
+            if (navigator.share) { navigator.share({text}).catch(()=>{}); }
+            else { navigator.clipboard?.writeText(text).then(()=>alert("Copied! I-paste sa group chat.")); }
+          }} className="tap-btn"
+            style={{ width:"100%", padding:"14px", borderRadius:12, background:`linear-gradient(135deg,${config.color},${config.color}cc)`, border:"none", color:"#111", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
             📤 Ibahagi sa group chat
           </button>
           <button onClick={close} className="tap-btn"
-            style={{ width:"100%", padding:"12px", borderRadius:12, background:"none", border:`1px solid ${C.border}`, color:C.textSub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FF }}>
-            Salamat! Ituloy ko pa.
+            style={{ width:"100%", padding:"12px", borderRadius:12, background:"none", border:`1px solid #1E3352`, color:"#6B8CAD", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"DM Sans,sans-serif" }}>
+            Salamat! Ituloy ko pa. 💪
           </button>
         </div>
-
       </div>
     </div>
   );
 }
+
+// ─── RECOMMENDATION ENGINE ──────────────────────────────────────────────────
 function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal, subs, loans, payday }) {
   const daysLeft    = runway?.daysLeft || 0;
   const allowedDay  = runway?.allowedPerDay || dailyLimit || 0;
@@ -3157,8 +3142,8 @@ function getRecommendation({ status, todaySpent, dailyLimit, runway, walletTotal
 function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, setScreen, onAdd, onQuickLog, dailyLimit, setDailyLimit, avatar, utangs, wallets, hidden, setHidden, subs=[], payday="both", showInstallBanner=false, onInstall, onDismissInstall, lastBackup=null, onWalletTap, autoLoggedSubs=[], onDismissAutoLog }) {
   const fmt = useFmt();
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false);
-  const [setupCardDismissed, setSetupCardDismissed] = useState(false);
-  const [celebratedStreaks,  setCelebratedStreaks]  = useLocalStorage("bulsa_celebrated_streaks", []);
+  const [setupCardDismissed,   setSetupCardDismissed]   = useState(false);
+  const [celebratedStreaks,    setCelebratedStreaks]     = useLocalStorage("bulsa_celebrated_streaks", []);
   const [showStreakCelebration, setShowStreakCelebration] = useState(false);
 
   // ── Core numbers — memoized so they only recompute when expenses/wallets change ──
@@ -3235,13 +3220,24 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         spent: fmt(0),
         sub: runway ? `Up to ${fmt(runway.allowedPerDay)} today · ${runway.daysLeft}d to ${runway.label}` : "Nothing logged yet today" };
     }
+    const limit = dailyLimit > 0 ? dailyLimit : runway?.allowedPerDay || 0;
+    const usePct = limit > 0 ? todaySpent / limit : 1;
+
+    // Low spend warm messages — when you're doing really well today
+    const lowSpendSub = (() => {
+      if (todaySpent === 0 || limit <= 0) return null;
+      if (usePct <= 0.25) return `₱${todaySpent.toLocaleString()} lang ngayon — ang tipid mo! 🌟`;
+      if (usePct <= 0.50) return `${fmt(todaySpent)} spent. Mababa pa rin — ayos! 👍`;
+      return null;
+    })();
+
     return { status:"ok", color:C.green, pill:"YOU'RE GOOD",
       spent: fmt(todaySpent),
-      sub: dailyLimit > 0
+      sub: lowSpendSub || (dailyLimit > 0
         ? `${fmt(dailyLimit - todaySpent)} left today · ${runway ? `${runway.daysLeft}d to ${runway.label}` : ""}`
         : runway
         ? `${fmt(runway.allowedPerDay - todaySpent)} left today · ${runway.daysLeft}d to ${runway.label}`
-        : `${fmt(balance)} across all wallets` };
+        : `${fmt(balance)} across all wallets`) };
   }, [dailyLimit, todaySpent, runway, expenses, balance, fmt]);
 
   // ── Budget streak — THE most expensive computation. Memoized hard. ─────────
@@ -3263,16 +3259,16 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
     return streak;
   }, [expenses, dailyLimit]);
 
-  // ── Trigger celebration when hitting a streak milestone ────────────────────
+  // ── Fire celebration when hitting a streak milestone ───────────────────────
   useEffect(() => {
     if (!budgetStreak || budgetStreak < 3) return;
-    const milestone = STREAK_MILESTONES.find(m => budgetStreak === m);
-    if (!milestone) return;
-    if (celebratedStreaks.includes(milestone)) return;
-    // Show celebration and mark this milestone as seen
+    if (!STREAK_MILESTONES.includes(budgetStreak)) return;
+    if ((celebratedStreaks||[]).includes(budgetStreak)) return;
     setShowStreakCelebration(true);
-    setCelebratedStreaks(prev => [...prev, milestone]);
+    setCelebratedStreaks(prev => [...(prev||[]), budgetStreak]);
   }, [budgetStreak]);
+
+  // ── Recommendation engine ──────────────────────────────────────────────────
   const recommendation = useMemo(() => {
     if (!hero) return null;
     return getRecommendation({
@@ -3693,7 +3689,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         <GoalNudge goals={goals} setGoals={setGoals} underAmount={underBudgetAmt} onDismiss={()=>setNudgeDismissed(true)}/>
       )}
 
-      {/* ══ STREAK CELEBRATION ══════════════════════════════════════════════ */}
+      {/* ── STREAK CELEBRATION ─────────────────────────────────────── */}
       {showStreakCelebration && budgetStreak && (
         <StreakCelebration
           streak={budgetStreak}
