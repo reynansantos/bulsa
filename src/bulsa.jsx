@@ -38,7 +38,7 @@ const GlobalStyles = () => (
   <>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet"/>
     <style>{`
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
     body { font-family: 'DM Sans', sans-serif; }
@@ -210,6 +210,11 @@ class ScreenErrorBoundary extends React.Component {
   }
 }
 
+
+// ─── TYPOGRAPHY ────────────────────────────────────────────────────────────
+// FD = display font for big numbers (hero, streak, projection, stats)
+// All UI copy stays in DM Sans — only large numerals use Plus Jakarta Sans
+const FD = "Plus Jakarta Sans, DM Sans, sans-serif";
 
 const CATS = [
   { id:"food",      label:"Food & Drinks",  icon:"🍜", color:C.accent   },
@@ -3037,7 +3042,7 @@ function StreakCelebration({ streak, onClose }) {
 
         {/* Big streak number */}
         <div style={{ marginBottom:6 }}>
-          <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:72, fontWeight:800, color:config.color, letterSpacing:"-0.04em", lineHeight:1 }}>{streak}</span>
+          <span style={{ fontFamily:FD, fontSize:80, fontWeight:800, color:config.color, letterSpacing:"-0.05em", lineHeight:1 }}>{streak}</span>
           <span style={{ fontFamily:"DM Sans,sans-serif", fontSize:22, fontWeight:800, color:config.color, opacity:0.7 }}> days</span>
         </div>
 
@@ -3471,9 +3476,9 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
         {/* Big number */}
         <div style={{ position:"relative", zIndex:1, marginBottom:10 }}>
           <p style={{ margin:"0 0 1px", fontSize:11, color:C.textSub, fontFamily:FF }}>Spent today</p>
-          <h2 style={{ margin:0, fontFamily:FF, fontSize:48, fontWeight:800,
+          <h2 style={{ margin:0, fontFamily:FD, fontSize:52, fontWeight:800,
             color: hero.status==="over"||hero.status==="peligro" ? C.coral : hero.status==="tight" ? C.gold : C.text,
-            letterSpacing:"-0.03em", lineHeight:1 }}>
+            letterSpacing:"-0.04em", lineHeight:1 }}>
             {hidden ? "₱••••" : hero.spent}
           </h2>
         </div>
@@ -3534,7 +3539,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
           {budgetStreak !== null && budgetStreak > 0 && (
             <div style={{ flexShrink:0, background:budgetStreak>=7?C.gold:budgetStreak>=3?C.lime:C.accent, borderRadius:99, padding:"3px 9px", display:"flex", alignItems:"center", gap:3, marginLeft:8 }}>
               <span style={{ fontSize:10 }}>🔥</span>
-              <span style={{ fontFamily:FF, fontSize:11, fontWeight:600, color:"#111" }}>{budgetStreak}d</span>
+              <span style={{ fontFamily:FD, fontSize:12, fontWeight:800, color:"#111" }}>{budgetStreak}d</span>
             </div>
           )}
         </div>
@@ -3553,7 +3558,7 @@ function HomeScreen({ expenses, budgets, income, name, loans, goals, setGoals, s
               </p>
             </div>
             <div style={{ textAlign:"right" }}>
-              <p style={{ margin:"0 0 1px", fontSize:22, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FF, letterSpacing:"-0.02em" }}>
+              <p style={{ margin:"0 0 1px", fontSize:28, fontWeight:800, color:projection.shortBy>0?C.coral:C.green, fontFamily:FD, letterSpacing:"-0.03em" }}>
                 {projection.shortBy > 0 ? `-₱${projection.shortBy.toLocaleString()}` : `₱${projection.projected.toLocaleString()}`}
               </p>
               <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>
@@ -6502,7 +6507,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
             ["Saved",   income>0?savePct+"%":"—",              savePct>=20?C.green:C.coral],
           ].map(([lbl,val,clr])=>(
             <Card key={lbl} style={{ textAlign:"center", padding:"12px 6px" }}>
-              <p style={{ margin:"0 0 3px", fontSize:20, fontWeight:700, color:clr, fontFamily:FF }}>{val}</p>
+              <p style={{ margin:"0 0 3px", fontSize:20, fontWeight:800, color:clr, fontFamily:FD, letterSpacing:"-0.02em" }}>{val}</p>
               <p style={{ margin:0, fontSize:10, color:C.textSub, fontFamily:FF }}>{lbl}</p>
             </Card>
           ))}
@@ -6529,7 +6534,7 @@ function ProfileScreen({ income, setIncome, incomeSources, setIncomeSources, nam
               </p>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <p style={{ margin:0, fontSize:22, fontWeight:800, color:C.accent, fontFamily:"DM Sans,sans-serif" }}>{fmt(totalIncome)}</p>
+              <p style={{ margin:0, fontSize:26, fontWeight:800, color:C.accent, fontFamily:FD, letterSpacing:"-0.03em" }}>{fmt(totalIncome)}</p>
               <span style={{ color:C.textFaint, fontSize:14, transition:"transform 0.2s", display:"inline-block", transform:incomeOpen?"rotate(90deg)":"rotate(0deg)" }}>›</span>
             </div>
           </button>
