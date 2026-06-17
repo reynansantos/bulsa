@@ -230,10 +230,12 @@ const CATS = [
 ];
 
 const MOODS = [
-  { id:"stressed",  emoji:"😰", label:"Stressed",  color:C.coral  },
-  { id:"neutral",   emoji:"😐", label:"Neutral",   color:C.textSub },
-  { id:"happy",     emoji:"😊", label:"Happy",     color:C.gold   },
-  { id:"motivated", emoji:"🔥", label:"Motivated", color:C.green  },
+  { id:"stressed",  emoji:"😰", label:"Stressed",     color:C.coral   }, // pressure, bad day, kailangan pero ayaw
+  { id:"neutral",   emoji:"😐", label:"Neutral",      color:C.textSub }, // routine, walang kwenta
+  { id:"guilty",    emoji:"😬", label:"Guilty",       color:C.rose    }, // impulse, TikTok Shop, nakita ko lang
+  { id:"deserved",  emoji:"😤", label:"Deserved it",  color:C.gold    }, // payday treat, overtime reward, sippin
+  { id:"yolo",      emoji:"😴", label:"Tired / YOLO", color:C.sky     }, // late night Grab, too gutom to cook
+  { id:"treat",     emoji:"🎁", label:"Treat yourself",color:C.green  }, // intentional self-care, pinaghandaan
 ];
 
 const LOAN_TYPES  = ["BNPL","Personal","Cash Loan","Credit Card","Student","Car Loan","Other"];
@@ -1336,7 +1338,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
     const amtMatch = txt.match(/[₱p]?\s*(\d[\d,]*(?:\.\d+)?)/);
     const amt = amtMatch ? parseFloat(amtMatch[1].replace(/,/g,"")) : 0;
     const rest = txt.replace(/[₱p]?\s*\d[\d,]*(?:\.\d+)?/, " ").replace(/\s+/g," ").trim();
-    const moodMap = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", sad:"sad", malungkot:"sad", happy:"happy", masaya:"happy", saya:"happy", excited:"excited", motivated:"motivated", bored:"bored", naasar:"frustrated", galit:"frustrated" };
+    const moodMap = { stressed:"stressed", stress:"stressed", hirap:"stressed", pagod:"stressed", guilty:"guilty", guilty:"guilty", impulse:"guilty", nakita:"guilty", tiktok:"guilty", deserved:"deserved", swerve:"deserved", sippin:"deserved", payday:"deserved", reward:"deserved", yolo:"yolo", tired:"yolo", gutom:"yolo", late:"yolo", late_night:"yolo", treat:"treat", self_care:"treat", pinaghandaan:"treat", neutral:"neutral", okay:"neutral", fine:"neutral" };
     let mid = null;
     for (const [kw,id] of Object.entries(moodMap)) { if (rest.includes(kw)) { mid=id; break; } }
     const catMap = [
@@ -1390,7 +1392,7 @@ function AddExpenseSheet({ onClose, onSave, moodLogsCount, editExpense, wallets,
 Categories: ${catList}
 Moods: ${moodList}
 Shape: {"name":"string","amount":number,"catId":"string","moodId":"string|null"}
-Rules: name=merchant capitalized, amount=number only (0 if missing), best catId match, moodId from emotional keywords or null.`,
+Rules: name=merchant capitalized, amount=number only (0 if missing), best catId match, moodId from emotional keywords (stressed/neutral/guilty/deserved/yolo/treat) or null.`,
               messages:[{ role:"user", content:aiInput.trim() }]
             })
           }),
@@ -1488,7 +1490,7 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
                   value={aiInput}
                   onChange={e=>{ setAiInput(e.target.value); setAiError(""); }}
                   onKeyDown={e=>e.key==="Enter"&&!aiLoading&&parseWithAI()}
-                  placeholder={isOnline?"jollibee 120 stressed...":"describe it (offline mode)"}
+                  placeholder={isOnline?"jollibee 120 guilty...":"describe it (offline mode)"}
                   style={{ flex:1, background:"none", border:"none", outline:"none", fontFamily:FF, fontSize:15, fontWeight:600, color:C.text, caretColor:C.accent }}
                 />
                 {aiInput&&!aiLoading&&(
@@ -1723,7 +1725,7 @@ function ExpenseDetail({ expense, onClose, onEdit, onDelete, onAddPhoto }) {
               <span style={{ fontSize:26 }}>{m.emoji}</span>
               <div>
                 <p style={{ margin:"0 0 2px", fontSize:12, fontWeight:700, color:m.color, fontFamily:"DM Sans,sans-serif" }}>Feeling {m.label.toLowerCase()}</p>
-                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="stressed"?"Heads up -- stress spending adds up.":m.id==="happy"?"Happy purchases are the best kind.":m.id==="motivated"?"Smart spending. In the zone.":"Neutral day, neutral spend."}</p>
+                <p style={{ margin:0, fontSize:11, color:C.textSub, fontFamily:"DM Sans,sans-serif" }}>{m.id==="stressed"?"Heads up — stress spending adds up.":m.id==="guilty"?"Impulse buys. Nakita mo lang ba? 😬":m.id==="deserved"?"You earned it. Own it.":m.id==="yolo"?"Late night / tired mode. Iwasan kung kaya.":m.id==="treat"?"Intentional treat. Good for you.":"Routine spend. Nothing to worry about."}</p>
               </div>
             </div>
           )}
@@ -2789,10 +2791,40 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
   }
 
   // 4. MOOD-SPEND LINK: "You spend ₱890 more when stressed. Noticed?"
-  const stressSpend = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
-  const stressCount = expenses.filter(e=>e.moodId==="stressed").length;
-  const neutralSpend = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").reduce((s,e)=>s+e.amount,0);
-  const neutralCount = expenses.filter(e=>e.moodId==="okay"||e.moodId==="fine").length;
+  const stressSpend  = expenses.filter(e=>e.moodId==="stressed").reduce((s,e)=>s+e.amount,0);
+  const stressCount  = expenses.filter(e=>e.moodId==="stressed").length;
+  const guiltySpend  = expenses.filter(e=>e.moodId==="guilty").reduce((s,e)=>s+e.amount,0);
+  const guiltyCount  = expenses.filter(e=>e.moodId==="guilty").length;
+  const yoloSpend    = expenses.filter(e=>e.moodId==="yolo").reduce((s,e)=>s+e.amount,0);
+  const yoloCount    = expenses.filter(e=>e.moodId==="yolo").length;
+  const neutralSpend = expenses.filter(e=>e.moodId==="neutral").reduce((s,e)=>s+e.amount,0);
+  const neutralCount = expenses.filter(e=>e.moodId==="neutral").length;
+  // Guilty spend insight
+  if (guiltyCount >= 2) {
+    const guiltyAvg = guiltySpend / guiltyCount;
+    insights.push({
+      priority: 7,
+      icon: "😬",
+      tag: "Impulse alert",
+      headline: `${guiltyCount} impulse buys totaling ${fmt(guiltySpend)}`,
+      sub: `Average impulse buy: ${fmt(Math.round(guiltyAvg))}. Nakita mo lang ba? Try the 48-hour rule — kung gusto mo pa rin after 2 days, then get it.`,
+      color: C.rose,
+    });
+  }
+
+  // YOLO / tired spend insight
+  if (yoloCount >= 2) {
+    const yoloAvg = yoloSpend / yoloCount;
+    insights.push({
+      priority: 6,
+      icon: "😴",
+      tag: "Late night mode",
+      headline: `${fmt(yoloSpend)} spent in tired/YOLO mode`,
+      sub: `${yoloCount} purchases tagged as tired or YOLO — avg ${fmt(Math.round(yoloAvg))} each. Mostly late-night Grab? Try prepping merienda before gabi.`,
+      color: C.sky,
+    });
+  }
+
   if (stressCount >= 3 && neutralCount >= 3) {
     const stressAvg = stressSpend / stressCount;
     const neutralAvg = neutralSpend / neutralCount;
@@ -2802,7 +2834,7 @@ function getSharpInsight(expenses, income, dailyLimit, wallets, utangs, payday) 
         icon: "😤",
         color: C.rose,
         headline: `Stressed spending costs you ${fmt(extra)} extra`,
-        sub: `Your average spend when stressed is ${fmt(Math.round(stressAvg))} vs ${fmt(Math.round(neutralAvg))} on normal days. Kumain ka na lang ng lugaw.`,
+        sub: `Average stressed spend: ${fmt(Math.round(stressAvg))} vs ${fmt(Math.round(neutralAvg))} on calm days. That's ${fmt(Math.round(stressAvg - neutralAvg))} more per stress-spend. Kumain ka na lang ng lugaw.`,
         tag: "Mood pattern",
       };
     }
