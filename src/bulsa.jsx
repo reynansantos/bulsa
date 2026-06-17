@@ -1434,6 +1434,8 @@ Rules: name=merchant capitalized, amount=number only (0 if missing), best catId 
       time:  `${h%12||12}:${mn} ${h>=12?"PM":"AM"}`,
       ts:    new Date(expDate+"T"+(isToday?new Date().toTimeString().slice(0,8):"12:00:00")).toISOString()
     });
+    // New expense: deduct wallet
+    // Edit: wallet swap handled in handleSaveEdit via original walletId passed from call site
     if (walletId && onDeductWallet && !isEdit) onDeductWallet(walletId, +amount);
     close();
   };
@@ -4240,7 +4242,23 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
     }
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
-  const handleSaveEdit = updated => setExpenses(prev=>prev.map(e=>e.id===updated.id?updated:e));
+  const handleSaveEdit = (updated, originalWalletId, originalAmount) => {
+    // Wallet swap logic: refund old wallet, deduct new wallet
+    if (wallets && setWallets) {
+      setWallets(prev => prev.map(w => {
+        // Refund original wallet if it had a deduction
+        if (originalWalletId && w.id === originalWalletId) {
+          return { ...w, balance: w.balance + (originalAmount || 0) };
+        }
+        // Deduct new wallet if changed (or same wallet with different amount)
+        if (updated.walletId && w.id === updated.walletId) {
+          return { ...w, balance: Math.max(w.balance - updated.amount, 0) };
+        }
+        return w;
+      }));
+    }
+    setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
+  };
   const handleAddPhoto = (id, photo) => {
     setExpenses(prev => prev.map(e => e.id===id ? {...e, photo} : e));
     setDetail(prev => prev && prev.id===id ? {...prev, photo} : prev);
@@ -4263,7 +4281,7 @@ function ExpensesScreen({ expenses: rawExpenses=[], setExpenses, budgets: rawBud
   return (
     <div className="screen-wrap" style={{ padding:"22px 18px 16px", display:"flex", flexDirection:"column", gap:14 }}>
       {detail&&<ExpenseDetail expense={detail} onClose={()=>setDetail(null)} onEdit={handleEdit} onDelete={handleDelete} onAddPhoto={handleAddPhoto}/>}
-      {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={handleSaveEdit} moodLogsCount={moodLogs} wallets={wallets||[]}/>}
+      {editExp&&<AddExpenseSheet editExpense={editExp} onClose={()=>setEditExp(null)} onSave={(updated)=>handleSaveEdit(updated, editExp.walletId, editExp.amount)} moodLogsCount={moodLogs} wallets={wallets||[]} onDeductWallet={()=>{}}/>}
 
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
